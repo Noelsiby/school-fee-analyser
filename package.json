@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
-    "build": "npm install && cd client && npm install && npm run build && cd ../server && npm install && npx prisma generate && npx prisma migrate deploy",
+    "build": "npm install --include=dev && cd client && npm install --include=dev && npm run build && cd ../server && npm install --include=dev && npx prisma generate && npx prisma migrate deploy",
     "start": "node server/index.js",
     "db:migrate": "npm --prefix server run db:migrate",
     "db:studio": "npm --prefix server run db:studio"

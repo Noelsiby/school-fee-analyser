@@ -1,0 +1,101 @@
+/* RoleSwitcherPage.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.switcher-root {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(145deg, #0f2260 0%, #1E3A8A 60%, #1d4ed8 100%);
+  font-family: 'Inter', sans-serif;
+}
+
+.switcher-card {
+  width: 100%;
+  max-width: 480px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 25px 60px rgba(15,34,96,0.2);
+  padding: 40px 36px 32px;
+  animation: slideUp 0.45s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes slideUp {
+  from { opacity:0; transform: translateY(24px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+
+.switcher-header { text-align: center; margin-bottom: 32px; }
+
+.switcher-avatar {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1E3A8A, #2563eb);
+  color: #F5B700;
+  font-size: 2rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+  box-shadow: 0 4px 16px rgba(30,58,138,0.3);
+}
+
+.switcher-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.switcher-subtitle {
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.role-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+
+.role-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s, box-shadow 0.2s;
+  font-family: 'Inter', sans-serif;
+}
+.role-card:hover {
+  border-color: var(--role-color, #1E3A8A);
+  background: color-mix(in srgb, var(--role-color, #1E3A8A) 6%, #fff);
+  transform: translateX(4px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.role-icon { font-size: 1.8rem; flex-shrink: 0; }
+
+.role-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.role-name { font-size: 0.95rem; font-weight: 700; color: #1e293b; }
+.role-desc { font-size: 0.78rem; color: #64748b; line-height: 1.4; }
+
+.role-arrow {
+  font-size: 1.1rem;
+  color: #94a3b8;
+  transition: transform 0.2s, color 0.2s;
+}
+.role-card:hover .role-arrow {
+  transform: translateX(4px);
+  color: var(--role-color, #1E3A8A);
+}
+
+.switcher-note {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+@media (max-width: 480px) {
+  .switcher-card { padding: 28px 24px 24px; }
+}

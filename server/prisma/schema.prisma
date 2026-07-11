@@ -1,0 +1,362 @@
+// ============================================================
+// schema.prisma — Matha School Exam Manager
+// ============================================================
+//
+// DATABASE: Aiven-hosted PostgreSQL
+// IMPORTANT: Aiven requires SSL. The DATABASE_URL in .env must
+// include `?sslmode=require` at the end, e.g.:
+//   postgresql://user:password@host:port/dbname?sslmode=require
+//
+// Prisma handles SSL via the connection string parameter above.
+// No additional `ssl: { rejectUnauthorized: false }` is needed
+// in schema.prisma itself — the sslmode=require in the URL is
+// sufficient for Aiven's managed Postgres plan.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Set DATABASE_URL in .env — must end with ?sslmode=require for Aiven
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+// Role design choice: FLAGS on the User model (Array of Role enum)
+// rather than a separate UserRole join table.
+//
+// Rationale: A teacher holding both ClassTeacher and SubjectTeacher
+// is a small, bounded set of combinations. PostgreSQL supports native
+// array columns, and Prisma supports `Role[]` directly. This avoids
+// an extra join table while remaining expressive. If roles become
+// hierarchical or require metadata (e.g., granted-by, granted-at),
+// we can migrate to a join table cleanly — the enum values stay the same.
+enum Role {
+  Admin
+  ClassTeacher
+  SubjectTeacher
+}
+
+enum ExamStatus {
+  Draft
+  Open
+  Closed
+}
+
+enum MarkStatus {
+  Pending
+  SubmittedToClassTeacher
+  Approved
+  Rejected
+}
+
+enum NotificationType {
+  Info
+  Warning
+  Action
+  Approval
+}
+
+// ============================================================
+// USER
+// ============================================================
+
+model User {
+  id              Int      @id @default(autoincrement())
+  name            String
+  email           String   @unique
+  passwordHash    String
+  roles           Role[]   // e.g. [ClassTeacher, SubjectTeacher] simultaneously
+  profilePicUrl   String?
+  createdAt       DateTime @default(now())
+
+  // Relations — as ClassTeacher assigned to a class
+  classesManaged        Class[]                  @relation("ClassTeacher")
+
+  // Relations — as subject teacher
+  subjectAssignments    TeacherSubjectAssignment[]
+
+  // Marks entered/edited by this user
+  marksEntered          Mark[]                   @relation("EnteredBy")
+  marksLastEdited       Mark[]                   @relation("LastEditedBy")
+
+  // Audit trail authored by this user
+  auditLogs             AuditLog[]
+
+  // Notifications for this user
+  notifications         Notification[]
+
+  @@index([email])
+  @@map("users")
+}
+
+// ============================================================
+// CLASS
+// ============================================================
+
+model Class {
+  id             Int     @id @default(autoincrement())
+  name           String  @unique  // e.g. "10-A", "9-B"
+
+  // Class teacher (optional — assigned after class creation)
+  classTeacherId Int?
+  classTeacher   User?   @relation("ClassTeacher", fields: [classTeacherId], references: [id])
+
+  // A class has multiple subjects
+  subjects       Subject[]
+
+  // A class has multiple exams (CLASS_EXAM)
+  exams          Exam[]
+
+  // Internal exam enrollments
+  internalExams  ExamClassEnrollment[]
+
+  // A class has multiple teacher-subject assignments
+  teacherAssignments TeacherSubjectAssignment[]
+
+  // Students enrolled in this class
+  students       Student[]
+
+  @@index([classTeacherId])
+  @@map("classes")
+}
+
+// ============================================================
+// SUBJECT
+// ============================================================
+
+model Subject {
+  id      Int    @id @default(autoincrement())
+  name    String // e.g. "Mathematics", "English"
+
+  // A subject belongs to exactly one class
+  classId Int
+  class   Class  @relation(fields: [classId], references: [id])
+
+  // Teacher-subject assignments
+  teacherAssignments  TeacherSubjectAssignment[]
+
+  // Exam subject configurations
+  examConfigs         ExamSubjectConfig[]
+
+  // Marks for this subject
+  marks               Mark[]
+
+  @@unique([name, classId])  // Same subject name can exist in different classes
+  @@index([classId])
+  @@map("subjects")
+}
+
+// ============================================================
+// TEACHER-SUBJECT ASSIGNMENT
+// ============================================================
+// A teacher can teach multiple subjects across multiple classes.
+// This is a 3-way join: Teacher × Subject × Class
+// (classId is denormalized here for query convenience, but it
+//  must match subject.classId — enforced at the application layer)
+
+model TeacherSubjectAssignment {
+  id        Int  @id @default(autoincrement())
+
+  teacherId Int
+  teacher   User    @relation(fields: [teacherId], references: [id])
+
+  subjectId Int
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  classId   Int
+  class     Class   @relation(fields: [classId], references: [id])
+
+  @@unique([teacherId, subjectId, classId])  // Prevent duplicate assignments
+  @@index([teacherId])
+  @@index([subjectId])
+  @@index([classId])
+  @@map("teacher_subject_assignments")
+}
+
+// ============================================================
+// STUDENT
+// ============================================================
+// Students are permanent records — they do NOT have logins.
+// Authentication is only for staff (Users).
+
+model Student {
+  id          Int    @id @default(autoincrement())
+  name        String
+  rollNumber  String // Roll number within the class
+
+  classId     Int
+  class       Class  @relation(fields: [classId], references: [id])
+
+  // Marks obtained by this student
+  marks       Mark[]
+
+  @@unique([rollNumber, classId])  // Roll numbers unique per class
+  @@index([classId])
+  @@map("students")
+}
+
+// ============================================================
+// EXAM
+// ============================================================
+
+enum ExamType {
+  CLASS_EXAM
+  INTERNAL_EXAM
+}
+
+model ExamClassEnrollment {
+  examId    Int
+  classId   Int
+
+  exam      Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  class     Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  // Tracks if the Class Teacher has approved this specific class's portion of the Internal Exam
+  isLocked  Boolean @default(false)
+
+  @@id([examId, classId])
+  @@map("exam_class_enrollments")
+}
+
+model Exam {
+  id        Int      @id @default(autoincrement())
+  name      String
+  examType  ExamType @default(CLASS_EXAM)
+
+  // For CLASS_EXAM: A single class is linked directly
+  classId   Int?
+  class     Class?   @relation(fields: [classId], references: [id])
+
+  // For INTERNAL_EXAM: Multiple classes can be enrolled
+  enrollments ExamClassEnrollment[]
+
+  deadline  DateTime?
+  status    ExamStatus @default(Draft)
+  isLocked  Boolean    @default(false)
+
+  subjectConfigs ExamSubjectConfig[]
+  marks          Mark[]
+
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([status])
+  @@map("exams")
+}
+
+// ============================================================
+// EXAM SUBJECT CONFIG
+// ============================================================
+// Defines which subjects are part of an exam and their max marks.
+
+model ExamSubjectConfig {
+  id        Int  @id @default(autoincrement())
+
+  examId    Int
+  exam      Exam    @relation(fields: [examId], references: [id])
+
+  subjectId Int
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  maxMarks  Float   // Allows decimal max marks (e.g. 33.5)
+
+  @@unique([examId, subjectId])  // One config per exam-subject pair
+  @@index([examId])
+  @@index([subjectId])
+  @@map("exam_subject_configs")
+}
+
+// ============================================================
+// MARK
+// ============================================================
+// The core operational record: one row per student × subject × exam.
+
+model Mark {
+  id             Int        @id @default(autoincrement())
+
+  examId         Int
+  exam           Exam       @relation(fields: [examId], references: [id])
+
+  subjectId      Int
+  subject        Subject    @relation(fields: [subjectId], references: [id])
+
+  studentId      Int
+  student        Student    @relation(fields: [studentId], references: [id])
+
+  marksObtained  Float?     // Null means not yet entered
+
+  // Who entered the mark initially
+  enteredById    Int
+  enteredBy      User       @relation("EnteredBy", fields: [enteredById], references: [id])
+
+  status         MarkStatus @default(Pending)
+  rejectionReason String?   // Populated when status = Rejected
+
+  // Audit fields for the mark record itself
+  lastEditedById Int
+  lastEditedBy   User       @relation("LastEditedBy", fields: [lastEditedById], references: [id])
+  lastEditedAt   DateTime   @updatedAt
+
+  @@unique([examId, subjectId, studentId])  // One mark per student per subject per exam
+  @@index([examId])
+  @@index([subjectId])
+  @@index([studentId])
+  @@index([enteredById])
+  @@index([status])
+  @@map("marks")
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+// Immutable append-only table. Every destructive change to any
+// entity should produce a row here. oldValue/newValue are stored
+// as JSON for schema flexibility.
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+
+  tableName   String   // e.g. "marks", "exams"
+  recordId    String   // String to accommodate any PK type
+  action      String   // "CREATE" | "UPDATE" | "DELETE"
+
+  oldValue    Json?    // Snapshot before change
+  newValue    Json?    // Snapshot after change
+
+  changedById Int
+  changedBy   User     @relation(fields: [changedById], references: [id])
+
+  changedAt   DateTime @default(now())
+
+  @@index([tableName, recordId])
+  @@index([changedById])
+  @@index([changedAt])
+  @@map("audit_logs")
+}
+
+// ============================================================
+// NOTIFICATION
+// ============================================================
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+
+  userId    Int
+  user      User             @relation(fields: [userId], references: [id])
+
+  message   String
+  type      NotificationType @default(Info)
+  isRead    Boolean          @default(false)
+
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}

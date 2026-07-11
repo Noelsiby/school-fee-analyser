@@ -1,0 +1,168 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useApi } from '../../hooks/useApi';
+import './admin.css';
+
+export default function ExamResultsPage() {
+  const { id } = useParams();
+  const { apiCall } = useApi();
+  const navigate = useNavigate();
+
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
+  const [unlockModal, setUnlockModal] = useState(false);
+  const [actioning, setActioning] = useState(false);
+
+  const loadData = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const res = await apiCall(`/api/admin/exams/${id}/results`);
+      setData(res);
+    } catch (e) {
+      setError(e.message || 'Failed to load results.');
+    } finally {
+      setLoading(false);
+    }
+  }, [apiCall, id]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleUnlock = async () => {
+    setActioning(true);
+    try {
+      await apiCall(`/api/admin/exams/${id}/unlock`, { method: 'PUT' });
+      setUnlockModal(false);
+      navigate('/admin/exams');
+    } catch (e) {
+      alert(e.message);
+      setActioning(false);
+    }
+  };
+
+  const handleExport = () => {
+    window.location.href = `/api/admin/exams/${id}/export`;
+  };
+
+  if (loading) return <div className="admin-page"><div className="empty-state"><div className="spinner spinner-dark" /></div></div>;
+  if (error) return <div className="admin-page"><div className="empty-state"><p style={{ color: '#dc2626' }}>⚠ {error}</p><button className="btn btn-primary" onClick={() => navigate('/admin/exams')}>Back to Exams</button></div></div>;
+
+  const { exam, subjects, results } = data;
+
+  return (
+    <div className="admin-page">
+      <div className="detail-breadcrumb">
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/exams')}>← Exams</button>
+        <span style={{ color: '#94a3b8', margin: '0 6px' }}>/</span>
+        <span style={{ fontWeight: 600 }}>{exam.name} Results</span>
+      </div>
+
+      <div className="page-header" style={{ marginBottom: 24 }}>
+        <div>
+          <h1 className="page-title">{exam.name} Results</h1>
+          <p className="page-sub">{exam.class?.name || 'Multi-Class Exam'} · {results.length} Students</p>
+        </div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          {exam.isLocked && (
+            <button 
+              className="btn btn-ghost" 
+              style={{ color: '#dc2626', borderColor: '#fecaca' }}
+              onClick={() => setUnlockModal(true)}
+            >
+              🔓 Unlock Exam
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={() => window.location.href = `/api/admin/exams/${id}/export/excel`} style={{ background: '#10b981', borderColor: '#10b981' }}>
+            📊 Export Excel
+          </button>
+          <button className="btn btn-primary" onClick={() => window.location.href = `/api/admin/exams/${id}/export/word`} style={{ background: '#3b82f6', borderColor: '#3b82f6' }}>
+            📝 Export Word
+          </button>
+          <button className="btn btn-ghost" onClick={() => window.print()}>
+            🖨️ Print
+          </button>
+        </div>
+      </div>
+
+      {!exam.isLocked && exam.status === 'Open' && (
+        <div className="alert alert-warning" style={{ marginBottom: 24 }}>
+          ⚠️ This exam is currently OPEN. The results below may be incomplete or subject to change until finalized by the Class Teacher.
+        </div>
+      )}
+
+      <div className="data-card" style={{ overflowX: 'auto' }}>
+        <table className="data-table" style={{ whiteSpace: 'nowrap' }}>
+          <thead>
+            <tr>
+              <th style={{ position: 'sticky', left: 0, background: '#f8fafc', zIndex: 10 }}>Roll No</th>
+              <th style={{ position: 'sticky', left: '70px', background: '#f8fafc', zIndex: 10, borderRight: '2px solid #e2e8f0' }}>Student Name</th>
+              {subjects.map(sub => (
+                <th key={sub.id} style={{ textAlign: 'center' }}>
+                  <div>{sub.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Max: {sub.maxMarks}</div>
+                </th>
+              ))}
+              <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Total</th>
+              <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Percentage</th>
+              <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Grade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((row, idx) => (
+              <tr key={row.student.id}>
+                <td style={{ position: 'sticky', left: 0, background: 'white', zIndex: 1 }}>{row.student.rollNumber}</td>
+                <td style={{ position: 'sticky', left: '70px', background: 'white', zIndex: 1, borderRight: '2px solid #e2e8f0', fontWeight: 500 }}>
+                  {row.student.name}
+                </td>
+                {subjects.map(sub => {
+                  const val = row.subjects[sub.id];
+                  const isFail = val !== null && val < (sub.maxMarks * 0.4); // naive < 40% fail
+                  return (
+                    <td key={sub.id} style={{ textAlign: 'center', color: isFail ? '#dc2626' : 'inherit', fontWeight: isFail ? 600 : 400 }}>
+                      {val !== null ? val : '—'}
+                    </td>
+                  );
+                })}
+                <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 600 }}>{row.totalMarks} / {row.totalMaxMarks}</td>
+                <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 700, color: row.percentage >= 80 ? '#059669' : row.percentage < 40 ? '#dc2626' : '#1e3a8a' }}>
+                  {row.percentage}%
+                </td>
+                <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 700 }}>
+                  <span className={`badge ${['A+', 'A', 'B'].includes(row.grade) ? 'badge-green' : row.grade === 'F' ? 'badge-red' : 'badge-gray'}`}>
+                    {row.grade || '—'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Unlock Modal */}
+      {unlockModal && (
+        <div className="modal-overlay" onClick={() => setUnlockModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
+            <div className="modal-header">
+              <h2 className="modal-title" style={{ color: '#dc2626' }}>Unlock Exam?</h2>
+              <button className="modal-close" onClick={() => setUnlockModal(false)}>✕</button>
+            </div>
+            <div className="confirm-body">
+              <p className="confirm-icon">🔓</p>
+              <p className="confirm-msg">Revert <strong>{exam.name}</strong> back to Open?</p>
+              <p className="confirm-sub">
+                This is a safety hatch. It will revoke the Class Teacher's finalization and revert all approved marks back to "Submitted" status, allowing the Class Teacher to reject marks again. A notification will be sent to the Class Teacher.
+              </p>
+            </div>
+            <div className="modal-footer" style={{ marginTop: 24 }}>
+              <button className="btn btn-ghost" onClick={() => setUnlockModal(false)}>Cancel</button>
+              <button className="btn btn-primary" style={{ background: '#dc2626', borderColor: '#dc2626' }} onClick={handleUnlock} disabled={actioning}>
+                {actioning ? <span className="spinner" /> : 'Yes, Unlock Exam'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

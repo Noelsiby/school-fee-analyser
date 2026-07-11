@@ -1,0 +1,51 @@
+.mark-input-wrapper {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 120px;
+}
+
+.mark-input {
+  width: 100%;
+  padding-right: 4px;
+}
+
+.input-error {
+  border-color: #dc2626 !important;
+  background-color: #fef2f2 !important;
+}
+
+.save-status-indicator {
+  position: absolute;
+  right: -70px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.save-status-indicator[data-status="saving"] {
+  color: #64748b;
+}
+
+.save-status-indicator[data-status="saved"] {
+  color: #16a34a;
+}
+
+.save-status-indicator[data-status="error"] {
+  color: #dc2626;
+}
+
+.row-rejected {
+  background-color: #fef2f2 !important;
+}
+
+.rejection-reason {
+  font-size: 0.75rem;
+  color: #dc2626;
+  font-weight: 500;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: #fee2e2;
+  border-radius: 4px;
+  display: inline-block;
+}

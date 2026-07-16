@@ -4,6 +4,9 @@ const { authenticate, authorize } = require('../middleware/auth');
 
 router.use(authenticate, authorize('ClassTeacher'));
 
+// Fetch the students in the class managed by the teacher
+router.get('/my-students', ctrl.getMyStudents);
+
 // Fetch exams for classes the teacher manages
 router.get('/exams', ctrl.getExams);
 

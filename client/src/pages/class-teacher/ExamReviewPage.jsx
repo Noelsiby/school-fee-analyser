@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import FullMarksheetReview from './FullMarksheetReview';
+import MyStudentsList from './MyStudentsList';
 import '../admin/admin.css';
 
 export default function ExamReviewPage() {
@@ -128,6 +129,8 @@ export default function ExamReviewPage() {
           </button>
         )}
       </div>
+
+      <MyStudentsList />
 
       {isLocked && (
         <div className="alert alert-info" style={{ marginBottom: 24 }}>

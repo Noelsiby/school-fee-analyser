@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApi } from '../../hooks/useApi';
+import MyStudentsList from './MyStudentsList';
 import '../admin/admin.css'; 
 
 export default function ClassTeacherDashboard() {
@@ -35,6 +36,8 @@ export default function ClassTeacherDashboard() {
           <p className="page-sub">Welcome back, {user?.name}. Manage exams for your class.</p>
         </div>
       </div>
+
+      <MyStudentsList />
 
       {loading ? (
         <div className="empty-state"><div className="spinner spinner-dark" /></div>

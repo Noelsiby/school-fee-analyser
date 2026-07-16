@@ -510,3 +510,30 @@ exports.finalizeExam = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// Fetch the students belonging to the class teacher's assigned class
+exports.getMyStudents = async (req, res) => {
+  const teacherId = req.user.userId;
+  try {
+    const classData = await prisma.class.findFirst({
+      where: { classTeacherId: teacherId },
+      include: {
+        students: {
+          orderBy: { rollNumber: 'asc' }
+        }
+      }
+    });
+
+    if (!classData) {
+      return res.status(404).json({ error: 'No class assigned to this teacher.' });
+    }
+
+    res.json({
+      className: classData.name,
+      totalStudents: classData.students.length,
+      students: classData.students
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

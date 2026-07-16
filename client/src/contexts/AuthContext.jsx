@@ -103,7 +103,14 @@ export function AuthProvider({ children }) {
         return { success: true, redirectPath: getRolePath(roles[0]), needsRoleSelect: false };
       }
 
-      // Multiple roles → let user pick
+      // If multiple roles and one is ClassTeacher, default to it
+      if (roles.includes('ClassTeacher')) {
+        setActiveRole('ClassTeacher');
+        localStorage.setItem('activeRole', 'ClassTeacher');
+        return { success: true, redirectPath: getRolePath('ClassTeacher'), needsRoleSelect: false };
+      }
+
+      // Multiple roles without ClassTeacher → let user pick
       return { success: true, redirectPath: '/role-select', needsRoleSelect: true };
     } catch (err) {
       return { success: false, error: 'Network error. Is the server running?' };

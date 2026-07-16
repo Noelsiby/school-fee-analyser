@@ -55,7 +55,6 @@ const login = async (req, res) => {
     // 4. Return user profile (no passwordHash) and set cookie
     const { passwordHash: _, ...safeUser } = user;
     
-    res.clearCookie('token');
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

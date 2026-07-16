@@ -123,12 +123,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ marginTop: '24px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', fontSize: '0.8rem', color: '#475569', textAlign: 'left', lineHeight: '1.4' }}>
-          <strong>Note:</strong> Only one account can be active at a time in this browser. Logging in will sign out any other active session.
-          <br /><br />
-          <em>To test multiple accounts simultaneously, use different browsers or an incognito window.</em>
-        </div>
-
         <p className="login-footer">© 2026 Matha English Medium School</p>
       </div>
     </div>

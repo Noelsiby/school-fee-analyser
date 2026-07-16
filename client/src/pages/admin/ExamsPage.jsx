@@ -23,7 +23,11 @@ export default function ExamsPage() {
 
   // State for config modal
   const [classSubjects, setClassSubjects] = useState([]);
+  const [groupedSubjects, setGroupedSubjects] = useState([]); // Array of { classId, className, studentCount, subjects }
+  const [expandedSections, setExpandedSections] = useState({}); // { [classId]: boolean }
+  const [copyToAllValue, setCopyToAllValue] = useState('');
   const [maxMarksValues, setMaxMarksValues] = useState({});
+  const [configSuccess, setConfigSuccess] = useState([]);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError('');
@@ -52,18 +56,42 @@ export default function ExamsPage() {
     setSaving(true);
     try {
       let subjects = [];
+      let grouped = [];
+      const initExpanded = {};
+
       if (exam.examType === 'INTERNAL_EXAM' && exam.enrollments?.length > 0) {
         const promises = exam.enrollments.map(async (e) => {
           const res = await apiCall(`/api/admin/subjects?classId=${e.classId}`);
-          return res.subjects.map(s => ({ ...s, className: e.class.name }));
+          const classSubjects = res.subjects.map(s => ({ ...s, className: e.class.name }));
+          
+          grouped.push({
+            classId: e.classId,
+            className: e.class.name,
+            studentCount: e.class?._count?.students || 0,
+            subjects: classSubjects
+          });
+          initExpanded[e.classId] = true;
+          return classSubjects;
         });
         const results = await Promise.all(promises);
         subjects = results.flat();
       } else {
         const res = await apiCall(`/api/admin/subjects?classId=${exam.classId}`);
         subjects = res.subjects.map(s => ({ ...s, className: exam.class?.name }));
+        
+        grouped.push({
+          classId: exam.classId,
+          className: exam.class?.name,
+          studentCount: exam.class?._count?.students || 0,
+          subjects: subjects
+        });
+        initExpanded[exam.classId] = true;
       }
+      
       setClassSubjects(subjects);
+      setGroupedSubjects(grouped);
+      setExpandedSections(initExpanded);
+      setCopyToAllValue('');
       
       const initialValues = {};
       exam.subjectConfigs.forEach(c => {
@@ -113,6 +141,16 @@ export default function ExamsPage() {
         method: 'POST', 
         body: { configs } 
       });
+
+      // Generate success messages per class for INTERNAL_EXAM
+      if (selectedExam.examType === 'INTERNAL_EXAM') {
+        const messages = groupedSubjects.map(g => 
+          `✅ ${g.className} configured (${g.subjects.length} subjects)`
+        );
+        setConfigSuccess(messages);
+        setTimeout(() => setConfigSuccess([]), 5000);
+      }
+
       setModal(null);
       loadData();
     } catch (e) {
@@ -190,6 +228,14 @@ export default function ExamsPage() {
         <button className="btn btn-primary" onClick={openCreate}>+ Create Exam</button>
       </div>
 
+      {configSuccess.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          {configSuccess.map((msg, i) => (
+            <div key={i} className="alert alert-success" style={{ marginBottom: 8 }}>{msg}</div>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <div className="empty-state"><div className="spinner spinner-dark" /></div>
       ) : error ? (
@@ -242,7 +288,10 @@ export default function ExamsPage() {
                     <td>{statusBadge(exam.status)}</td>
                     <td>
                       {isConfigured ? (
-                        <span style={{ color: '#16a34a', fontSize: '0.85rem', fontWeight: 500 }}>✓ {exam.subjectConfigs.length} subjects</span>
+                        <span style={{ color: '#16a34a', fontSize: '0.85rem', fontWeight: 500 }}>
+                          ✓ {exam.subjectConfigs.length} subjects
+                          {isInternal && exam.enrollments && ` across ${exam.enrollments.length} classes`}
+                        </span>
                       ) : (
                         <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Not configured</span>
                       )}
@@ -448,29 +497,127 @@ export default function ExamsPage() {
                     No subjects found for the enrolled classes. Please go to Classes to add subjects first.
                   </div>
                 ) : (
-                  <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
-                    {classSubjects.map(sub => (
-                      <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                        <div>
-                          <div style={{ fontWeight: 600, color: '#334155' }}>📚 {sub.name}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Class: {sub.className}</div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Max Marks:</span>
+                  <>
+                    {selectedExam.examType === 'INTERNAL_EXAM' && (
+                      <div style={{ background: '#f0f9ff', padding: 12, borderRadius: 8, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #bae6fd' }}>
+                        <span style={{ fontSize: '0.85rem', color: '#0369a1', fontWeight: 600 }}>Set all subjects to same marks:</span>
+                        <div style={{ display: 'flex', gap: 8 }}>
                           <input 
                             type="number" 
-                            step="0.1" 
-                            min="1" 
                             className="form-input" 
-                            style={{ width: '90px' }}
-                            value={maxMarksValues[sub.id] || ''} 
-                            onChange={e => setMaxMarksValues(prev => ({ ...prev, [sub.id]: e.target.value }))} 
-                            required
+                            style={{ width: '80px', padding: '4px 8px' }}
+                            placeholder="e.g. 100"
+                            value={copyToAllValue}
+                            onChange={e => setCopyToAllValue(e.target.value)}
                           />
+                          <button 
+                            type="button" 
+                            className="btn btn-primary btn-sm"
+                            onClick={() => {
+                              if (!copyToAllValue) return;
+                              const val = Number(copyToAllValue);
+                              setMaxMarksValues(prev => {
+                                const next = { ...prev };
+                                Object.keys(next).forEach(k => next[k] = val);
+                                return next;
+                              });
+                            }}
+                          >
+                            Apply to all
+                          </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    )}
+
+                    <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+                      {selectedExam.examType === 'INTERNAL_EXAM' ? (
+                        groupedSubjects.map(group => {
+                          const isExpanded = expandedSections[group.classId];
+                          return (
+                            <div key={group.classId} style={{ marginBottom: 16, border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+                              <div 
+                                style={{ background: '#f8fafc', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+                                onClick={() => setExpandedSections(prev => ({ ...prev, [group.classId]: !isExpanded }))}
+                              >
+                                <div style={{ fontWeight: 600, color: '#1e293b' }}>
+                                  📚 {group.className} <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 400, marginLeft: 8 }}>— {group.studentCount} Students</span>
+                                </div>
+                                <div style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 500 }}>
+                                  {isExpanded ? '▼ Expand' : '▶ Expand'}
+                                </div>
+                              </div>
+                              {isExpanded && (
+                                <div style={{ padding: '12px 16px', background: '#fff' }}>
+                                  {group.subjects.length === 0 ? (
+                                    <div style={{ fontSize: '0.85rem', color: '#64748b' }}>No subjects in this class.</div>
+                                  ) : (
+                                    group.subjects.map(sub => (
+                                      <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 12, borderBottom: '1px dashed #e2e8f0' }}>
+                                        <div style={{ fontWeight: 500, color: '#334155' }}>{sub.name}</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Max Marks:</span>
+                                          <input 
+                                            type="number" 
+                                            step="0.1" 
+                                            min="1"
+                                            max="999"
+                                            className="form-input" 
+                                            style={{ width: '80px', padding: '6px' }}
+                                            value={maxMarksValues[sub.id] || ''} 
+                                            onChange={e => setMaxMarksValues(prev => ({ ...prev, [sub.id]: e.target.value }))} 
+                                            required
+                                          />
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        // Flat list for CLASS_EXAM
+                        classSubjects.map(sub => (
+                          <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                            <div>
+                              <div style={{ fontWeight: 600, color: '#334155' }}>📚 {sub.name}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Class: {sub.className}</div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Max Marks:</span>
+                              <input 
+                                type="number" 
+                                step="0.1" 
+                                min="1" 
+                                max="999"
+                                className="form-input" 
+                                style={{ width: '90px' }}
+                                value={maxMarksValues[sub.id] || ''} 
+                                onChange={e => setMaxMarksValues(prev => ({ ...prev, [sub.id]: e.target.value }))} 
+                                required
+                              />
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    
+                    {selectedExam.examType === 'INTERNAL_EXAM' && groupedSubjects.length > 0 && (
+                      <div style={{ marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#475569', marginBottom: 8 }}>Configuration Summary</div>
+                        {groupedSubjects.map(group => {
+                          const classTotal = group.subjects.reduce((sum, s) => sum + Number(maxMarksValues[s.id] || 0), 0);
+                          const subjectBreakdown = group.subjects.map(s => `${s.name}(${maxMarksValues[s.id] || 0})`).join(' + ');
+                          return (
+                            <div key={group.classId} style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 4 }}>
+                              <strong>{group.className}:</strong> {subjectBreakdown || '0'} = {classTotal} total
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div className="modal-footer" style={{ marginTop: 20 }}>

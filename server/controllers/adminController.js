@@ -570,8 +570,8 @@ exports.getExams = async (req, res) => {
   try {
     const exams = await prisma.exam.findMany({
       include: {
-        class: { select: { id: true, name: true, classTeacher: { select: { id: true, name: true } } } },
-        enrollments: { include: { class: { select: { id: true, name: true, classTeacher: { select: { id: true, name: true } } } } } },
+        class: { select: { id: true, name: true, _count: { select: { students: true } }, classTeacher: { select: { id: true, name: true } } } },
+        enrollments: { include: { class: { select: { id: true, name: true, _count: { select: { students: true } }, classTeacher: { select: { id: true, name: true } } } } } },
         subjectConfigs: { include: { subject: true } },
         _count: { select: { marks: true } },
       },

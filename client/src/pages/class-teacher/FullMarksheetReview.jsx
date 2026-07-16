@@ -63,6 +63,11 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
   if (loading) return <div style={{ padding: 20, textAlign: 'center' }}><div className="spinner spinner-dark" /></div>;
   if (error) return <div style={{ color: '#dc2626', padding: 20 }}>⚠ {error}</div>;
 
+  const totalMaxMarks = data?.subjects?.reduce((sum, sub) => {
+    const config = data.exam.subjectConfigs.find(c => c.subjectId === sub.id);
+    return sum + (config ? config.maxMarks : 100);
+  }, 0) || 0;
+
   return (
     <div className="data-card" style={{ marginTop: 24, overflowX: 'auto' }}>
       <h2 style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', margin: 0, fontSize: '1.1rem' }}>
@@ -73,12 +78,24 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
           <tr>
             <th>Student</th>
             <th>Roll No</th>
-            {data.subjects.map(sub => (
-              <th key={sub.id} style={{ textAlign: 'center' }}>
-                {sub.name}
-              </th>
-            ))}
-            <th style={{ textAlign: 'center' }}>Total</th>
+            {data.subjects.map(sub => {
+              const config = data.exam.subjectConfigs.find(c => c.subjectId === sub.id);
+              const maxMarks = config ? config.maxMarks : 100;
+              return (
+                <th key={sub.id} style={{ textAlign: 'center' }}>
+                  <div>{sub.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'normal', marginTop: 4 }}>
+                    Max: {maxMarks}
+                  </div>
+                </th>
+              );
+            })}
+            <th style={{ textAlign: 'center' }}>
+              <div>Total</div>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'normal', marginTop: 4 }}>
+                / {totalMaxMarks}
+              </div>
+            </th>
             <th style={{ textAlign: 'center' }}>%</th>
             <th style={{ textAlign: 'center' }}>Grade</th>
           </tr>
@@ -149,7 +166,9 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
                 );
               })}
 
-              <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{row.totalMarks}</td>
+              <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                {row.totalMarks !== '—' ? `${row.totalMarks} / ${totalMaxMarks}` : '—'}
+              </td>
               <td style={{ textAlign: 'center' }}>{row.percentage}{row.percentage !== '—' && '%'}</td>
               <td style={{ textAlign: 'center' }}>
                 <span className={`badge ${['A+', 'A'].includes(row.grade) ? 'badge-green' : ['B', 'C'].includes(row.grade) ? 'badge-blue' : row.grade === 'F' ? 'badge-red' : 'badge-gray'}`}>

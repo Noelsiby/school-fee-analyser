@@ -35,6 +35,14 @@ export function useApi() {
     const data = await res.json();
 
     if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        // Cookie was overwritten in another tab or expired. 
+        // Clear local role state and force a hard reload to re-sync with the actual cookie.
+        localStorage.removeItem('activeRole');
+        window.location.href = '/';
+        // Return a never-resolving promise so the component doesn't proceed to throw/render error
+        return new Promise(() => {});
+      }
       throw new Error(data.error || data.message || `Request failed (${res.status})`);
     }
 
@@ -58,6 +66,11 @@ export function useApi() {
     const data = await res.json();
 
     if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('activeRole');
+        window.location.href = '/';
+        return new Promise(() => {});
+      }
       throw new Error(data.error || data.message || `Upload failed (${res.status})`);
     }
 

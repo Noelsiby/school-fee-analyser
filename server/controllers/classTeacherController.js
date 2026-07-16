@@ -538,7 +538,7 @@ exports.finalizeExam = async (req, res) => {
 
     const exam = await prisma.exam.findUnique({
       where: { id: Number(id) },
-      include: { subjectConfigs: true }
+      include: { subjectConfigs: { include: { subject: true } } }
     });
 
     // Verify all subjects are fully approved

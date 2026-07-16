@@ -285,7 +285,27 @@ export default function ExamsPage() {
                         : exam.class?.name}
                     </td>
                     <td>{exam.deadline ? new Date(exam.deadline).toLocaleDateString() : '—'}</td>
-                    <td>{statusBadge(exam.status)}</td>
+                    <td>
+                      {isInternal && exam.status === 'Open' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', marginBottom: 2 }}>
+                            {statusBadge(exam.status)} ({(exam.enrollments?.filter(e => e.status === 'Finalized')?.length || 0)} of {exam.enrollments?.length || 0} finalized)
+                          </div>
+                          {exam.enrollments?.map(e => (
+                            <div key={e.class.id} style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span>{e.class.name}:</span>
+                              {e.status === 'Finalized' ? (
+                                <span style={{ color: '#16a34a', fontWeight: 'bold' }}>✅ Finalized</span>
+                              ) : (
+                                <span style={{ color: '#d97706', fontWeight: 'bold' }}>⏳ {e.status}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        statusBadge(exam.status)
+                      )}
+                    </td>
                     <td>
                       {isConfigured ? (
                         <span style={{ color: '#16a34a', fontSize: '0.85rem', fontWeight: 500 }}>

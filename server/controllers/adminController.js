@@ -866,10 +866,18 @@ exports.getExamResults = async (req, res) => {
 
       results.sort((a, b) => b.percentage - a.percentage);
 
+      const enrollment = exam.examType === 'INTERNAL_EXAM' 
+        ? exam.enrollments.find(e => e.classId === cls.id)
+        : null;
+      const status = exam.examType === 'CLASS_EXAM' 
+        ? (exam.status === 'Closed' ? 'Finalized' : 'Pending')
+        : (enrollment ? enrollment.status : 'Pending');
+
       classResults.push({
         classId: cls.id,
         className: cls.name,
         studentCount: cls.students.length,
+        status,
         subjects: classSubjects,
         results
       });

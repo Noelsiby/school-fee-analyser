@@ -112,8 +112,9 @@ export default function ExamResultsPage() {
               <span style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase' }}>Class Breakdown</span>
               <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: 4 }}>
                 {data.classResults.map(cls => (
-                  <span key={cls.classId} style={{ background: '#f1f5f9', padding: '4px 12px', borderRadius: 16, fontSize: '0.9rem', fontWeight: 500 }}>
+                  <span key={cls.classId} style={{ background: '#f1f5f9', padding: '4px 12px', borderRadius: 16, fontSize: '0.9rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
                     {cls.className}: {cls.studentCount}
+                    {cls.status === 'Finalized' ? '✅' : '⏳'}
                   </span>
                 ))}
               </div>
@@ -126,11 +127,26 @@ export default function ExamResultsPage() {
       {data.classResults.map((cls, idx) => (
         <div key={cls.classId} className="print-section" style={{ pageBreakBefore: idx > 0 ? 'always' : 'auto', marginBottom: 40 }}>
           {exam.examType === 'INTERNAL_EXAM' && (
-            <h2 style={{ color: '#1e293b', marginBottom: 12, fontSize: '1.25rem', borderBottom: '2px solid #e2e8f0', paddingBottom: 8 }}>
-              {cls.className} <span style={{ color: '#64748b', fontSize: '1rem', fontWeight: 400 }}>— {cls.studentCount} Students</span>
+            <h2 style={{ color: '#1e293b', marginBottom: 12, fontSize: '1.25rem', borderBottom: '2px solid #e2e8f0', paddingBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                {cls.className} <span style={{ color: '#64748b', fontSize: '1rem', fontWeight: 400 }}>— {cls.studentCount} Students</span>
+              </div>
+              <div>
+                {cls.status === 'Finalized' ? (
+                  <span style={{ fontSize: '0.9rem', color: '#16a34a', fontWeight: 'bold' }}>✅ Finalized</span>
+                ) : (
+                  <span style={{ fontSize: '0.9rem', color: '#d97706', fontWeight: 'bold' }}>⏳ {cls.status}</span>
+                )}
+              </div>
             </h2>
           )}
-          <div className="data-card" style={{ overflowX: 'auto', margin: 0 }}>
+          
+          {cls.status !== 'Finalized' ? (
+            <div className="alert alert-warning" style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fcd34d', padding: 16, borderRadius: 8 }}>
+              ⏳ Waiting for Class Teacher to finalize marks for {cls.className}.
+            </div>
+          ) : (
+            <div className="data-card" style={{ overflowX: 'auto', margin: 0 }}>
             <table className="data-table" style={{ whiteSpace: 'nowrap' }}>
               <thead>
                 <tr>

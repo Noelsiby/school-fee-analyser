@@ -48,6 +48,12 @@ enum ExamStatus {
   Closed
 }
 
+enum EnrollmentStatus {
+  Pending
+  InProgress
+  Finalized
+}
+
 enum MarkStatus {
   Pending
   SubmittedToClassTeacher
@@ -219,6 +225,7 @@ model ExamClassEnrollment {
 
   // Tracks if the Class Teacher has approved this specific class's portion of the Internal Exam
   isLocked  Boolean @default(false)
+  status    EnrollmentStatus @default(Pending)
 
   @@id([examId, classId])
   @@map("exam_class_enrollments")

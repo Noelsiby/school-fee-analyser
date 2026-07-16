@@ -114,6 +114,9 @@ exports.getExamReview = async (req, res) => {
       include: {
         subjectConfigs: {
           include: { subject: true }
+        },
+        enrollments: {
+          where: { classId: Number(classId) }
         }
       }
     });
@@ -193,12 +196,15 @@ exports.getExamReview = async (req, res) => {
       };
     });
 
+    const enrollment = exam.enrollments && exam.enrollments.length > 0 ? exam.enrollments[0] : null;
+    const isLocked = exam.isLocked || (enrollment && enrollment.status === 'Finalized');
+
     res.json({
       exam: {
         id: exam.id,
         name: exam.name,
         status: exam.status,
-        isLocked: exam.isLocked
+        isLocked
       },
       class: {
         id: examClass.id,
@@ -543,8 +549,9 @@ exports.finalizeExam = async (req, res) => {
       }
     });
 
+    const classConfigs = exam.subjectConfigs.filter(c => c.subject.classId === Number(classId));
     const studentCount = examClass.students.length;
-    const requiredMarksCount = studentCount * exam.subjectConfigs.length;
+    const requiredMarksCount = studentCount * classConfigs.length;
 
     const approvedCount = marks.filter(m => m.status === 'Approved').length;
 
@@ -552,19 +559,29 @@ exports.finalizeExam = async (req, res) => {
       return res.status(400).json({ error: 'Cannot finalize until all students have approved marks for all subjects.' });
     }
 
-    // Instead of locking the whole exam, we should theoretically lock the enrollment.
-    // However, the current system relies on Exam.status = 'Closed'.
-    // If it's a CLASS_EXAM, we close it. If it's INTERNAL_EXAM, we need to close it if all classes are finalized.
-    // For now, let's keep the existing behaviour (it closes the whole exam). In a real multi-class system, we'd add an ExamClassEnrollment.isLocked flag.
-    
-    // For simplicity, we'll mark the whole exam Closed for now. 
-    await prisma.exam.update({
-      where: { id: Number(id) },
-      data: {
-        status: 'Closed',
-        isLocked: true
+    if (exam.examType === 'INTERNAL_EXAM') {
+      await prisma.examClassEnrollment.update({
+        where: { examId_classId: { examId: Number(id), classId: Number(classId) } },
+        data: { status: 'Finalized', isLocked: true }
+      });
+
+      const allEnrollments = await prisma.examClassEnrollment.findMany({
+        where: { examId: Number(id) }
+      });
+      
+      const allFinalized = allEnrollments.every(e => e.status === 'Finalized');
+      if (allFinalized) {
+        await prisma.exam.update({
+          where: { id: Number(id) },
+          data: { status: 'Closed', isLocked: true }
+        });
       }
-    });
+    } else {
+      await prisma.exam.update({
+        where: { id: Number(id) },
+        data: { status: 'Closed', isLocked: true }
+      });
+    }
 
     const admins = await prisma.user.findMany({
       where: { roles: { has: 'Admin' } }

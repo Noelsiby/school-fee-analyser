@@ -629,7 +629,27 @@ exports.deleteExam = async (req, res) => {
     const examId = Number(req.params.id);
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
     if (!exam) return res.status(404).json({ error: 'Exam not found' });
-    if (exam.status !== 'Draft') return res.status(400).json({ error: 'Only draft exams can be deleted' });
+    
+    if (exam.isLocked) {
+      return res.status(400).json({ error: 'Cannot delete a locked exam. Please unlock it first.' });
+    }
+
+    const marks = await prisma.mark.findMany({ where: { examId }, select: { id: true } });
+    const markIds = marks.map(m => String(m.id));
+
+    if (markIds.length > 0) {
+      await prisma.auditLog.deleteMany({
+        where: {
+          tableName: 'marks',
+          recordId: { in: markIds }
+        }
+      });
+    }
+
+    await prisma.mark.deleteMany({ where: { examId } });
+    await prisma.notification.deleteMany({ where: { message: { contains: `"${exam.name}"` } } });
+    await prisma.examSubjectConfig.deleteMany({ where: { examId } });
+    await prisma.examClassEnrollment.deleteMany({ where: { examId } });
     
     await prisma.exam.delete({ where: { id: examId } });
     res.json({ message: 'Exam deleted successfully' });

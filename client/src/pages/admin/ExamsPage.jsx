@@ -16,6 +16,7 @@ export default function ExamsPage() {
   const [error, setError] = useState('');
 
   const [modal, setModal] = useState(null); // 'create' | 'config' | 'publish'
+  const [deleteModal, setDeleteModal] = useState(null);
   const [selectedExam, setSelectedExam] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
@@ -197,15 +198,19 @@ export default function ExamsPage() {
     }
   };
 
-  const handleDeleteExam = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this exam?')) return;
-    setLoading(true);
+  const handleDeleteExam = async () => {
+    if (!deleteModal) return;
+    setSaving(true);
     try {
-      await apiCall(`/api/admin/exams/${id}`, { method: 'DELETE' });
+      await apiCall(`/api/admin/exams/${deleteModal.id}`, { method: 'DELETE' });
+      setDeleteModal(null);
+      setConfigSuccess(['Exam deleted successfully']);
+      setTimeout(() => setConfigSuccess([]), 5000);
       loadData();
     } catch (e) {
-      setError(e.message);
-      setLoading(false);
+      setFormError(e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -330,7 +335,6 @@ export default function ExamsPage() {
                             >
                               🚀 Publish
                             </button>
-                            <button className="btn btn-ghost btn-sm" style={{ color: '#dc2626' }} onClick={() => handleDeleteExam(exam.id)}>🗑️</button>
                           </>
                         )}
                         {exam.status !== 'Draft' && (
@@ -338,6 +342,15 @@ export default function ExamsPage() {
                             📊 View Results
                           </button>
                         )}
+                        <button 
+                          className="btn btn-ghost btn-sm" 
+                          style={{ color: exam.isLocked ? '#9ca3af' : '#dc2626', cursor: exam.isLocked ? 'not-allowed' : 'pointer' }} 
+                          onClick={() => !exam.isLocked && setDeleteModal(exam)}
+                          title={exam.isLocked ? "Unlock the exam first before deleting" : "Delete Exam"}
+                          disabled={exam.isLocked}
+                        >
+                          🗑️ Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -671,6 +684,53 @@ export default function ExamsPage() {
               <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
               <button className="btn btn-primary" disabled={saving} onClick={handlePublish}>
                 {saving ? <span className="spinner" /> : 'Yes, Publish Exam'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteModal && (
+        <div className="modal-overlay" onClick={() => setDeleteModal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <h2 className="modal-title" style={{ color: '#dc2626' }}>Delete Exam</h2>
+              <button className="modal-close" onClick={() => setDeleteModal(null)}>✕</button>
+            </div>
+            <div className="confirm-body">
+              {deleteModal.status === 'Draft' ? (
+                <>
+                  <p className="confirm-icon">🗑️</p>
+                  <p className="confirm-msg">Are you sure you want to delete <strong>{deleteModal.name}</strong>?</p>
+                  <p className="confirm-sub">This action cannot be undone.</p>
+                </>
+              ) : deleteModal.status === 'Open' ? (
+                <>
+                  <p className="confirm-icon" style={{ fontSize: '3rem' }}>⚠️</p>
+                  <p className="confirm-msg" style={{ color: '#b45309' }}>WARNING</p>
+                  <p className="confirm-sub" style={{ color: '#dc2626', fontWeight: 500 }}>
+                    This exam is currently Open and teachers may have already entered marks. Deleting will permanently remove ALL marks entered.
+                  </p>
+                  <p className="confirm-sub" style={{ marginTop: 8 }}>
+                    Are you sure you want to delete <strong>{deleteModal.name}</strong>?
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="confirm-icon">🗑️</p>
+                  <p className="confirm-msg">Are you sure you want to delete <strong>{deleteModal.name}</strong> and all its results?</p>
+                  <p className="confirm-sub">This cannot be undone.</p>
+                </>
+              )}
+            </div>
+            <div className="modal-footer" style={{ marginTop: 24 }}>
+              <button className="btn btn-ghost" onClick={() => setDeleteModal(null)}>Cancel</button>
+              <button 
+                className="btn btn-primary" 
+                style={{ background: '#dc2626', borderColor: '#dc2626' }} 
+                disabled={saving} 
+                onClick={handleDeleteExam}
+              >
+                {saving ? <span className="spinner" /> : (deleteModal.status === 'Open' ? 'Yes, Delete Everything' : 'Delete')}
               </button>
             </div>
           </div>

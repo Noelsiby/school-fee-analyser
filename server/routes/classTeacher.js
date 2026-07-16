@@ -13,6 +13,9 @@ router.get('/exams', ctrl.getExams);
 // Aggregated view of all subjects and submission statuses for a specific exam
 router.get('/exams/:id/review', ctrl.getExamReview);
 
+// Fetch marks for a specific subject
+router.get('/exams/:id/subjects/:subjectId/marks', ctrl.getSubjectMarks);
+
 // Fetch full marksheet for a class
 router.get('/exams/:id/full-marksheet', ctrl.getFullMarksheet);
 

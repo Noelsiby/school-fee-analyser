@@ -209,6 +209,75 @@ exports.getExamReview = async (req, res) => {
   }
 };
 
+// Fetch marks for a specific subject
+exports.getSubjectMarks = async (req, res) => {
+  const { id, subjectId } = req.params;
+  const classId = req.query.classId;
+
+  try {
+    const examClass = await prisma.class.findUnique({
+      where: { id: Number(classId) }
+    });
+
+    if (!examClass || examClass.classTeacherId !== req.user.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const students = await prisma.student.findMany({
+      where: { classId: Number(classId) },
+      orderBy: { rollNumber: 'asc' }
+    });
+
+    const marks = await prisma.mark.findMany({
+      where: {
+        examId: Number(id),
+        subjectId: Number(subjectId),
+        student: { classId: Number(classId) }
+      }
+    });
+
+    const config = await prisma.examSubjectConfig.findUnique({
+      where: { examId_subjectId: { examId: Number(id), subjectId: Number(subjectId) } },
+      include: { subject: true }
+    });
+
+    if (!config) return res.status(404).json({ error: 'Subject config not found' });
+
+    let highest = -1;
+    let lowest = 999999;
+    let sum = 0;
+    let enteredCount = 0;
+
+    const results = students.map(student => {
+      const mark = marks.find(m => m.studentId === student.id);
+      if (mark && mark.marksObtained !== null) {
+        if (mark.marksObtained > highest) highest = mark.marksObtained;
+        if (mark.marksObtained < lowest) lowest = mark.marksObtained;
+        sum += mark.marksObtained;
+        enteredCount++;
+      }
+      return {
+        student,
+        markRecord: mark || null,
+        marksObtained: mark ? mark.marksObtained : null
+      };
+    });
+
+    res.json({
+      subject: config.subject,
+      maxMarks: config.maxMarks,
+      results,
+      stats: {
+        highest: enteredCount > 0 ? highest : null,
+        lowest: enteredCount > 0 ? lowest : null,
+        average: enteredCount > 0 ? Number((sum / enteredCount).toFixed(2)) : null
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // Fetch full marksheet for a class
 exports.getFullMarksheet = async (req, res) => {
   const { id } = req.params;

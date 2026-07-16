@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import FullMarksheetReview from './FullMarksheetReview';
 import MyStudentsList from './MyStudentsList';
+import SubjectMarksReview from './SubjectMarksReview';
 import '../admin/admin.css';
 
 export default function ExamReviewPage() {
@@ -24,6 +25,7 @@ export default function ExamReviewPage() {
   const [rejectError, setRejectError] = useState('');
   
   const [showMarksheet, setShowMarksheet] = useState(false);
+  const [viewingSubjectId, setViewingSubjectId] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError('');
@@ -139,13 +141,20 @@ export default function ExamReviewPage() {
       )}
 
       {data.subjectReviews.every(s => ['SubmittedToClassTeacher', 'Approved'].includes(s.status)) && (
-        <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}>
           <button 
-            className="btn btn-secondary" 
+            className="btn btn-primary" 
             onClick={() => setShowMarksheet(!showMarksheet)}
-            style={{ background: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}
+            style={{ 
+              padding: '12px 24px', 
+              fontSize: '1rem', 
+              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}
           >
-            {showMarksheet ? 'Hide Full Marksheet' : 'Review Full Marksheet 📊'}
+            📊 {showMarksheet ? 'Hide Full Marksheet' : 'Review Full Marksheet'}
           </button>
         </div>
       )}
@@ -195,6 +204,13 @@ export default function ExamReviewPage() {
                   <td>{getStatusBadge(status)}</td>
                   <td>
                     <div className="table-actions">
+                      <button 
+                        className="btn btn-secondary btn-sm" 
+                        onClick={() => setViewingSubjectId(subject.id)}
+                      >
+                        👁 View Marks
+                      </button>
+                      
                       {!isLocked && isSubmitted && (
                         <>
                           <button 
@@ -269,6 +285,17 @@ export default function ExamReviewPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* View Marks Modal */}
+      {viewingSubjectId && (
+        <SubjectMarksReview
+          examId={id}
+          classId={classId}
+          subjectId={viewingSubjectId}
+          isLocked={isLocked}
+          onClose={() => setViewingSubjectId(null)}
+        />
       )}
     </div>
   );

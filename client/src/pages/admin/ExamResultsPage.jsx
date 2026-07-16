@@ -48,7 +48,7 @@ export default function ExamResultsPage() {
   if (loading) return <div className="admin-page"><div className="empty-state"><div className="spinner spinner-dark" /></div></div>;
   if (error) return <div className="admin-page"><div className="empty-state"><p style={{ color: '#dc2626' }}>⚠ {error}</p><button className="btn btn-primary" onClick={() => navigate('/admin/exams')}>Back to Exams</button></div></div>;
 
-  const { exam, subjects, results } = data;
+  const { exam } = data;
 
   return (
     <div className="admin-page">
@@ -61,7 +61,11 @@ export default function ExamResultsPage() {
       <div className="page-header" style={{ marginBottom: 24 }}>
         <div>
           <h1 className="page-title">{exam.name} Results</h1>
-          <p className="page-sub">{exam.class?.name || 'Multi-Class Exam'} · {results.length} Students</p>
+          <p className="page-sub">
+            {exam.examType === 'INTERNAL_EXAM' ? 'Multi-Class Exam' : (exam.class?.name || 'Class Exam')}
+            {' '}·{' '}
+            {data.classResults.reduce((acc, c) => acc + c.studentCount, 0)} Students
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           {exam.isLocked && (
@@ -91,53 +95,97 @@ export default function ExamResultsPage() {
         </div>
       )}
 
-      <div className="data-card" style={{ overflowX: 'auto' }}>
-        <table className="data-table" style={{ whiteSpace: 'nowrap' }}>
-          <thead>
-            <tr>
-              <th style={{ position: 'sticky', left: 0, background: '#f8fafc', zIndex: 10 }}>Roll No</th>
-              <th style={{ position: 'sticky', left: '70px', background: '#f8fafc', zIndex: 10, borderRight: '2px solid #e2e8f0' }}>Student Name</th>
-              {subjects.map(sub => (
-                <th key={sub.id} style={{ textAlign: 'center' }}>
-                  <div>{sub.name}</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Max: {sub.maxMarks}</div>
-                </th>
-              ))}
-              <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Total</th>
-              <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Percentage</th>
-              <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Grade</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.map((row, idx) => (
-              <tr key={row.student.id}>
-                <td style={{ position: 'sticky', left: 0, background: 'white', zIndex: 1 }}>{row.student.rollNumber}</td>
-                <td style={{ position: 'sticky', left: '70px', background: 'white', zIndex: 1, borderRight: '2px solid #e2e8f0', fontWeight: 500 }}>
-                  {row.student.name}
-                </td>
-                {subjects.map(sub => {
-                  const val = row.subjects[sub.id];
-                  const isFail = val !== null && val < (sub.maxMarks * 0.4); // naive < 40% fail
-                  return (
-                    <td key={sub.id} style={{ textAlign: 'center', color: isFail ? '#dc2626' : 'inherit', fontWeight: isFail ? 600 : 400 }}>
-                      {val !== null ? val : '—'}
-                    </td>
-                  );
-                })}
-                <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 600 }}>{row.totalMarks} / {row.totalMaxMarks}</td>
-                <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 700, color: row.percentage >= 80 ? '#059669' : row.percentage < 40 ? '#dc2626' : '#1e3a8a' }}>
-                  {row.percentage}%
-                </td>
-                <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 700 }}>
-                  <span className={`badge ${['A+', 'A', 'B'].includes(row.grade) ? 'badge-green' : row.grade === 'F' ? 'badge-red' : 'badge-gray'}`}>
-                    {row.grade || '—'}
+      {/* Summary Card for Internal Exams */}
+      {exam.examType === 'INTERNAL_EXAM' && (
+        <div className="data-card" style={{ marginBottom: 24, padding: 20 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 12, color: '#0f172a' }}>Exam Summary</h3>
+          <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
+            <div>
+              <span style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase' }}>Total Classes</span>
+              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{data.classResults.length}</div>
+            </div>
+            <div>
+              <span style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase' }}>Total Students</span>
+              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{data.classResults.reduce((acc, c) => acc + c.studentCount, 0)}</div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <span style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase' }}>Class Breakdown</span>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: 4 }}>
+                {data.classResults.map(cls => (
+                  <span key={cls.classId} style={{ background: '#f1f5f9', padding: '4px 12px', borderRadius: 16, fontSize: '0.9rem', fontWeight: 500 }}>
+                    {cls.className}: {cls.studentCount}
                   </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Render tables per class */}
+      {data.classResults.map((cls, idx) => (
+        <div key={cls.classId} className="print-section" style={{ pageBreakBefore: idx > 0 ? 'always' : 'auto', marginBottom: 40 }}>
+          {exam.examType === 'INTERNAL_EXAM' && (
+            <h2 style={{ color: '#1e293b', marginBottom: 12, fontSize: '1.25rem', borderBottom: '2px solid #e2e8f0', paddingBottom: 8 }}>
+              {cls.className} <span style={{ color: '#64748b', fontSize: '1rem', fontWeight: 400 }}>— {cls.studentCount} Students</span>
+            </h2>
+          )}
+          <div className="data-card" style={{ overflowX: 'auto', margin: 0 }}>
+            <table className="data-table" style={{ whiteSpace: 'nowrap' }}>
+              <thead>
+                <tr>
+                  <th style={{ position: 'sticky', left: 0, background: '#f8fafc', zIndex: 10 }}>Roll No</th>
+                  <th style={{ position: 'sticky', left: '70px', background: '#f8fafc', zIndex: 10, borderRight: '2px solid #e2e8f0' }}>Student Name</th>
+                  {cls.subjects.map(sub => (
+                    <th key={sub.id} style={{ textAlign: 'center' }}>
+                      <div>{sub.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Max: {sub.maxMarks}</div>
+                    </th>
+                  ))}
+                  <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Total</th>
+                  <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Percentage</th>
+                  <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Grade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cls.results.map((row) => (
+                  <tr key={row.student.id}>
+                    <td style={{ position: 'sticky', left: 0, background: 'white', zIndex: 1 }}>{row.student.rollNumber}</td>
+                    <td style={{ position: 'sticky', left: '70px', background: 'white', zIndex: 1, borderRight: '2px solid #e2e8f0', fontWeight: 500 }}>
+                      {row.student.name}
+                    </td>
+                    {cls.subjects.map(sub => {
+                      const val = row.subjects[sub.id];
+                      const isFail = val !== null && val < (sub.maxMarks * 0.4); // naive < 40% fail
+                      return (
+                        <td key={sub.id} style={{ textAlign: 'center', color: isFail ? '#dc2626' : 'inherit', fontWeight: isFail ? 600 : 400 }}>
+                          {val !== null ? val : '—'}
+                        </td>
+                      );
+                    })}
+                    <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 600 }}>{row.totalMarks} / {row.totalMaxMarks}</td>
+                    <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 700, color: row.percentage >= 80 ? '#059669' : row.percentage < 40 ? '#dc2626' : '#1e3a8a' }}>
+                      {row.percentage}%
+                    </td>
+                    <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 700 }}>
+                      <span className={`badge ${['A+', 'A', 'B'].includes(row.grade) ? 'badge-green' : row.grade === 'F' ? 'badge-red' : 'badge-gray'}`}>
+                        {row.grade || '—'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {cls.results.length === 0 && (
+                  <tr>
+                    <td colSpan={cls.subjects.length + 5} style={{ textAlign: 'center', color: '#64748b', padding: 20 }}>
+                      No students found for this class.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
 
       {/* Unlock Modal */}
       {unlockModal && (

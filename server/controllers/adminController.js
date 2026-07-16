@@ -816,28 +816,33 @@ exports.getExamResults = async (req, res) => {
       ? exam.enrollments.map(e => e.class)
       : [exam.class];
 
-    // Compile result matrix
-    // Row: student, Columns: subjectId -> marks, total, percentage
-    let results = [];
+    // Compile result matrix grouped by class
+    let classResults = [];
     
     classes.forEach(cls => {
       if (!cls) return;
-      const classResults = cls.students.map(student => {
+      
+      const classSubjects = exam.subjectConfigs
+        .filter(c => c.subject.classId === cls.id)
+        .map(c => ({
+          id: c.subjectId,
+          name: c.subject.name,
+          maxMarks: c.maxMarks
+        }));
+
+      const results = cls.students.map(student => {
         const studentMarks = marks.filter(m => m.studentId === student.id);
         let totalMarks = 0;
         let totalMaxMarks = 0;
         const subjectsMap = {};
 
-        exam.subjectConfigs.forEach(config => {
-          // Only process configs for subjects assigned to this class
-          if (config.subject.classId !== cls.id) return;
-
-          const markRecord = studentMarks.find(m => m.subjectId === config.subjectId);
+        classSubjects.forEach(sub => {
+          const markRecord = studentMarks.find(m => m.subjectId === sub.id);
           const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
-          subjectsMap[config.subjectId] = obtained;
+          subjectsMap[sub.id] = obtained;
           
           totalMarks += obtained;
-          totalMaxMarks += config.maxMarks;
+          totalMaxMarks += sub.maxMarks;
         });
 
         const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
@@ -851,29 +856,28 @@ exports.getExamResults = async (req, res) => {
 
         return {
           student,
-          className: cls.name,
           subjects: subjectsMap,
           totalMarks,
           totalMaxMarks,
-          percentage,
+          percentage: Number(percentage),
           grade
         };
       });
-      results = results.concat(classResults);
-    });
 
-    // Sort by percentage descending
-    results.sort((a, b) => b.percentage - a.percentage);
+      results.sort((a, b) => b.percentage - a.percentage);
+
+      classResults.push({
+        classId: cls.id,
+        className: cls.name,
+        studentCount: cls.students.length,
+        subjects: classSubjects,
+        results
+      });
+    });
 
     res.json({
       exam,
-      subjects: exam.subjectConfigs.map(c => ({
-        id: c.subjectId,
-        name: c.subject.name,
-        className: c.subject.class?.name,
-        maxMarks: c.maxMarks
-      })),
-      results
+      classResults
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -940,45 +944,94 @@ exports.exportExamResults = async (req, res) => {
       where: { examId: id }
     });
 
-    const subjects = exam.subjectConfigs.map(c => ({
-      id: c.subjectId,
-      name: c.subject.name,
-      maxMarks: c.maxMarks
-    }));
+    const classes = exam.examType === 'INTERNAL_EXAM' 
+      ? exam.enrollments.map(e => e.class)
+      : [exam.class];
 
-    // CSV Header
-    const header = ['Roll No', 'Student Name'];
-    subjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
-    header.push('Total Marks', 'Max Marks', 'Percentage');
+    const rows = [];
+    const isMultiClass = exam.examType === 'INTERNAL_EXAM';
 
-    const rows = [header.join(',')];
+    if (isMultiClass) {
+      // First, create a Combined view for multi-class
+      // We need to list all unique subjects across all classes
+      const allSubjects = exam.subjectConfigs.map(c => ({
+        id: c.subjectId,
+        name: c.subject.name,
+        maxMarks: c.maxMarks
+      }));
 
-    // CSV Body
-    exam.class.students.forEach(student => {
-      const studentMarks = marks.filter(m => m.studentId === student.id);
-      const row = [student.rollNumber, `"${student.name}"`];
-      
-      let totalMarks = 0;
-      let totalMaxMarks = 0;
+      const header = ['Class', 'Roll No', 'Student Name'];
+      allSubjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
+      header.push('Total Marks', 'Max Marks', 'Percentage');
+      rows.push(header.join(','));
 
-      subjects.forEach(subject => {
-        const markRecord = studentMarks.find(m => m.subjectId === subject.id);
-        const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
-        row.push(obtained);
-        totalMarks += obtained;
-        totalMaxMarks += subject.maxMarks;
+      classes.forEach(cls => {
+        if (!cls) return;
+        cls.students.forEach(student => {
+          const studentMarks = marks.filter(m => m.studentId === student.id);
+          const row = [`"${cls.name}"`, student.rollNumber, `"${student.name}"`];
+          
+          let totalMarks = 0;
+          let totalMaxMarks = 0;
+
+          allSubjects.forEach(subject => {
+            // Check if this subject belongs to this class
+            const config = exam.subjectConfigs.find(c => c.subjectId === subject.id);
+            if (config && config.subject.classId === cls.id) {
+              const markRecord = studentMarks.find(m => m.subjectId === subject.id);
+              const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
+              row.push(obtained);
+              totalMarks += obtained;
+              totalMaxMarks += subject.maxMarks;
+            } else {
+              row.push('N/A');
+            }
+          });
+
+          const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
+          row.push(totalMarks, totalMaxMarks, `${percentage}%`);
+          rows.push(row.join(','));
+        });
       });
+    } else {
+      // Single class CSV
+      const cls = classes[0];
+      const subjects = exam.subjectConfigs.map(c => ({
+        id: c.subjectId,
+        name: c.subject.name,
+        maxMarks: c.maxMarks
+      }));
 
-      const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
-      row.push(totalMarks, totalMaxMarks, `${percentage}%`);
-      
-      rows.push(row.join(','));
-    });
+      const header = ['Roll No', 'Student Name'];
+      subjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
+      header.push('Total Marks', 'Max Marks', 'Percentage');
+      rows.push(header.join(','));
+
+      cls.students.forEach(student => {
+        const studentMarks = marks.filter(m => m.studentId === student.id);
+        const row = [student.rollNumber, `"${student.name}"`];
+        
+        let totalMarks = 0;
+        let totalMaxMarks = 0;
+
+        subjects.forEach(subject => {
+          const markRecord = studentMarks.find(m => m.subjectId === subject.id);
+          const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
+          row.push(obtained);
+          totalMarks += obtained;
+          totalMaxMarks += subject.maxMarks;
+        });
+
+        const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
+        row.push(totalMarks, totalMaxMarks, `${percentage}%`);
+        rows.push(row.join(','));
+      });
+    }
 
     const csvData = rows.join('\n');
     
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${exam.class.name}_${exam.name}_Results.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${exam.name}_Results.csv"`);
     res.send(csvData);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -998,46 +1051,108 @@ exports.exportExamResultsExcel = async (req, res) => {
 
     if (!exam) return res.status(404).json({ error: 'Exam not found.' });
     const marks = await prisma.mark.findMany({ where: { examId: id } });
-    const subjects = exam.subjectConfigs.map(c => ({ id: c.subjectId, name: c.subject.name, maxMarks: c.maxMarks }));
+    const classes = exam.examType === 'INTERNAL_EXAM' 
+      ? exam.enrollments.map(e => e.class)
+      : [exam.class];
 
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Results');
+    
+    const isMultiClass = exam.examType === 'INTERNAL_EXAM';
 
-    const header = ['Roll No', 'Student Name'];
-    subjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
-    header.push('Total Marks', 'Max Marks', 'Percentage', 'Grade');
-    worksheet.addRow(header);
+    if (isMultiClass) {
+      const combinedSheet = workbook.addWorksheet('Combined');
+      const allSubjects = exam.subjectConfigs.map(c => ({
+        id: c.subjectId,
+        name: c.subject.name,
+        maxMarks: c.maxMarks
+      }));
 
-    exam.class.students.forEach(student => {
-      const studentMarks = marks.filter(m => m.studentId === student.id);
-      const row = [student.rollNumber, student.name];
-      
-      let totalMarks = 0;
-      let totalMaxMarks = 0;
+      const header = ['Class', 'Roll No', 'Student Name'];
+      allSubjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
+      header.push('Total Marks', 'Max Marks', 'Percentage', 'Grade');
+      combinedSheet.addRow(header);
 
-      subjects.forEach(subject => {
-        const markRecord = studentMarks.find(m => m.subjectId === subject.id);
-        const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
-        row.push(obtained);
-        totalMarks += obtained;
-        totalMaxMarks += subject.maxMarks;
+      classes.forEach(cls => {
+        if (!cls) return;
+        cls.students.forEach(student => {
+          const studentMarks = marks.filter(m => m.studentId === student.id);
+          const row = [cls.name, student.rollNumber, student.name];
+          
+          let totalMarks = 0;
+          let totalMaxMarks = 0;
+
+          allSubjects.forEach(subject => {
+            const config = exam.subjectConfigs.find(c => c.subjectId === subject.id);
+            if (config && config.subject.classId === cls.id) {
+              const markRecord = studentMarks.find(m => m.subjectId === subject.id);
+              const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
+              row.push(obtained);
+              totalMarks += obtained;
+              totalMaxMarks += subject.maxMarks;
+            } else {
+              row.push('N/A');
+            }
+          });
+
+          const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
+          let grade = 'F';
+          if (percentage >= 90) grade = 'A+';
+          else if (percentage >= 80) grade = 'A';
+          else if (percentage >= 70) grade = 'B';
+          else if (percentage >= 60) grade = 'C';
+          else if (percentage >= 50) grade = 'D';
+
+          row.push(totalMarks, totalMaxMarks, Number(percentage), grade);
+          combinedSheet.addRow(row);
+        });
       });
+    }
 
-      const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
+    // Add individual class sheets
+    classes.forEach(cls => {
+      if (!cls) return;
+      const worksheet = workbook.addWorksheet(cls.name);
       
-      let grade = 'F';
-      if (percentage >= 90) grade = 'A+';
-      else if (percentage >= 80) grade = 'A';
-      else if (percentage >= 70) grade = 'B';
-      else if (percentage >= 60) grade = 'C';
-      else if (percentage >= 50) grade = 'D';
+      const classSubjects = exam.subjectConfigs
+        .filter(c => c.subject.classId === cls.id)
+        .map(c => ({ id: c.subjectId, name: c.subject.name, maxMarks: c.maxMarks }));
 
-      row.push(totalMarks, totalMaxMarks, Number(percentage), grade);
-      worksheet.addRow(row);
+      const header = ['Roll No', 'Student Name'];
+      classSubjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
+      header.push('Total Marks', 'Max Marks', 'Percentage', 'Grade');
+      worksheet.addRow(header);
+
+      cls.students.forEach(student => {
+        const studentMarks = marks.filter(m => m.studentId === student.id);
+        const row = [student.rollNumber, student.name];
+        
+        let totalMarks = 0;
+        let totalMaxMarks = 0;
+
+        classSubjects.forEach(subject => {
+          const markRecord = studentMarks.find(m => m.subjectId === subject.id);
+          const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
+          row.push(obtained);
+          totalMarks += obtained;
+          totalMaxMarks += subject.maxMarks;
+        });
+
+        const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
+        
+        let grade = 'F';
+        if (percentage >= 90) grade = 'A+';
+        else if (percentage >= 80) grade = 'A';
+        else if (percentage >= 70) grade = 'B';
+        else if (percentage >= 60) grade = 'C';
+        else if (percentage >= 50) grade = 'D';
+
+        row.push(totalMarks, totalMaxMarks, Number(percentage), grade);
+        worksheet.addRow(row);
+      });
     });
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${exam.class.name}_${exam.name}_Results.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${exam.name}_Results.xlsx"`);
     await workbook.xlsx.write(res);
     res.end();
   } catch (err) {
@@ -1058,50 +1173,66 @@ exports.exportExamResultsWord = async (req, res) => {
 
     if (!exam) return res.status(404).json({ error: 'Exam not found.' });
     const marks = await prisma.mark.findMany({ where: { examId: id } });
-    const subjects = exam.subjectConfigs.map(c => ({ id: c.subjectId, name: c.subject.name, maxMarks: c.maxMarks }));
+    const classes = exam.examType === 'INTERNAL_EXAM' 
+      ? exam.enrollments.map(e => e.class)
+      : [exam.class];
 
     // Generate HTML for Word
     let html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>`;
     html += `<head><meta charset='utf-8'><title>${exam.name} Results</title></head><body>`;
-    html += `<h2>${exam.class.name} - ${exam.name} Results</h2>`;
-    html += `<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%;">`;
     
-    // Header
-    html += `<tr><th>Roll No</th><th>Student Name</th>`;
-    subjects.forEach(s => html += `<th>${s.name} (/${s.maxMarks})</th>`);
-    html += `<th>Total Marks</th><th>Percentage</th><th>Grade</th></tr>`;
-
-    // Rows
-    exam.class.students.forEach(student => {
-      const studentMarks = marks.filter(m => m.studentId === student.id);
-      html += `<tr><td>${student.rollNumber}</td><td>${student.name}</td>`;
+    classes.forEach((cls, index) => {
+      if (!cls) return;
       
-      let totalMarks = 0;
-      let totalMaxMarks = 0;
+      if (index > 0) {
+        html += `<div style="page-break-before: always;"></div>`;
+      }
+      
+      const classSubjects = exam.subjectConfigs
+        .filter(c => c.subject.classId === cls.id)
+        .map(c => ({ id: c.subjectId, name: c.subject.name, maxMarks: c.maxMarks }));
 
-      subjects.forEach(subject => {
-        const markRecord = studentMarks.find(m => m.subjectId === subject.id);
-        const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
-        html += `<td>${obtained}</td>`;
-        totalMarks += obtained;
-        totalMaxMarks += subject.maxMarks;
+      html += `<h2>${cls.name} - ${exam.name} Results</h2>`;
+      html += `<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%;">`;
+      
+      // Header
+      html += `<tr><th>Roll No</th><th>Student Name</th>`;
+      classSubjects.forEach(s => html += `<th>${s.name} (/${s.maxMarks})</th>`);
+      html += `<th>Total Marks</th><th>Percentage</th><th>Grade</th></tr>`;
+
+      // Rows
+      cls.students.forEach(student => {
+        const studentMarks = marks.filter(m => m.studentId === student.id);
+        html += `<tr><td>${student.rollNumber}</td><td>${student.name}</td>`;
+        
+        let totalMarks = 0;
+        let totalMaxMarks = 0;
+
+        classSubjects.forEach(subject => {
+          const markRecord = studentMarks.find(m => m.subjectId === subject.id);
+          const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
+          html += `<td>${obtained}</td>`;
+          totalMarks += obtained;
+          totalMaxMarks += subject.maxMarks;
+        });
+
+        const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
+        let grade = 'F';
+        if (percentage >= 90) grade = 'A+';
+        else if (percentage >= 80) grade = 'A';
+        else if (percentage >= 70) grade = 'B';
+        else if (percentage >= 60) grade = 'C';
+        else if (percentage >= 50) grade = 'D';
+
+        html += `<td>${totalMarks} / ${totalMaxMarks}</td><td>${percentage}%</td><td>${grade}</td></tr>`;
       });
-
-      const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
-      let grade = 'F';
-      if (percentage >= 90) grade = 'A+';
-      else if (percentage >= 80) grade = 'A';
-      else if (percentage >= 70) grade = 'B';
-      else if (percentage >= 60) grade = 'C';
-      else if (percentage >= 50) grade = 'D';
-
-      html += `<td>${totalMarks} / ${totalMaxMarks}</td><td>${percentage}%</td><td>${grade}</td></tr>`;
+      html += `</table>`;
     });
 
-    html += `</table></body></html>`;
+    html += `</body></html>`;
 
     res.setHeader('Content-Type', 'application/msword');
-    res.setHeader('Content-Disposition', `attachment; filename="${exam.class.name}_${exam.name}_Results.doc"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${exam.name}_Results.doc"`);
     res.send(html);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -386,3 +386,12 @@ table.data-table tbody tr:hover { background: var(--gray-50); }
 .alert-error   { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
 .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
 .alert-success { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+
+/* ── Print Styles ───────────────────────────────────────────── */
+@media print {
+  .admin-page { padding: 0; background: white; }
+  .page-header button, .detail-breadcrumb, .alert { display: none !important; }
+  .print-section { page-break-inside: avoid; }
+  .print-section + .print-section { page-break-before: always; margin-top: 40px; }
+  .data-card { box-shadow: none; border: 1px solid #ccc; }
+}

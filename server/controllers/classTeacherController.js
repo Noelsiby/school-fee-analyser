@@ -57,7 +57,8 @@ exports.getExams = async (req, res) => {
         const studentCount = studentsInClass.length;
         const studentIds = studentsInClass.map(s => s.id);
         
-        const subjectReviews = exam.subjectConfigs.map(config => {
+        const classConfigs = exam.subjectConfigs.filter(c => c.subject.classId === cls.id);
+        const subjectReviews = classConfigs.map(config => {
           const subjectMarks = marks.filter(m => m.examId === exam.id && m.subjectId === config.subjectId && studentIds.includes(m.studentId));
           
           let pendingCount = 0;
@@ -142,8 +143,9 @@ exports.getExamReview = async (req, res) => {
 
     const studentCount = examClass.students.length;
 
+    const classConfigs = exam.subjectConfigs.filter(c => c.subject.classId === Number(classId));
     // Aggregate status per subject
-    const subjectReviews = exam.subjectConfigs.map(config => {
+    const subjectReviews = classConfigs.map(config => {
       const subjectId = config.subjectId;
       const subjectMarks = marks.filter(m => m.subjectId === subjectId);
       

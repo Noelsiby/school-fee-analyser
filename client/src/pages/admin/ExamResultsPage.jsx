@@ -200,6 +200,7 @@ export default function ExamResultsPage() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       ))}
 

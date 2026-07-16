@@ -203,8 +203,8 @@ export default function ExamsPage() {
     setSaving(true);
     try {
       await apiCall(`/api/admin/exams/${deleteModal.id}`, { method: 'DELETE' });
+      setConfigSuccess([`Exam '${deleteModal.name}' has been permanently deleted`]);
       setDeleteModal(null);
-      setConfigSuccess(['Exam deleted successfully']);
       setTimeout(() => setConfigSuccess([]), 5000);
       loadData();
     } catch (e) {
@@ -344,10 +344,9 @@ export default function ExamsPage() {
                         )}
                         <button 
                           className="btn btn-ghost btn-sm" 
-                          style={{ color: exam.isLocked ? '#9ca3af' : '#dc2626', cursor: exam.isLocked ? 'not-allowed' : 'pointer' }} 
-                          onClick={() => !exam.isLocked && setDeleteModal(exam)}
-                          title={exam.isLocked ? "Unlock the exam first before deleting" : "Delete Exam"}
-                          disabled={exam.isLocked}
+                          style={{ color: '#dc2626', cursor: 'pointer' }} 
+                          onClick={() => setDeleteModal(exam)}
+                          title="Delete Exam"
                         >
                           🗑️ Delete
                         </button>
@@ -700,25 +699,31 @@ export default function ExamsPage() {
               {deleteModal.status === 'Draft' ? (
                 <>
                   <p className="confirm-icon">🗑️</p>
-                  <p className="confirm-msg">Are you sure you want to delete <strong>{deleteModal.name}</strong>?</p>
-                  <p className="confirm-sub">This action cannot be undone.</p>
+                  <p className="confirm-msg">Are you sure you want to delete <strong>'{deleteModal.name}'</strong>?</p>
+                  <p className="confirm-sub">This cannot be undone.</p>
                 </>
               ) : deleteModal.status === 'Open' ? (
                 <>
                   <p className="confirm-icon" style={{ fontSize: '3rem' }}>⚠️</p>
-                  <p className="confirm-msg" style={{ color: '#b45309' }}>WARNING</p>
+                  <p className="confirm-msg" style={{ color: '#b45309' }}>WARNING: '{deleteModal.name}' is currently Open.</p>
                   <p className="confirm-sub" style={{ color: '#dc2626', fontWeight: 500 }}>
-                    This exam is currently Open and teachers may have already entered marks. Deleting will permanently remove ALL marks entered.
+                    Teachers may have entered marks already.
+                    <br/>ALL marks will be permanently deleted.
                   </p>
                   <p className="confirm-sub" style={{ marginTop: 8 }}>
-                    Are you sure you want to delete <strong>{deleteModal.name}</strong>?
+                    Are you sure?
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="confirm-icon">🗑️</p>
-                  <p className="confirm-msg">Are you sure you want to delete <strong>{deleteModal.name}</strong> and all its results?</p>
-                  <p className="confirm-sub">This cannot be undone.</p>
+                  <p className="confirm-icon" style={{ fontSize: '3rem' }}>⚠️</p>
+                  <p className="confirm-msg" style={{ color: '#b45309' }}>WARNING: '{deleteModal.name}' is a completed exam with finalized results.</p>
+                  <p className="confirm-sub" style={{ color: '#dc2626', fontWeight: 500 }}>
+                    Deleting will permanently remove all marks, results and grade data for all students.
+                  </p>
+                  <p className="confirm-sub" style={{ marginTop: 8 }}>
+                    This CANNOT be undone. Are you sure?
+                  </p>
                 </>
               )}
             </div>
@@ -730,7 +735,7 @@ export default function ExamsPage() {
                 disabled={saving} 
                 onClick={handleDeleteExam}
               >
-                {saving ? <span className="spinner" /> : (deleteModal.status === 'Open' ? 'Yes, Delete Everything' : 'Delete')}
+                {saving ? <span className="spinner" /> : (deleteModal.status === 'Open' ? 'Yes, Delete Everything' : deleteModal.status === 'Closed' || deleteModal.status === 'Completed' ? 'Yes, Delete Permanently' : 'Delete')}
               </button>
             </div>
           </div>

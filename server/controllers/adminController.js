@@ -629,10 +629,6 @@ exports.deleteExam = async (req, res) => {
     const examId = Number(req.params.id);
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
     if (!exam) return res.status(404).json({ error: 'Exam not found' });
-    
-    if (exam.isLocked) {
-      return res.status(400).json({ error: 'Cannot delete a locked exam. Please unlock it first.' });
-    }
 
     const marks = await prisma.mark.findMany({ where: { examId }, select: { id: true } });
     const markIds = marks.map(m => String(m.id));

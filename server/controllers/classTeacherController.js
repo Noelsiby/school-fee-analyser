@@ -315,8 +315,10 @@ exports.getFullMarksheet = async (req, res) => {
       let totalMax = 0;
       let allEntered = true;
 
+      const classConfigs = exam.subjectConfigs.filter(c => c.subject.classId === Number(classId));
+      
       const marksBySubject = {};
-      exam.subjectConfigs.forEach(config => {
+      classConfigs.forEach(config => {
         const markRecord = studentMarks.find(m => m.subjectId === config.subjectId);
         marksBySubject[config.subjectId] = markRecord || null;
         
@@ -349,9 +351,11 @@ exports.getFullMarksheet = async (req, res) => {
       };
     });
 
+    const classConfigs = exam.subjectConfigs.filter(c => c.subject.classId === Number(classId));
+
     res.json({
       exam,
-      subjects: exam.subjectConfigs.map(c => c.subject),
+      subjects: classConfigs.map(c => c.subject),
       results
     });
   } catch (err) {

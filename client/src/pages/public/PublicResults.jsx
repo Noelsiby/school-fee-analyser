@@ -1,6 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '../../hooks/useApi';
-import '../admin/admin.css';
+import './PublicResults.css';
+import schoolLogo from '../../assets/school-logo.png';
+
+// CountUp component for animating numbers
+const CountUp = ({ end, duration = 1000, suffix = '', decimals = 0 }) => {
+  const [count, setCount] = useState(0);
+  
+  useEffect(() => {
+    let startTimestamp = null;
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      // easeOutExpo
+      const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+      setCount(easeProgress * end);
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    window.requestAnimationFrame(step);
+  }, [end, duration]);
+
+  return <span>{count.toFixed(decimals)}{suffix}</span>;
+};
 
 export default function PublicResults() {
   const { apiCall } = useApi();
@@ -9,10 +32,33 @@ export default function PublicResults() {
   const [publishedExam, setPublishedExam] = useState(null);
   const [classes, setClasses] = useState([]);
   
-  // If a class is selected, we fetch its detailed results
   const [selectedClass, setSelectedClass] = useState(null);
   const [classData, setClassData] = useState(null);
   const [loadingClass, setLoadingClass] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Swipe logic
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX);
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    if (isRightSwipe && selectedClass) {
+      handleBack();
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true); setError('');
@@ -32,9 +78,9 @@ export default function PublicResults() {
   const handleSelectClass = async (cls) => {
     setSelectedClass(cls);
     setLoadingClass(true);
+    setSearchTerm('');
     try {
       const res = await apiCall(`/api/public/classes/${cls.id}/results`);
-      // Re-calculate the marks same as admin side
       const { subjectConfigs, marks, class: classInfo } = res;
       
       const studentsMap = {};
@@ -65,13 +111,15 @@ export default function PublicResults() {
 
       const results = Object.values(studentsMap).map(row => {
         let maxMarksForStudent = 0;
+        let attemptCount = 0;
         subjectConfigs.forEach(sub => {
           if (row.subjects[sub.subjectId] !== null) {
             maxMarksForStudent += sub.maxMarks;
+            attemptCount++;
           }
         });
         row.totalMaxMarks = maxMarksForStudent;
-        row.percentage = maxMarksForStudent > 0 ? ((row.totalMarks / maxMarksForStudent) * 100).toFixed(2) : 0;
+        row.percentage = maxMarksForStudent > 0 ? (row.totalMarks / maxMarksForStudent) * 100 : 0;
         
         let grade = 'F';
         if (row.percentage >= 90) grade = 'A+';
@@ -81,18 +129,55 @@ export default function PublicResults() {
         else if (row.percentage >= 50) grade = 'D';
 
         row.grade = grade;
+        row.hasMarks = attemptCount > 0;
         return row;
       });
 
-      results.sort((a, b) => {
+      // Sort by percentage for rank calculation, then assign ranks
+      const rankedResults = [...results].sort((a, b) => b.percentage - a.percentage);
+      let currentRank = 1;
+      let currentScore = -1;
+      let ties = 0;
+      
+      rankedResults.forEach((r, idx) => {
+        if (!r.hasMarks) {
+          r.rank = null;
+          return;
+        }
+        if (currentScore === -1 || r.percentage === currentScore) {
+          r.rank = currentRank;
+          ties++;
+          currentScore = r.percentage;
+        } else {
+          currentRank += ties;
+          r.rank = currentRank;
+          ties = 1;
+          currentScore = r.percentage;
+        }
+      });
+
+      // Re-sort by roll number for default display
+      rankedResults.sort((a, b) => {
         const rollA = a.student.rollNumber ? String(a.student.rollNumber).padStart(10, '0') : 'Z';
         const rollB = b.student.rollNumber ? String(b.student.rollNumber).padStart(10, '0') : 'Z';
         return rollA.localeCompare(rollB);
       });
 
+      // Calculate stats
+      const validResults = rankedResults.filter(r => r.hasMarks);
+      let classAverage = 0, highestScore = 0, lowestScore = 0, passRate = 0;
+      if (validResults.length > 0) {
+        classAverage = validResults.reduce((acc, r) => acc + r.percentage, 0) / validResults.length;
+        highestScore = Math.max(...validResults.map(r => r.percentage));
+        lowestScore = Math.min(...validResults.map(r => r.percentage));
+        const passed = validResults.filter(r => r.percentage >= 50).length;
+        passRate = (passed / validResults.length) * 100;
+      }
+
       setClassData({
         subjects: subjectsList,
-        results
+        results: rankedResults,
+        stats: { classAverage, highestScore, lowestScore, passRate }
       });
 
     } catch (e) {
@@ -102,7 +187,59 @@ export default function PublicResults() {
     }
   };
 
-  if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div className="spinner spinner-dark" /></div>;
+  const handleBack = () => {
+    setSelectedClass(null);
+    setClassData(null);
+  };
+
+  const getRankClass = (rank) => {
+    if (rank === 1) return 'rank-1';
+    if (rank === 2) return 'rank-2';
+    if (rank === 3) return 'rank-3';
+    return '';
+  };
+  
+  const getRankIcon = (rank) => {
+    if (rank === 1) return '🥇';
+    if (rank === 2) return '🥈';
+    if (rank === 3) return '🥉';
+    return '';
+  };
+
+  const highlightText = (text, highlight) => {
+    if (!highlight.trim()) {
+      return <span>{text}</span>;
+    }
+    const regex = new RegExp(`(${highlight})`, 'gi');
+    const parts = String(text).split(regex);
+    return (
+      <span>
+        {parts.map((part, i) => 
+          regex.test(part) ? <span key={i} className="highlight">{part}</span> : <span key={i}>{part}</span>
+        )}
+      </span>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="public-portal">
+        <header className="portal-header">
+          <img src={schoolLogo} alt="Matha English Medium School" className="portal-logo" />
+          <h1 className="school-name-title">Matha English Medium School</h1>
+          <div className="gold-divider" />
+          <p className="portal-subtitle">EXAM RESULTS PORTAL</p>
+        </header>
+        <div className="main-content" style={{ marginTop: 40 }}>
+          <div className="class-grid">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="class-card skeleton-box" style={{ height: 120, animationDelay: `${i*100}ms` }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (error) return (
     <div style={{ padding: 40, textAlign: 'center' }}>
@@ -112,137 +249,210 @@ export default function PublicResults() {
 
   if (!publishedExam) {
     return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
-        <img src="/assets/school-logo.png" alt="Matha English Medium School" style={{ width: 120, height: 120, marginBottom: 24, objectFit: 'contain' }} onError={(e) => e.target.style.display = 'none'} />
-        <h1 style={{ fontSize: '2rem', color: '#0f172a', marginBottom: 12 }}>📋 Results Not Yet Published</h1>
-        <p style={{ fontSize: '1.1rem', color: '#64748b', marginBottom: 32 }}>Please check back later or contact the school.</p>
-        
-        <div style={{ padding: 24, background: 'white', borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', textAlign: 'center' }}>
-          <h3 style={{ margin: '0 0 12px 0', color: '#1e293b' }}>Matha English Medium School</h3>
-          <p style={{ margin: 0, color: '#64748b' }}>Kaikalur, Andhra Pradesh</p>
-          <p style={{ margin: '8px 0 0 0', color: '#64748b' }}>Phone: +91 99999 99999</p>
+      <div className="not-published">
+        <img src={schoolLogo} alt="Matha English Medium School" className="portal-logo" style={{ width: 120, height: 120, animation: 'none' }} />
+        <div className="not-published-icon">📋</div>
+        <h1>Results Not Yet Published</h1>
+        <p>Please check back later or contact the school.</p>
+        <div style={{ padding: 24, background: 'white', borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', textAlign: 'center', marginTop: 32 }}>
+          <h3 style={{ margin: '0 0 12px 0', color: 'var(--primary-blue)' }}>Matha English Medium School</h3>
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>Kaikalur, Andhra Pradesh</p>
+          <p style={{ margin: '8px 0 0 0', color: 'var(--text-muted)' }}>Phone: +91 99999 99999</p>
         </div>
       </div>
     );
   }
 
+  const filteredResults = classData?.results.filter(r => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    const nameMatch = r.student.name.toLowerCase().includes(term);
+    const rollMatch = r.student.rollNumber && String(r.student.rollNumber).toLowerCase().includes(term);
+    return nameMatch || rollMatch;
+  });
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f1f5f9' }}>
+    <div className="public-portal" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
       
-      <header style={{ background: 'white', padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', zIndex: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <img src="/assets/school-logo.png" alt="Logo" style={{ height: 48 }} onError={(e) => e.target.style.display = 'none'} />
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a' }}>Matha English Medium School</h2>
-            <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Public Results Portal</div>
-          </div>
-        </div>
+      {/* Print Header Logo */}
+      <div className="print-header-logo">
+        <img src={schoolLogo} alt="Matha English Medium School" />
+        <h2>Matha English Medium School</h2>
+        <h3>{publishedExam.name} Results</h3>
+        {selectedClass && <h4>Class: {selectedClass.name}</h4>}
+      </div>
+
+      <header className="portal-header">
+        <img src={schoolLogo} alt="Matha English Medium School" className="portal-logo" />
+        <h1 className="school-name-title">Matha English Medium School</h1>
+        <p className="portal-subtitle">EXAM RESULTS PORTAL</p>
+        <div className="gold-divider" />
+        <div className="academic-year">Academic Year 2026-27</div>
       </header>
 
-      <main style={{ flex: 1, padding: '32px', maxWidth: 1200, margin: '0 auto', width: '100%' }}>
-        <div style={{ background: 'white', padding: 24, borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: 32 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h1 style={{ margin: '0 0 8px 0', fontSize: '1.8rem', color: '#0f172a' }}>Results for: {publishedExam.name}</h1>
-              <div style={{ color: '#64748b', fontSize: '0.95rem' }}>
+      <main className="main-content">
+        <div style={{ position: 'relative', minHeight: '60vh' }}>
+          
+          {/* Class Selection View */}
+          <div className={`view-container ${selectedClass ? 'view-exit-left' : 'view-enter-active'}`}>
+            <div style={{ background: 'white', padding: 24, borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: 32 }}>
+              <h2 style={{ margin: '0 0 8px 0', fontSize: '1.8rem', color: 'var(--text-dark)' }}>{publishedExam.name}</h2>
+              <div style={{ color: 'var(--text-muted)' }}>
                 Published on: {new Date(publishedExam.publishedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
               </div>
             </div>
-            {selectedClass && (
-              <button className="btn btn-ghost" onClick={() => setSelectedClass(null)}>
-                ← Back to Classes
-              </button>
-            )}
-          </div>
-        </div>
-
-        {!selectedClass ? (
-          <div>
-            <h2 style={{ fontSize: '1.25rem', color: '#1e293b', marginBottom: 16 }}>Select a Class</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 24 }}>
-              {classes.map(cls => (
+            <h2 style={{ fontSize: '1.25rem', color: 'var(--primary-blue)', marginBottom: 24, fontWeight: 700 }}>Select a Class</h2>
+            <div className="class-grid">
+              {classes.map((cls, index) => (
                 <div 
                   key={cls.id} 
-                  style={{ background: 'white', padding: 24, borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', cursor: 'pointer', borderTop: '4px solid #3b82f6', transition: 'transform 0.2s, box-shadow 0.2s' }}
+                  className="class-card" 
+                  style={{ animationDelay: `${index * 100}ms` }}
                   onClick={() => handleSelectClass(cls)}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.1)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'; }}
                 >
-                  <h3 style={{ margin: 0, fontSize: '1.4rem', color: '#0f172a' }}>{cls.name}</h3>
-                  <p style={{ margin: '8px 0 0 0', color: '#3b82f6', fontWeight: 500 }}>View Marksheet →</p>
+                  <div className="class-card-header">
+                    <h3 className="class-card-title">{cls.name}</h3>
+                    <div className="class-card-icon">📚</div>
+                  </div>
+                  <div className="class-card-action">
+                    View Marksheet <span className="arrow-icon">→</span>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
-        ) : (
-          <div>
-            <h2 style={{ fontSize: '1.5rem', color: '#1e293b', marginBottom: 16 }}>{selectedClass.name} - Detailed Marksheet</h2>
-            
-            {loadingClass ? (
-              <div style={{ padding: 40, textAlign: 'center' }}><div className="spinner spinner-dark" /></div>
-            ) : classData ? (
-              <div className="data-card" style={{ overflowX: 'auto', margin: 0 }}>
-                <table className="data-table" style={{ whiteSpace: 'nowrap' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ position: 'sticky', left: 0, background: '#f8fafc', zIndex: 10 }}>Roll No</th>
-                      <th style={{ position: 'sticky', left: '70px', background: '#f8fafc', zIndex: 10, borderRight: '2px solid #e2e8f0' }}>Student Name</th>
-                      {classData.subjects.map(sub => (
-                        <th key={sub.id} style={{ textAlign: 'center' }}>
-                          <div>{sub.name}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Max: {sub.maxMarks}</div>
-                        </th>
-                      ))}
-                      <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Total</th>
-                      <th style={{ textAlign: 'center', background: '#f0f9ff' }}>%</th>
-                      <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Grade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {classData.results.map((row) => (
-                      <tr key={row.student.id}>
-                        <td style={{ position: 'sticky', left: 0, background: 'white', zIndex: 1 }}>{row.student.rollNumber}</td>
-                        <td style={{ position: 'sticky', left: '70px', background: 'white', zIndex: 1, borderRight: '2px solid #e2e8f0', fontWeight: 500 }}>
-                          {row.student.name}
-                        </td>
-                        {classData.subjects.map(sub => {
-                          const val = row.subjects[sub.id];
-                          const isFail = val !== null && val < (sub.maxMarks * 0.4);
-                          return (
-                            <td key={sub.id} style={{ textAlign: 'center', color: isFail ? '#dc2626' : 'inherit', fontWeight: isFail ? 600 : 400 }}>
-                              {val !== null ? val : '—'}
-                            </td>
-                          );
-                        })}
-                        <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 600 }}>{row.totalMarks} / {row.totalMaxMarks}</td>
-                        <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 700, color: row.percentage >= 80 ? '#059669' : row.percentage < 40 ? '#dc2626' : '#1e3a8a' }}>
-                          {row.percentage}%
-                        </td>
-                        <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 700 }}>
-                          <span className={`badge ${['A+', 'A', 'B'].includes(row.grade) ? 'badge-green' : row.grade === 'F' ? 'badge-red' : 'badge-gray'}`}>
-                            {row.grade || '—'}
-                          </span>
-                        </td>
-                      </tr>
+
+          {/* Results View */}
+          <div className={`view-container ${!selectedClass ? 'view-exit-right' : 'view-enter-active'}`}>
+            {selectedClass && (
+              <>
+                <div className="results-header">
+                  <button className="back-btn" onClick={handleBack}>
+                    ← Back to Classes
+                  </button>
+                  <h2 style={{ fontSize: '1.8rem', color: 'var(--text-dark)', margin: 0 }}>
+                    {selectedClass.name} Results
+                  </h2>
+                  <button className="print-btn" onClick={() => window.print()}>
+                    🖨️ Print Results
+                  </button>
+                </div>
+
+                {loadingClass ? (
+                  <div className="table-container">
+                    {[1,2,3,4,5].map(i => (
+                      <div key={i} className="skeleton-row">
+                        <div className="skeleton-box" style={{ width: '10%' }} />
+                        <div className="skeleton-box" style={{ width: '30%' }} />
+                        <div className="skeleton-box" style={{ width: '15%' }} />
+                        <div className="skeleton-box" style={{ width: '15%' }} />
+                        <div className="skeleton-box" style={{ width: '15%' }} />
+                        <div className="skeleton-box" style={{ width: '15%' }} />
+                      </div>
                     ))}
-                    {classData.results.length === 0 && (
-                      <tr>
-                        <td colSpan={classData.subjects.length + 5} style={{ textAlign: 'center', color: '#64748b', padding: 20 }}>
-                          No students found for this class.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
+                  </div>
+                ) : classData ? (
+                  <>
+                    <div className="stats-grid">
+                      <div className="stat-card" style={{ animationDelay: '100ms' }}>
+                        <div className="stat-value"><CountUp end={classData.stats.classAverage} decimals={1} suffix="%" /></div>
+                        <div className="stat-label">Class Avg</div>
+                      </div>
+                      <div className="stat-card" style={{ animationDelay: '200ms' }}>
+                        <div className="stat-value"><CountUp end={classData.stats.highestScore} decimals={1} suffix="%" /></div>
+                        <div className="stat-label">Highest</div>
+                      </div>
+                      <div className="stat-card" style={{ animationDelay: '300ms' }}>
+                        <div className="stat-value"><CountUp end={classData.stats.lowestScore} decimals={1} suffix="%" /></div>
+                        <div className="stat-label">Lowest</div>
+                      </div>
+                      <div className="stat-card" style={{ animationDelay: '400ms' }}>
+                        <div className="stat-value"><CountUp end={classData.stats.passRate} decimals={1} suffix="%" /></div>
+                        <div className="stat-label">Pass Rate</div>
+                      </div>
+                    </div>
+
+                    <div className="search-box" style={{ marginBottom: 24 }}>
+                      <span className="search-icon">🔍</span>
+                      <input 
+                        type="text" 
+                        className="search-input" 
+                        placeholder="Search student name or roll number..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="table-container">
+                      <table className="results-table">
+                        <thead>
+                          <tr>
+                            <th>Rank</th>
+                            <th>Roll No</th>
+                            <th>Student Name</th>
+                            {classData.subjects.map(sub => (
+                              <th key={sub.id}>
+                                <div>{sub.name}</div>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 500 }}>Max: {sub.maxMarks}</div>
+                              </th>
+                            ))}
+                            <th>Total</th>
+                            <th>%</th>
+                            <th>Grade</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredResults.map((row, idx) => (
+                            <tr key={row.student.id} className={`student-row ${getRankClass(row.rank)}`} style={{ animationDelay: `${idx * 30}ms` }}>
+                              <td style={{ fontWeight: 600 }}>
+                                <span className="rank-icon">{getRankIcon(row.rank)}</span>
+                                {row.rank || '-'}
+                              </td>
+                              <td>{highlightText(row.student.rollNumber || '-', searchTerm)}</td>
+                              <td>{highlightText(row.student.name, searchTerm)}</td>
+                              
+                              {classData.subjects.map(sub => {
+                                const val = row.subjects[sub.id];
+                                const isFail = val !== null && val < (sub.maxMarks * 0.4);
+                                return (
+                                  <td key={sub.id} style={{ color: isFail ? '#dc2626' : 'inherit', fontWeight: isFail ? 600 : 400 }}>
+                                    {val !== null ? val : '—'}
+                                  </td>
+                                );
+                              })}
+                              
+                              <td style={{ fontWeight: 600 }}>{row.totalMarks} / {row.totalMaxMarks}</td>
+                              <td style={{ fontWeight: 700, color: row.percentage >= 80 ? '#059669' : row.percentage < 40 ? '#dc2626' : '#1e3a8a' }}>
+                                {row.hasMarks ? <CountUp end={row.percentage} decimals={2} suffix="%" duration={1500} /> : '—'}
+                              </td>
+                              <td>
+                                <span className={`badge-grade ${['A+', 'A', 'B'].includes(row.grade) ? 'badge-green' : ['C', 'D'].includes(row.grade) ? 'badge-blue' : row.grade === 'F' ? 'badge-red' : 'badge-gray'}`} style={{ animationDelay: `${(idx * 30) + 500}ms` }}>
+                                  {row.grade || '—'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {filteredResults.length === 0 && (
+                            <tr>
+                              <td colSpan={classData.subjects.length + 6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
+                                No students found matching your search.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : null}
+              </>
+            )}
           </div>
-        )}
+        </div>
       </main>
 
-      <footer style={{ background: 'white', padding: 24, textAlign: 'center', color: '#64748b', borderTop: '1px solid #e2e8f0' }}>
+      <footer className="portal-footer">
         <p style={{ margin: 0, fontSize: '0.95rem' }}>© {new Date().getFullYear()} Matha English Medium School, Kaikalur</p>
-        <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>Powered by Matha Exam Manager</p>
+        <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', opacity: 0.8 }}>Powered by Matha Exam Manager</p>
       </footer>
     </div>
   );

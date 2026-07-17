@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useApi } from '../../hooks/useApi';
-import './PublicResults.css';
 import schoolLogo from '../../assets/school-logo.png';
 
 // CountUp component for animating numbers
@@ -12,7 +11,6 @@ const CountUp = ({ end, duration = 1000, suffix = '', decimals = 0 }) => {
     const step = (timestamp) => {
       if (!startTimestamp) startTimestamp = timestamp;
       const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      // easeOutExpo
       const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
       setCount(easeProgress * end);
       if (progress < 1) {
@@ -53,7 +51,6 @@ export default function PublicResults() {
   const onTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
     const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
     const isRightSwipe = distance < -minSwipeDistance;
     if (isRightSwipe && selectedClass) {
       handleBack();
@@ -139,7 +136,7 @@ export default function PublicResults() {
       let currentScore = -1;
       let ties = 0;
       
-      rankedResults.forEach((r, idx) => {
+      rankedResults.forEach((r) => {
         if (!r.hasMarks) {
           r.rank = null;
           return;
@@ -207,8 +204,8 @@ export default function PublicResults() {
   };
 
   const highlightText = (text, highlight) => {
-    if (!highlight.trim()) {
-      return <span>{text}</span>;
+    if (!highlight.trim() || !text) {
+      return <span>{text || '—'}</span>;
     }
     const regex = new RegExp(`(${highlight})`, 'gi');
     const parts = String(text).split(regex);
@@ -224,13 +221,15 @@ export default function PublicResults() {
   if (loading) {
     return (
       <div className="public-portal">
+        <Styles />
         <header className="portal-header">
           <img src={schoolLogo} alt="Matha English Medium School" className="portal-logo" />
           <h1 className="school-name-title">Matha English Medium School</h1>
-          <div className="gold-divider" />
           <p className="portal-subtitle">EXAM RESULTS PORTAL</p>
+          <div className="gold-divider" />
+          <div className="academic-year">Academic Year 2026-27</div>
         </header>
-        <div className="main-content" style={{ marginTop: 40 }}>
+        <div className="main-content">
           <div className="class-grid">
             {[1,2,3,4].map(i => (
               <div key={i} className="class-card skeleton-box" style={{ height: 120, animationDelay: `${i*100}ms` }} />
@@ -250,7 +249,8 @@ export default function PublicResults() {
   if (!publishedExam) {
     return (
       <div className="not-published">
-        <img src={schoolLogo} alt="Matha English Medium School" className="portal-logo" style={{ width: 120, height: 120, animation: 'none' }} />
+        <Styles />
+        <img src={schoolLogo} alt="Matha English Medium School" className="portal-logo" style={{ width: 100, height: 100, animation: 'fadeScaleIn 600ms ease-out forwards' }} />
         <div className="not-published-icon">📋</div>
         <h1>Results Not Yet Published</h1>
         <p>Please check back later or contact the school.</p>
@@ -273,6 +273,7 @@ export default function PublicResults() {
 
   return (
     <div className="public-portal" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+      <Styles />
       
       {/* Print Header Logo */}
       <div className="print-header-logo">
@@ -295,13 +296,13 @@ export default function PublicResults() {
           
           {/* Class Selection View */}
           <div className={`view-container ${selectedClass ? 'view-exit-left' : 'view-enter-active'}`}>
-            <div style={{ background: 'white', padding: 24, borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: 32 }}>
-              <h2 style={{ margin: '0 0 8px 0', fontSize: '1.8rem', color: 'var(--text-dark)' }}>{publishedExam.name}</h2>
-              <div style={{ color: 'var(--text-muted)' }}>
+            <div className="exam-banner">
+              <h2 style={{ margin: '0 0 4px 0', fontSize: '2rem' }}>Results for: {publishedExam.name}</h2>
+              <div style={{ opacity: 0.9, fontSize: '1rem' }}>
                 Published on: {new Date(publishedExam.publishedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
               </div>
             </div>
-            <h2 style={{ fontSize: '1.25rem', color: 'var(--primary-blue)', marginBottom: 24, fontWeight: 700 }}>Select a Class</h2>
+            
             <div className="class-grid">
               {classes.map((cls, index) => (
                 <div 
@@ -311,8 +312,10 @@ export default function PublicResults() {
                   onClick={() => handleSelectClass(cls)}
                 >
                   <div className="class-card-header">
-                    <h3 className="class-card-title">{cls.name}</h3>
-                    <div className="class-card-icon">📚</div>
+                    <div>
+                      <h3 className="class-card-title">{cls.name}</h3>
+                      <p className="class-card-subtitle">All Students</p>
+                    </div>
                   </div>
                   <div className="class-card-action">
                     View Marksheet <span className="arrow-icon">→</span>
@@ -356,15 +359,15 @@ export default function PublicResults() {
                     <div className="stats-grid">
                       <div className="stat-card" style={{ animationDelay: '100ms' }}>
                         <div className="stat-value"><CountUp end={classData.stats.classAverage} decimals={1} suffix="%" /></div>
-                        <div className="stat-label">Class Avg</div>
+                        <div className="stat-label">Class Average</div>
                       </div>
                       <div className="stat-card" style={{ animationDelay: '200ms' }}>
                         <div className="stat-value"><CountUp end={classData.stats.highestScore} decimals={1} suffix="%" /></div>
-                        <div className="stat-label">Highest</div>
+                        <div className="stat-label">Highest Score</div>
                       </div>
                       <div className="stat-card" style={{ animationDelay: '300ms' }}>
                         <div className="stat-value"><CountUp end={classData.stats.lowestScore} decimals={1} suffix="%" /></div>
-                        <div className="stat-label">Lowest</div>
+                        <div className="stat-label">Lowest Score</div>
                       </div>
                       <div className="stat-card" style={{ animationDelay: '400ms' }}>
                         <div className="stat-value"><CountUp end={classData.stats.passRate} decimals={1} suffix="%" /></div>
@@ -372,7 +375,7 @@ export default function PublicResults() {
                       </div>
                     </div>
 
-                    <div className="search-box" style={{ marginBottom: 24 }}>
+                    <div className="search-box">
                       <span className="search-icon">🔍</span>
                       <input 
                         type="text" 
@@ -408,7 +411,7 @@ export default function PublicResults() {
                                 <span className="rank-icon">{getRankIcon(row.rank)}</span>
                                 {row.rank || '-'}
                               </td>
-                              <td>{highlightText(row.student.rollNumber || '-', searchTerm)}</td>
+                              <td>{highlightText(row.student.rollNumber, searchTerm)}</td>
                               <td>{highlightText(row.student.name, searchTerm)}</td>
                               
                               {classData.subjects.map(sub => {
@@ -457,3 +460,552 @@ export default function PublicResults() {
     </div>
   );
 }
+
+// Inline styles exactly as requested
+const Styles = () => (
+  <style>{`
+    :root {
+      --primary-blue: #1E3A8A;
+      --accent-gold: #F5B700;
+      --success-green: #16A34A;
+      --bg-color: #F9FAFB;
+      --surface: #ffffff;
+      --text-dark: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+
+    /* Animations */
+    @keyframes fadeScaleIn {
+      from { opacity: 0; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes slideDownIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideUpFade {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(30px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0); opacity: 0; }
+      80% { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(30, 58, 138, 0.4); }
+      70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(30, 58, 138, 0); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(30, 58, 138, 0); }
+    }
+
+    @keyframes float {
+      0% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+      100% { transform: translateY(0); }
+    }
+
+    @keyframes skeletonLoad {
+      0% { background-color: #e2e8f0; }
+      50% { background-color: #cbd5e1; }
+      100% { background-color: #e2e8f0; }
+    }
+
+    /* Base Styles */
+    .public-portal {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-color);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    .portal-header {
+      text-align: center;
+      padding: 40px 20px 20px;
+      background: white;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+      position: relative;
+      z-index: 10;
+    }
+
+    .portal-logo {
+      width: 100px;
+      height: 100px;
+      object-fit: contain;
+      margin-bottom: 16px;
+      animation: fadeScaleIn 600ms ease-out forwards;
+    }
+
+    @media (min-width: 768px) {
+      .portal-logo {
+        width: 120px;
+        height: 120px;
+      }
+    }
+
+    .school-name-title {
+      color: var(--primary-blue);
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      opacity: 0;
+      animation: slideDownIn 500ms ease-out forwards;
+    }
+
+    @media (min-width: 768px) {
+      .school-name-title { font-size: 2.2rem; }
+    }
+
+    .portal-subtitle {
+      color: var(--accent-gold);
+      letter-spacing: 3px;
+      font-weight: 700;
+      font-size: 1rem;
+      margin: 0;
+      opacity: 0;
+      animation: fadeIn 500ms ease-out 300ms forwards;
+    }
+
+    .gold-divider {
+      width: 60px;
+      height: 2px;
+      background-color: var(--accent-gold);
+      margin: 16px auto;
+      border-radius: 2px;
+      opacity: 0;
+      animation: fadeIn 500ms ease-out 400ms forwards;
+    }
+
+    .academic-year {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      opacity: 0;
+      animation: fadeIn 500ms ease-out 500ms forwards;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 32px 16px;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .exam-banner {
+      background: var(--primary-blue);
+      color: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 32px;
+      text-align: center;
+      animation: slideUpFade 500ms ease-out forwards;
+    }
+
+    /* View Transitions */
+    .view-container {
+      transition: transform 300ms ease-in-out, opacity 300ms ease-in-out;
+    }
+    .view-exit-left { transform: translateX(-100%); opacity: 0; position: absolute; width: 100%; pointer-events: none; }
+    .view-exit-right { transform: translateX(100%); opacity: 0; position: absolute; width: 100%; pointer-events: none; }
+    .view-enter-active { transform: translateX(0); opacity: 1; position: relative; }
+
+    /* Class Cards */
+    .class-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    .class-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      border-left: 4px solid var(--primary-blue);
+      cursor: pointer;
+      transition: all 200ms ease;
+      opacity: 0;
+      animation: slideUpFade 500ms ease-out forwards;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 140px;
+    }
+
+    .class-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 12px 20px -8px rgba(0,0,0,0.15);
+      border-left-color: var(--accent-gold);
+    }
+
+    .class-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .class-card-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin: 0 0 4px 0;
+    }
+
+    .class-card-subtitle {
+      color: var(--text-muted);
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    .class-card-action {
+      color: var(--accent-gold);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .arrow-icon {
+      transition: transform 200ms ease;
+    }
+
+    .class-card:hover .arrow-icon {
+      transform: translateX(6px);
+    }
+
+    /* Results View */
+    .results-header {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    @media (min-width: 768px) {
+      .results-header {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+      }
+    }
+
+    .back-btn {
+      background: transparent;
+      border: none;
+      color: var(--primary-blue);
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      transition: color 200ms;
+    }
+
+    .back-btn:hover { color: var(--accent-gold); }
+
+    .search-box {
+      position: relative;
+      width: 100%;
+      margin-bottom: 24px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 16px 12px 40px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color 200ms, box-shadow 200ms;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary-blue);
+      box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+    }
+
+    .print-btn {
+      background: var(--primary-blue);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: pulse 2s infinite;
+      transition: background 200ms, transform 200ms;
+    }
+
+    .print-btn:hover {
+      animation: none;
+      background: var(--accent-gold);
+      color: var(--text-dark);
+      transform: translateY(-2px);
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (min-width: 768px) {
+      .stats-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      text-align: center;
+      animation: popIn 500ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      opacity: 0;
+    }
+
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--primary-blue);
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Results Table */
+    .table-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      overflow-x: auto;
+      opacity: 0;
+      animation: fadeIn 400ms ease-out forwards;
+    }
+
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 800px;
+    }
+
+    .results-table th {
+      background: #f8fafc;
+      padding: 16px;
+      text-align: center;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .results-table th:nth-child(1), .results-table th:nth-child(2), .results-table th:nth-child(3) {
+      text-align: left;
+    }
+
+    .results-table td {
+      padding: 16px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .results-table td:nth-child(1), .results-table td:nth-child(2), .results-table td:nth-child(3) {
+      text-align: left;
+      font-weight: 500;
+    }
+
+    .student-row {
+      opacity: 0;
+      animation: slideInRight 400ms ease-out forwards;
+      transition: background-color 200ms;
+    }
+
+    .student-row:hover {
+      background-color: #f1f5f9;
+    }
+
+    .highlight {
+      background-color: yellow;
+      color: black;
+      padding: 0 2px;
+      border-radius: 2px;
+    }
+
+    /* Rank Highlighting */
+    .rank-1 {
+      background: linear-gradient(90deg, rgba(245, 183, 0, 0.15) 0%, transparent 100%);
+      border-left: 4px solid var(--accent-gold);
+    }
+    .rank-2 {
+      background: linear-gradient(90deg, rgba(148, 163, 184, 0.15) 0%, transparent 100%);
+      border-left: 4px solid #94a3b8;
+    }
+    .rank-3 {
+      background: linear-gradient(90deg, rgba(180, 83, 9, 0.15) 0%, transparent 100%);
+      border-left: 4px solid #b45309;
+    }
+
+    .rank-icon {
+      margin-right: 8px;
+      font-size: 1.2rem;
+    }
+
+    .badge-grade {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      animation: popIn 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      opacity: 0;
+    }
+
+    .badge-green { background: #dcfce7; color: #16a34a; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-gray { background: #f1f5f9; color: #64748b; }
+    .badge-red { background: #fee2e2; color: #dc2626; }
+
+    /* Skeleton Loader */
+    .skeleton-row {
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .skeleton-box {
+      height: 20px;
+      border-radius: 4px;
+      animation: skeletonLoad 1.5s infinite;
+    }
+
+    /* Not Published State */
+    .not-published {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: var(--bg-color);
+      text-align: center;
+      padding: 20px;
+    }
+
+    .not-published-icon {
+      font-size: 4rem;
+      margin-bottom: 16px;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    .not-published h1 {
+      color: var(--primary-blue);
+      font-size: 2rem;
+      margin: 0 0 16px;
+      animation: slideUpFade 500ms ease-out forwards;
+    }
+
+    .not-published p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      animation: slideUpFade 500ms ease-out 100ms forwards;
+      opacity: 0;
+    }
+
+    /* Footer */
+    .portal-footer {
+      background: var(--primary-blue);
+      color: white;
+      padding: 24px;
+      text-align: center;
+      margin-top: auto;
+    }
+
+    /* Print Styles */
+    @media print {
+      .portal-header, .portal-footer, .search-box, .print-btn, .back-btn, .stats-grid, .exam-banner {
+        display: none !important;
+      }
+      .print-header-logo {
+        display: block !important;
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      .print-header-logo img {
+        width: 100px;
+        height: 100px;
+      }
+      .print-header-logo h2 {
+        color: black;
+        margin: 8px 0;
+      }
+      .main-content {
+        padding: 0;
+        max-width: none;
+      }
+      .table-container {
+        box-shadow: none;
+      }
+      .results-table th {
+        background: #eee !important;
+        color: black !important;
+        border-bottom: 2px solid black;
+      }
+      .results-table td {
+        border-bottom: 1px solid #ccc;
+      }
+      .rank-1, .rank-2, .rank-3 {
+        background: none;
+        border: none;
+      }
+    }
+
+    .print-header-logo {
+      display: none;
+    }
+  `}</style>
+);

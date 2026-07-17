@@ -17,6 +17,7 @@ export default function ExamsPage() {
 
   const [modal, setModal] = useState(null); // 'create' | 'config' | 'publish'
   const [deleteModal, setDeleteModal] = useState(null);
+  const [publishPublicModal, setPublishPublicModal] = useState(null);
   const [selectedExam, setSelectedExam] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
@@ -174,6 +175,38 @@ export default function ExamsPage() {
     }
   };
 
+  const handlePublishPublic = async () => {
+    if (!publishPublicModal) return;
+    setSaving(true);
+    try {
+      await apiCall(`/api/admin/exams/${publishPublicModal.id}/publish-results`, { method: 'PUT' });
+      setConfigSuccess([
+        '✅ Results published! Parents can now view results at /results',
+        `Share this link with parents: ${window.location.origin}/results`
+      ]);
+      setPublishPublicModal(null);
+      setTimeout(() => setConfigSuccess([]), 10000);
+      loadData();
+    } catch (e) {
+      setFormError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUnpublishPublic = async (examId) => {
+    setLoading(true);
+    try {
+      await apiCall(`/api/admin/exams/${examId}/unpublish-results`, { method: 'PUT' });
+      setConfigSuccess(['Results hidden from public view']);
+      setTimeout(() => setConfigSuccess([]), 5000);
+      loadData();
+    } catch (e) {
+      setError(e.message);
+      setLoading(false);
+    }
+  };
+
 
 
   const openRename = (exam) => {
@@ -274,7 +307,14 @@ export default function ExamsPage() {
                 const isInternal = exam.examType === 'INTERNAL_EXAM';
                 return (
                   <tr key={exam.id}>
-                    <td><strong>{exam.name}</strong></td>
+                    <td>
+                      <strong>{exam.name}</strong>
+                      {exam.isPublished && (
+                        <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#dcfce7', color: '#16a34a' }}>
+                          🌐 Published
+                        </span>
+                      )}
+                    </td>
                     <td>
                       <span style={{ 
                         padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
@@ -340,6 +380,16 @@ export default function ExamsPage() {
                         {exam.status !== 'Draft' && (
                           <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/admin/exams/${exam.id}/results`)}>
                             📊 View Results
+                          </button>
+                        )}
+                        {exam.status === 'Closed' && !exam.isPublished && (
+                          <button className="btn btn-ghost btn-sm" onClick={() => setPublishPublicModal(exam)}>
+                            🌐 Publish Results
+                          </button>
+                        )}
+                        {exam.status === 'Closed' && exam.isPublished && (
+                          <button className="btn btn-ghost btn-sm" style={{ color: '#b45309' }} onClick={() => handleUnpublishPublic(exam.id)}>
+                            🚫 Unpublish
                           </button>
                         )}
                         <button 
@@ -741,6 +791,48 @@ export default function ExamsPage() {
           </div>
         </div>
       )}
+      {publishPublicModal && (() => {
+        const publishedExam = exams.find(e => e.isPublished);
+        return (
+          <div className="modal-overlay" onClick={() => setPublishPublicModal(null)}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
+              <div className="modal-header">
+                <h2 className="modal-title">Publish Results</h2>
+                <button className="modal-close" onClick={() => setPublishPublicModal(null)}>✕</button>
+              </div>
+              <div className="confirm-body">
+                <p className="confirm-icon" style={{ fontSize: '3rem' }}>🌐</p>
+                {publishedExam ? (
+                  <>
+                    <p className="confirm-msg" style={{ color: '#b45309' }}>WARNING</p>
+                    <p className="confirm-sub" style={{ fontWeight: 500 }}>
+                      This will replace the currently published <strong>'{publishedExam.name}'</strong> results with <strong>'{publishPublicModal.name}'</strong>.
+                    </p>
+                    <p className="confirm-sub" style={{ marginTop: 8 }}>
+                      Parents will see the new results immediately. Continue?
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="confirm-msg">Publish results for <strong>'{publishPublicModal.name}'</strong>?</p>
+                    <p className="confirm-sub">These results will be instantly visible to parents on the public portal.</p>
+                  </>
+                )}
+              </div>
+              <div className="modal-footer" style={{ marginTop: 24 }}>
+                <button className="btn btn-ghost" onClick={() => setPublishPublicModal(null)}>Cancel</button>
+                <button 
+                  className="btn btn-primary" 
+                  disabled={saving} 
+                  onClick={handlePublishPublic}
+                >
+                  {saving ? <span className="spinner" /> : (publishedExam ? 'Yes, Publish New Results' : 'Publish Results')}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

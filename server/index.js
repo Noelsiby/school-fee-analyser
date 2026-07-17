@@ -9,6 +9,7 @@ const adminRouter  = require('./routes/admin');
 const notificationsRouter = require('./routes/notifications');
 const subjectTeacherRouter = require('./routes/subjectTeacher');
 const classTeacherRouter = require('./routes/classTeacher');
+const publicRouter       = require('./routes/public');
 
 // Initialize cron jobs
 require('./cron');
@@ -44,6 +45,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/subject-teacher', subjectTeacherRouter);
 app.use('/api/class-teacher', classTeacherRouter);
+app.use('/api/public', publicRouter);
 
 // ── Production: serve built React app ──────────────────────────
 // In production, Express serves the Vite build output as static files.

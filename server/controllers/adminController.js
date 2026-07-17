@@ -1262,3 +1262,59 @@ exports.exportExamResultsWord = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.publishPublicResults = async (req, res) => {
+  const examId = Number(req.params.id);
+  
+  try {
+    const exam = await prisma.exam.findUnique({ where: { id: examId } });
+    if (!exam) return res.status(404).json({ error: 'Exam not found' });
+    if (exam.status !== 'Closed') {
+      return res.status(400).json({ error: 'Only Closed exams can be published to the public portal.' });
+    }
+
+    // Unpublish any other exam
+    await prisma.exam.updateMany({
+      where: { isPublished: true },
+      data: { isPublished: false, publishedAt: null }
+    });
+
+    // Publish this one
+    await prisma.exam.update({
+      where: { id: examId },
+      data: { isPublished: true, publishedAt: new Date() }
+    });
+
+    // Notify all teachers
+    const teachers = await prisma.user.findMany({
+      where: { roles: { hasSome: ['ClassTeacher', 'SubjectTeacher'] } }
+    });
+
+    if (teachers.length > 0) {
+      await prisma.notification.createMany({
+        data: teachers.map(t => ({
+          userId: t.id,
+          message: `Results for ${exam.name} have been published and are now visible to parents`,
+          type: 'Info'
+        }))
+      });
+    }
+
+    res.json({ message: 'Results published successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.unpublishPublicResults = async (req, res) => {
+  const examId = Number(req.params.id);
+  try {
+    await prisma.exam.update({
+      where: { id: examId },
+      data: { isPublished: false, publishedAt: null }
+    });
+    res.json({ message: 'Results unpublished successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

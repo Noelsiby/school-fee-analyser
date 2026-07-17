@@ -5,6 +5,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 import LoginPage              from './pages/LoginPage';
 import RoleSwitcherPage       from './pages/RoleSwitcherPage';
+import PublicResults          from './pages/public/PublicResults';
 
 // Admin module
 import AdminLayout            from './pages/admin/AdminLayout';
@@ -37,6 +38,7 @@ function AppRoutes() {
     <Routes>
       {/* ── Public ─────────────────────────────────────────── */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/results" element={<PublicResults />} />
 
       {/* ── Role Selector ──────────────────────────────────── */}
       <Route

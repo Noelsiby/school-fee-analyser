@@ -65,4 +65,8 @@ router.get('/exams/:id/export/excel', ctrl.exportExamResultsExcel);
 // Export exam results as Word
 router.get('/exams/:id/export/word', ctrl.exportExamResultsWord);
 
+// Publish results to public portal
+router.put('/exams/:id/publish-results', ctrl.publishPublicResults);
+router.put('/exams/:id/unpublish-results', ctrl.unpublishPublicResults);
+
 module.exports = router;

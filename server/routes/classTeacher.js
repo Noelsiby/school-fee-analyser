@@ -31,4 +31,7 @@ router.put('/marks/reject', ctrl.rejectMarks);
 // Finalize the exam for the class once all subjects are approved
 router.put('/exams/:id/finalize', ctrl.finalizeExam);
 
+// Update max marks for a subject config (only before submission)
+router.put('/exam-config/:configId/max-marks', ctrl.updateMaxMarks);
+
 module.exports = router;

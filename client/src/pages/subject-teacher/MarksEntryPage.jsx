@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import '../admin/admin.css';
-import './MarksEntryPage.css'; // Will create this next
+import './MarksEntryPage.css';
 
 export default function MarksEntryPage() {
   const { examId, subjectId } = useParams();
@@ -12,19 +12,24 @@ export default function MarksEntryPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // Local state for input values to handle typing before blur
+
   const [inputValues, setInputValues] = useState({});
-  const [savingStatus, setSavingStatus] = useState({}); // { studentId: 'saving' | 'saved' | 'error' }
+  const [savingStatus, setSavingStatus] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Max marks editing
+  const [editingMaxMarks, setEditingMaxMarks] = useState(false);
+  const [maxMarksInput, setMaxMarksInput] = useState('');
+  const [savingMaxMarks, setSavingMaxMarks] = useState(false);
+  const [maxMarksError, setMaxMarksError] = useState('');
 
   const loadData = useCallback(async () => {
     setLoading(true); setError('');
     try {
       const res = await apiCall(`/api/subject-teacher/exams/${examId}/subjects/${subjectId}/students`);
       setData(res);
-      
+      setMaxMarksInput(String(res.maxMarks));
       const initialInputs = {};
       res.students.forEach(s => {
         initialInputs[s.id] = s.markRecord?.marksObtained ?? '';
@@ -46,17 +51,14 @@ export default function MarksEntryPage() {
   const handleBlur = async (studentId) => {
     const val = inputValues[studentId];
     const student = data.students.find(s => s.id === studentId);
-    
-    // Check if it actually changed
     const originalVal = student.markRecord?.marksObtained ?? '';
     if (String(val) === String(originalVal)) return;
 
-    // Validate locally first
     if (val !== '') {
       const numVal = Number(val);
       if (isNaN(numVal) || numVal < 0 || numVal > data.maxMarks) {
         setSavingStatus(prev => ({ ...prev, [studentId]: 'error' }));
-        return; // Don't save invalid data
+        return;
       }
     }
 
@@ -64,29 +66,25 @@ export default function MarksEntryPage() {
     try {
       await apiCall('/api/subject-teacher/marks', {
         method: 'POST',
-        body: {
-          examId,
-          subjectId,
-          marksData: [{ studentId, marksObtained: val }]
-        }
+        body: { examId, subjectId, marksData: [{ studentId, marksObtained: val }] }
       });
       setSavingStatus(prev => ({ ...prev, [studentId]: 'saved' }));
-      
-      // Clear saved status after 2 seconds
       setTimeout(() => {
         setSavingStatus(prev => ({ ...prev, [studentId]: null }));
       }, 2000);
-      
-      // Update local data state to reflect the new original value
+
       setData(prev => {
         const newStudents = prev.students.map(s => {
           if (s.id === studentId) {
+            const prevStatus = s.markRecord?.status;
+            const newStatus = ['SubmittedToClassTeacher', 'Approved'].includes(prevStatus)
+              ? 'Pending' : (prevStatus === 'Rejected' ? 'Pending' : (prevStatus || 'Pending'));
             return {
               ...s,
               markRecord: {
                 ...s.markRecord,
                 marksObtained: val === '' ? null : Number(val),
-                status: s.markRecord?.status === 'Rejected' ? 'Pending' : (s.markRecord?.status || 'Pending')
+                status: newStatus
               }
             };
           }
@@ -96,18 +94,44 @@ export default function MarksEntryPage() {
       });
     } catch (e) {
       setSavingStatus(prev => ({ ...prev, [studentId]: 'error' }));
-      console.error(e);
+    }
+  };
+
+  const handleSaveMaxMarks = async () => {
+    const val = Number(maxMarksInput);
+    if (isNaN(val) || val <= 0) {
+      setMaxMarksError('Please enter a valid positive number.');
+      return;
+    }
+    setSavingMaxMarks(true); setMaxMarksError('');
+    try {
+      await apiCall(`/api/subject-teacher/exam-config/${data.configId}/max-marks`, {
+        method: 'PUT',
+        body: { maxMarks: val }
+      });
+      setData(prev => ({ ...prev, maxMarks: val }));
+      setEditingMaxMarks(false);
+    } catch (e) {
+      setMaxMarksError(e.message);
+    } finally {
+      setSavingMaxMarks(false);
     }
   };
 
   const handleSubmitAll = async () => {
     setSubmitting(true); setSubmitError('');
     try {
-      await apiCall('/api/subject-teacher/marks/submit', {
+      const isResubmit = anyPreviouslySubmitted;
+      const endpoint = isResubmit
+        ? '/api/subject-teacher/marks/resubmit'
+        : '/api/subject-teacher/marks/submit';
+
+      await apiCall(endpoint, {
         method: 'PUT',
         body: { examId, subjectId }
       });
-      navigate('/subject-teacher/dashboard');
+
+      await loadData(); // Reload to show updated status
     } catch (e) {
       setSubmitError(e.message);
     } finally {
@@ -119,12 +143,30 @@ export default function MarksEntryPage() {
   if (error) return <div className="admin-page"><div className="empty-state"><p style={{ color: '#dc2626' }}>⚠ {error}</p><button className="btn btn-primary" onClick={() => navigate('/subject-teacher/dashboard')}>Back</button></div></div>;
 
   const isLocked = data.exam.isLocked;
-  // Subject is submitted/approved overall. But if REJECTED, teacher must be able to re-enter.
-  const anySubmitted = data.students.some(s => ['SubmittedToClassTeacher', 'Approved'].includes(s.markRecord?.status));
+
+  // Previously submitted = any mark was SubmittedToClassTeacher or Approved at any point
+  // We detect from current statuses — if exam is still Open, "submitted" marks that came back as Pending
+  // means they were edited after submission. We check original DB status via the current state.
+  const anyCurrentlySubmitted = data.students.some(s =>
+    ['SubmittedToClassTeacher', 'Approved'].includes(s.markRecord?.status)
+  );
+  // If any mark exists at all that has been through the system before (not null), consider it "previously submitted"
+  // More accurate: check if there are marks at SubmittedToClassTeacher or Approved
+  const anyPreviouslySubmitted = anyCurrentlySubmitted;
   const anyRejected = data.students.some(s => s.markRecord?.status === 'Rejected');
-  // If rejected, allow editing again (so teacher can fix and resubmit)
-  const isReadOnly = isLocked || (anySubmitted && !anyRejected);
-  const allFilled = data.students.every(s => inputValues[s.id] !== '' && inputValues[s.id] !== null && inputValues[s.id] !== undefined);
+
+  const allFilled = data.students.every(s =>
+    inputValues[s.id] !== '' && inputValues[s.id] !== null && inputValues[s.id] !== undefined
+  );
+
+  // Show resubmit warning if some marks were already submitted (currently SubmittedToClassTeacher / Approved)
+  // AND some have been reset to Pending (meaning the teacher edited them)
+  const someResetToPending = data.students.some(s => s.markRecord?.status === 'Pending' && s.markRecord?.marksObtained !== null);
+  const showResubmitWarning = anyPreviouslySubmitted && someResetToPending;
+
+  const submitButtonLabel = anyPreviouslySubmitted
+    ? 'Update & Resubmit to Class Teacher'
+    : 'Submit to Class Teacher';
 
   return (
     <div className="admin-page">
@@ -137,25 +179,87 @@ export default function MarksEntryPage() {
       <div className="page-header" style={{ marginBottom: 16 }}>
         <div>
           <h1 className="page-title">Marks Entry</h1>
-          <p className="page-sub">
-            {data.class.name} · Max Marks: <strong>{data.maxMarks}</strong>
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+            <span className="page-sub" style={{ margin: 0 }}>{data.class.name}</span>
+            <span style={{ color: '#94a3b8' }}>·</span>
+            {/* Max Marks inline edit */}
+            {editingMaxMarks ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.9rem', color: '#64748b' }}>Max Marks:</span>
+                <input
+                  type="number"
+                  value={maxMarksInput}
+                  onChange={e => setMaxMarksInput(e.target.value)}
+                  style={{
+                    width: 80, padding: '4px 8px', border: '2px solid #1E3A8A',
+                    borderRadius: 6, fontSize: '0.9rem'
+                  }}
+                  autoFocus
+                  min="1"
+                />
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleSaveMaxMarks}
+                  disabled={savingMaxMarks}
+                >
+                  {savingMaxMarks ? <span className="spinner" /> : 'Save'}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setEditingMaxMarks(false); setMaxMarksError(''); }}>
+                  Cancel
+                </button>
+                {maxMarksError && <span style={{ color: '#dc2626', fontSize: '0.8rem' }}>{maxMarksError}</span>}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="page-sub" style={{ margin: 0 }}>Maximum Marks: <strong>{data.maxMarks}</strong></span>
+                {!isLocked && !data.maxMarksLocked && (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ padding: '2px 8px', fontSize: '0.8rem' }}
+                    onClick={() => { setEditingMaxMarks(true); setMaxMarksInput(String(data.maxMarks)); }}
+                    title="Edit maximum marks"
+                  >
+                    ✏️ Edit
+                  </button>
+                )}
+                {data.maxMarksLocked && (
+                  <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>(locked after submission)</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        {!isReadOnly && (
-          <button 
-            className="btn btn-primary" 
-            disabled={submitting || !allFilled} 
+
+        {!isLocked && (
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !allFilled}
             onClick={handleSubmitAll}
             title={!allFilled ? 'All students must have marks before submitting' : ''}
           >
-            {submitting ? <span className="spinner" /> : 'Submit to Class Teacher'}
+            {submitting ? <span className="spinner" /> : submitButtonLabel}
           </button>
         )}
       </div>
 
-      {isReadOnly && (
+      {/* Resubmit warning banner */}
+      {showResubmitWarning && (
+        <div className="alert" style={{
+          marginBottom: 16,
+          backgroundColor: '#fffbeb',
+          borderColor: '#fde68a',
+          color: '#b45309',
+          border: '1px solid #fde68a',
+          borderRadius: 8,
+          padding: '12px 16px'
+        }}>
+          ⚠️ You are editing already submitted marks. Clicking <strong>"{submitButtonLabel}"</strong> will notify the Class Teacher to review again.
+        </div>
+      )}
+
+      {anyCurrentlySubmitted && !someResetToPending && (
         <div className="alert alert-info" style={{ marginBottom: 16 }}>
-          ℹ️ Marks have been submitted to the Class Teacher and are currently locked for editing.
+          ℹ️ Marks have been submitted to the Class Teacher. You can still edit them and resubmit.
         </div>
       )}
 
@@ -173,7 +277,7 @@ export default function MarksEntryPage() {
             <tr>
               <th style={{ width: '100px' }}>Roll No.</th>
               <th>Student Name</th>
-              <th style={{ width: '200px' }}>Marks Obtained</th>
+              <th style={{ width: '200px' }}>Marks (/ {data.maxMarks})</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -183,9 +287,9 @@ export default function MarksEntryPage() {
               const stat = savingStatus[student.id];
               const markRecord = student.markRecord;
               const isRejected = markRecord?.status === 'Rejected';
-              
+
               let statusText = stat === 'saving' ? 'Saving...' : stat === 'saved' ? 'Saved ✓' : stat === 'error' ? 'Error ⚠' : '';
-              
+
               return (
                 <tr key={student.id} className={isRejected ? 'row-rejected' : ''}>
                   <td><code className="roll-number">{student.rollNumber}</code></td>
@@ -199,13 +303,13 @@ export default function MarksEntryPage() {
                   </td>
                   <td>
                     <div className="mark-input-wrapper">
-                      <input 
+                      <input
                         type="number"
                         className={`form-input mark-input ${stat === 'error' ? 'input-error' : ''}`}
                         value={val}
                         onChange={e => handleInputChange(student.id, e.target.value)}
                         onBlur={() => handleBlur(student.id)}
-                        disabled={isReadOnly}
+                        disabled={isLocked}
                         placeholder="—"
                         min="0"
                         max={data.maxMarks}
@@ -216,8 +320,13 @@ export default function MarksEntryPage() {
                   </td>
                   <td>
                     {markRecord ? (
-                      <span className={`badge badge-${markRecord.status === 'Rejected' ? 'red' : markRecord.status === 'Pending' ? 'gray' : 'green'}`}>
-                        {markRecord.status}
+                      <span className={`badge badge-${
+                        markRecord.status === 'Rejected' ? 'red'
+                        : markRecord.status === 'Pending' ? 'gray'
+                        : markRecord.status === 'Approved' ? 'green'
+                        : 'blue'
+                      }`}>
+                        {markRecord.status === 'SubmittedToClassTeacher' ? 'Submitted' : markRecord.status}
                       </span>
                     ) : (
                       <span className="badge badge-gray">Not Entered</span>

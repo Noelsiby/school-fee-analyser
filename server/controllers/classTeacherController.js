@@ -146,12 +146,26 @@ exports.getExamReview = async (req, res) => {
 
     const studentCount = examClass.students.length;
 
+    // Check which subjects were resubmitted (have a RESUBMIT audit log entry)
+    const resubmitLogs = await prisma.auditLog.findMany({
+      where: {
+        tableName: 'marks',
+        action: 'RESUBMIT',
+        recordId: { startsWith: `exam:${id}:subject:` }
+      }
+    });
+    const resubmittedSubjectIds = new Set(
+      resubmitLogs.map(log => {
+        const match = log.recordId.match(/subject:(\d+)/);
+        return match ? Number(match[1]) : null;
+      }).filter(Boolean)
+    );
+
     const classConfigs = exam.subjectConfigs.filter(c => c.subject.classId === Number(classId));
-    // Aggregate status per subject
     const subjectReviews = classConfigs.map(config => {
       const subjectId = config.subjectId;
       const subjectMarks = marks.filter(m => m.subjectId === subjectId);
-      
+
       const assignment = examClass.teacherAssignments.find(a => a.subjectId === subjectId);
       const subjectTeacher = assignment ? assignment.teacher : null;
 
@@ -181,10 +195,12 @@ exports.getExamReview = async (req, res) => {
       }
 
       return {
+        configId: config.id,
         subject: config.subject,
         maxMarks: config.maxMarks,
         subjectTeacher,
         status,
+        wasResubmitted: resubmittedSubjectIds.has(subjectId),
         stats: {
           totalStudents: studentCount,
           enteredMarks: totalMarks,
@@ -200,22 +216,15 @@ exports.getExamReview = async (req, res) => {
     const isLocked = exam.isLocked || (enrollment && enrollment.status === 'Finalized');
 
     res.json({
-      exam: {
-        id: exam.id,
-        name: exam.name,
-        status: exam.status,
-        isLocked
-      },
-      class: {
-        id: examClass.id,
-        name: examClass.name
-      },
+      exam: { id: exam.id, name: exam.name, status: exam.status, isLocked },
+      class: { id: examClass.id, name: examClass.name },
       subjectReviews
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 // Fetch marks for a specific subject
 exports.getSubjectMarks = async (req, res) => {
@@ -609,11 +618,7 @@ exports.getMyStudents = async (req, res) => {
   try {
     const classData = await prisma.class.findFirst({
       where: { classTeacherId: teacherId },
-      include: {
-        students: {
-          orderBy: { rollNumber: 'asc' }
-        }
-      }
+      include: { students: { orderBy: { rollNumber: 'asc' } } }
     });
 
     if (!classData) {
@@ -629,3 +634,56 @@ exports.getMyStudents = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// Update max marks for a subject config — Class Teacher can edit before submission
+exports.updateMaxMarks = async (req, res) => {
+  const { configId } = req.params;
+  const { maxMarks } = req.body;
+  const teacherId = req.user.userId;
+
+  if (!maxMarks || isNaN(Number(maxMarks)) || Number(maxMarks) <= 0) {
+    return res.status(400).json({ error: 'Invalid max marks value.' });
+  }
+
+  try {
+    const config = await prisma.examSubjectConfig.findUnique({
+      where: { id: Number(configId) },
+      include: {
+        exam: true,
+        subject: { include: { class: true } }
+      }
+    });
+
+    if (!config) return res.status(404).json({ error: 'Config not found' });
+    if (config.exam.isLocked) return res.status(403).json({ error: 'Exam is locked.' });
+    if (config.exam.status !== 'Open') return res.status(403).json({ error: 'Exam is not open.' });
+
+    // Verify this teacher manages the class this subject belongs to
+    if (config.subject.class.classTeacherId !== teacherId) {
+      return res.status(403).json({ error: 'You are not the Class Teacher for this subject.' });
+    }
+
+    // Check no marks have been submitted for this subject yet
+    const submittedMarks = await prisma.mark.findMany({
+      where: {
+        examId: config.examId,
+        subjectId: config.subjectId,
+        status: { in: ['SubmittedToClassTeacher', 'Approved'] }
+      }
+    });
+
+    if (submittedMarks.length > 0) {
+      return res.status(400).json({ error: 'Cannot change max marks after marks have been submitted.' });
+    }
+
+    await prisma.examSubjectConfig.update({
+      where: { id: Number(configId) },
+      data: { maxMarks: Number(maxMarks) }
+    });
+
+    res.json({ message: 'Max marks updated successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+

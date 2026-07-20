@@ -305,6 +305,9 @@ export default function ExamsPage() {
               {exams.map(exam => {
                 const isConfigured = exam.subjectConfigs.length > 0;
                 const isInternal = exam.examType === 'INTERNAL_EXAM';
+                const finalizedCount = exam.enrollments?.filter(e => e.status === 'Finalized')?.length || 0;
+                const hasSomeFinalized = isInternal ? finalizedCount > 0 : exam.status === 'Closed';
+                const canPublish = !exam.isPublished && (exam.status === 'Closed' || (exam.status === 'Open' && hasSomeFinalized));
                 return (
                   <tr key={exam.id}>
                     <td>
@@ -382,8 +385,12 @@ export default function ExamsPage() {
                             📊 View Results
                           </button>
                         )}
-                        {exam.status === 'Closed' && !exam.isPublished && (
-                          <button className="btn btn-ghost btn-sm" onClick={() => setPublishPublicModal(exam)}>
+                        {canPublish && (
+                          <button 
+                            className="btn btn-primary btn-sm" 
+                            style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: 'white' }}
+                            onClick={() => setPublishPublicModal(exam)}
+                          >
                             🌐 Publish Results
                           </button>
                         )}
@@ -816,6 +823,11 @@ export default function ExamsPage() {
                   <>
                     <p className="confirm-msg">Publish results for <strong>'{publishPublicModal.name}'</strong>?</p>
                     <p className="confirm-sub">These results will be instantly visible to parents on the public portal.</p>
+                    {publishPublicModal.status === 'Open' && (
+                      <div style={{ marginTop: 16, padding: '12px', backgroundColor: '#fffbeb', color: '#b45309', borderRadius: '8px', border: '1px solid #fde68a', fontSize: '0.9rem', textAlign: 'left' }}>
+                        <strong>⚠️ Note:</strong> Only finalized classes will be visible to parents. Remaining classes will appear automatically once their Class Teachers finalize.
+                      </div>
+                    )}
                   </>
                 )}
               </div>

@@ -305,9 +305,7 @@ export default function ExamsPage() {
               {exams.map(exam => {
                 const isConfigured = exam.subjectConfigs.length > 0;
                 const isInternal = exam.examType === 'INTERNAL_EXAM';
-                const finalizedCount = exam.enrollments?.filter(e => e.status === 'Finalized')?.length || 0;
-                const hasSomeFinalized = isInternal ? finalizedCount > 0 : exam.status === 'Closed';
-                const canPublish = !exam.isPublished && (exam.status === 'Closed' || (exam.status === 'Open' && hasSomeFinalized));
+                const canPublish = !exam.isPublished && (exam.status === 'Closed' || exam.status === 'Open');
                 return (
                   <tr key={exam.id}>
                     <td>

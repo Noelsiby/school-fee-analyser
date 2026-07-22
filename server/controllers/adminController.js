@@ -659,18 +659,52 @@ exports.updateExam = async (req, res) => {
     const examId = Number(req.params.id);
     const { name, deadline } = req.body;
     
-    const exam = await prisma.exam.findUnique({ where: { id: examId } });
+    const exam = await prisma.exam.findUnique({
+      where: { id: examId },
+      include: {
+        enrollments: { include: { class: { include: { classTeacher: true, teacherAssignments: { include: { teacher: true } } } } } },
+        class: { include: { classTeacher: true, teacherAssignments: { include: { teacher: true } } } },
+        subjectConfigs: true
+      }
+    });
     if (!exam) return res.status(404).json({ error: 'Exam not found' });
-    if (exam.status !== 'Draft') return res.status(400).json({ error: 'Only draft exams can be edited' });
 
     const updated = await prisma.exam.update({
       where: { id: examId },
       data: { 
-        name: name?.trim(),
-        deadline: deadline ? new Date(deadline) : null
+        name: name?.trim() || exam.name,
+        deadline: deadline !== undefined ? (deadline ? new Date(deadline) : null) : exam.deadline
       }
     });
-    res.json({ exam: updated });
+
+    // Notify all affected teachers about the update
+    const teachersToNotify = new Set();
+    const classes = exam.examType === 'INTERNAL_EXAM'
+      ? exam.enrollments.map(e => e.class)
+      : [exam.class];
+    const configuredSubjectIds = new Set(exam.subjectConfigs.map(c => c.subjectId));
+
+    classes.forEach(cls => {
+      if (!cls) return;
+      if (cls.classTeacherId) teachersToNotify.add(cls.classTeacherId);
+      for (const assignment of (cls.teacherAssignments || [])) {
+        if (configuredSubjectIds.has(assignment.subjectId)) {
+          teachersToNotify.add(assignment.teacherId);
+        }
+      }
+    });
+
+    if (teachersToNotify.size > 0 && exam.status !== 'Draft') {
+      await prisma.notification.createMany({
+        data: Array.from(teachersToNotify).map(userId => ({
+          userId,
+          message: `⚠️ "${updated.name}" exam has been updated by Admin. Please check the latest exam details.`,
+          type: 'Warning'
+        }))
+      });
+    }
+
+    res.json({ exam: updated, notifiedCount: teachersToNotify.size });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1064,41 +1098,63 @@ exports.exportExamResults = async (req, res) => {
 
 exports.exportExamResultsExcel = async (req, res) => {
   const id = Number(req.params.id);
+  const filterClassId = req.query.classId ? Number(req.query.classId) : null;
   try {
     const exam = await prisma.exam.findUnique({
       where: { id },
       include: {
         class: { include: { students: { orderBy: { rollNumber: 'asc' } } } },
+        enrollments: {
+          include: { class: { include: { students: { orderBy: { rollNumber: 'asc' } } } } }
+        },
         subjectConfigs: { include: { subject: true } }
       }
     });
 
     if (!exam) return res.status(404).json({ error: 'Exam not found.' });
     const marks = await prisma.mark.findMany({ where: { examId: id } });
-    const classes = exam.examType === 'INTERNAL_EXAM' 
-      ? exam.enrollments.map(e => e.class)
-      : [exam.class];
+
+    let allClasses = exam.examType === 'INTERNAL_EXAM'
+      ? (exam.enrollments || []).map(e => e.class).filter(Boolean)
+      : [exam.class].filter(Boolean);
+
+    // Apply class filter if specified
+    const classes = filterClassId
+      ? allClasses.filter(c => c.id === filterClassId)
+      : allClasses;
 
     const workbook = new ExcelJS.Workbook();
-    
-    const isMultiClass = exam.examType === 'INTERNAL_EXAM';
+    const examNameSafe = exam.name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim();
+    const isMultiClass = exam.examType === 'INTERNAL_EXAM' && !filterClassId;
+
+    const computeGrade = (pct) => {
+      if (pct >= 90) return 'A+';
+      if (pct >= 80) return 'A';
+      if (pct >= 70) return 'B';
+      if (pct >= 60) return 'C';
+      if (pct >= 50) return 'D';
+      return 'F';
+    };
 
     if (isMultiClass) {
-      const combinedSheet = workbook.addWorksheet('Combined');
+      const combinedSheet = workbook.addWorksheet('All Classes');
       const allSubjects = exam.subjectConfigs.map(c => ({
         id: c.subjectId,
         name: c.subject.name,
-        maxMarks: c.maxMarks
+        maxMarks: c.maxMarks,
+        classId: c.subject.classId
       }));
 
       const header = ['Class', 'Roll No', 'Student Name'];
       allSubjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
       header.push('Total Marks', 'Max Marks', 'Percentage', 'Grade');
-      combinedSheet.addRow(header);
+      const headerRow = combinedSheet.addRow(header);
+      headerRow.font = { bold: true };
+      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F7' } };
 
       classes.forEach(cls => {
         if (!cls) return;
-        cls.students.forEach(student => {
+        (cls.students || []).forEach(student => {
           const studentMarks = marks.filter(m => m.studentId === student.id);
           const row = [cls.name, student.rollNumber, student.name];
           
@@ -1118,15 +1174,8 @@ exports.exportExamResultsExcel = async (req, res) => {
             }
           });
 
-          const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
-          let grade = 'F';
-          if (percentage >= 90) grade = 'A+';
-          else if (percentage >= 80) grade = 'A';
-          else if (percentage >= 70) grade = 'B';
-          else if (percentage >= 60) grade = 'C';
-          else if (percentage >= 50) grade = 'D';
-
-          row.push(totalMarks, totalMaxMarks, Number(percentage), grade);
+          const percentage = totalMaxMarks > 0 ? parseFloat(((totalMarks / totalMaxMarks) * 100).toFixed(2)) : 0;
+          row.push(totalMarks, totalMaxMarks, percentage, computeGrade(percentage));
           combinedSheet.addRow(row);
         });
       });
@@ -1144,9 +1193,11 @@ exports.exportExamResultsExcel = async (req, res) => {
       const header = ['Roll No', 'Student Name'];
       classSubjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
       header.push('Total Marks', 'Max Marks', 'Percentage', 'Grade');
-      worksheet.addRow(header);
+      const headerRow = worksheet.addRow(header);
+      headerRow.font = { bold: true };
+      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F7' } };
 
-      cls.students.forEach(student => {
+      (cls.students || []).forEach(student => {
         const studentMarks = marks.filter(m => m.studentId === student.id);
         const row = [student.rollNumber, student.name];
         
@@ -1161,22 +1212,20 @@ exports.exportExamResultsExcel = async (req, res) => {
           totalMaxMarks += subject.maxMarks;
         });
 
-        const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
-        
-        let grade = 'F';
-        if (percentage >= 90) grade = 'A+';
-        else if (percentage >= 80) grade = 'A';
-        else if (percentage >= 70) grade = 'B';
-        else if (percentage >= 60) grade = 'C';
-        else if (percentage >= 50) grade = 'D';
-
-        row.push(totalMarks, totalMaxMarks, Number(percentage), grade);
+        const percentage = totalMaxMarks > 0 ? parseFloat(((totalMarks / totalMaxMarks) * 100).toFixed(2)) : 0;
+        row.push(totalMarks, totalMaxMarks, percentage, computeGrade(percentage));
         worksheet.addRow(row);
+      });
+
+      // Auto-fit columns
+      worksheet.columns.forEach(col => {
+        col.width = Math.max(10, (col.header || '').length + 4);
       });
     });
 
+    const filenameCls = filterClassId ? `Class_${filterClassId}_` : 'ALL_CLASSES_';
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${exam.name}_Results.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filenameCls}${examNameSafe}_Results.xlsx"`);
     await workbook.xlsx.write(res);
     res.end();
   } catch (err) {
@@ -1186,49 +1235,91 @@ exports.exportExamResultsExcel = async (req, res) => {
 
 exports.exportExamResultsWord = async (req, res) => {
   const id = Number(req.params.id);
+  const filterClassId = req.query.classId ? Number(req.query.classId) : null;
   try {
     const exam = await prisma.exam.findUnique({
       where: { id },
       include: {
         class: { include: { students: { orderBy: { rollNumber: 'asc' } } } },
+        enrollments: {
+          include: { class: { include: { students: { orderBy: { rollNumber: 'asc' } } } } }
+        },
         subjectConfigs: { include: { subject: true } }
       }
     });
 
     if (!exam) return res.status(404).json({ error: 'Exam not found.' });
     const marks = await prisma.mark.findMany({ where: { examId: id } });
-    const classes = exam.examType === 'INTERNAL_EXAM' 
-      ? exam.enrollments.map(e => e.class)
-      : [exam.class];
+
+    let allClasses = exam.examType === 'INTERNAL_EXAM'
+      ? (exam.enrollments || []).map(e => e.class).filter(Boolean)
+      : [exam.class].filter(Boolean);
+
+    const classes = filterClassId
+      ? allClasses.filter(c => c && c.id === filterClassId)
+      : allClasses;
+
+    const computeGrade = (pct) => {
+      if (pct >= 90) return 'A+';
+      if (pct >= 80) return 'A';
+      if (pct >= 70) return 'B';
+      if (pct >= 60) return 'C';
+      if (pct >= 50) return 'D';
+      return 'F';
+    };
+
+    const schoolHeader = `
+      <div class="school-header">
+        <h1>Matha English Medium School</h1>
+        <h2>${exam.name} Results</h2>
+        <p>Academic Year 2026-27</p>
+      </div>`;
 
     // Generate HTML for Word
     let html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>`;
-    html += `<head><meta charset='utf-8'><title>${exam.name} Results</title></head><body>`;
-    
+    html += `<head><meta charset='utf-8'><title>${exam.name} Results</title>`;
+    html += `<style>
+      body { font-family: Arial, sans-serif; font-size: 9pt; }
+      h1 { font-size: 14pt; text-align: center; margin-bottom: 2px; }
+      h2 { font-size: 12pt; text-align: center; margin-bottom: 2px; color: #333; }
+      h3 { font-size: 11pt; margin-top: 16px; margin-bottom: 6px; }
+      p { text-align: center; font-size: 9pt; color: #555; margin: 2px 0; }
+      table { border-collapse: collapse; width: 100%; font-size: 8pt; }
+      th { background-color: #1E3A8A; color: white; padding: 4px 5px; text-align: center; border: 1px solid #999; }
+      td { padding: 3px 5px; border: 1px solid #ccc; text-align: center; }
+      .name-col { text-align: left !important; }
+      .school-header { text-align: center; margin-bottom: 12px; }
+    </style>`;
+    html += `</head><body>`;
+    html += schoolHeader;
+
     classes.forEach((cls, index) => {
       if (!cls) return;
-      
+
       if (index > 0) {
         html += `<div style="page-break-before: always;"></div>`;
+        html += schoolHeader;
       }
-      
+
       const classSubjects = exam.subjectConfigs
         .filter(c => c.subject.classId === cls.id)
         .map(c => ({ id: c.subjectId, name: c.subject.name, maxMarks: c.maxMarks }));
 
-      html += `<h2>${cls.name} - ${exam.name} Results</h2>`;
-      html += `<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%;">`;
-      
-      // Header
-      html += `<tr><th>Roll No</th><th>Student Name</th>`;
-      classSubjects.forEach(s => html += `<th>${s.name} (/${s.maxMarks})</th>`);
-      html += `<th>Total Marks</th><th>Percentage</th><th>Grade</th></tr>`;
+      const students = cls.students || [];
 
-      // Rows
-      cls.students.forEach(student => {
+      html += `<h3>${cls.name} &mdash; ${students.length} Students</h3>`;
+      html += `<table>`;
+
+      // Header row
+      html += `<tr><th>Roll No</th><th>Student Name</th>`;
+      classSubjects.forEach(s => { html += `<th>${s.name}<br>/${s.maxMarks}</th>`; });
+      html += `<th>Total</th><th>%</th><th>Grade</th></tr>`;
+
+      // Data rows
+      students.forEach(student => {
         const studentMarks = marks.filter(m => m.studentId === student.id);
-        html += `<tr><td>${student.rollNumber}</td><td>${student.name}</td>`;
-        
+        html += `<tr><td>${student.rollNumber}</td><td class="name-col">${student.name}</td>`;
+
         let totalMarks = 0;
         let totalMaxMarks = 0;
 
@@ -1240,23 +1331,19 @@ exports.exportExamResultsWord = async (req, res) => {
           totalMaxMarks += subject.maxMarks;
         });
 
-        const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
-        let grade = 'F';
-        if (percentage >= 90) grade = 'A+';
-        else if (percentage >= 80) grade = 'A';
-        else if (percentage >= 70) grade = 'B';
-        else if (percentage >= 60) grade = 'C';
-        else if (percentage >= 50) grade = 'D';
-
-        html += `<td>${totalMarks} / ${totalMaxMarks}</td><td>${percentage}%</td><td>${grade}</td></tr>`;
+        const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(1) : '0.0';
+        const grade = computeGrade(Number(percentage));
+        html += `<td><strong>${totalMarks}/${totalMaxMarks}</strong></td><td>${percentage}%</td><td>${grade}</td></tr>`;
       });
       html += `</table>`;
     });
 
     html += `</body></html>`;
 
+    const filenameCls = filterClassId ? `Class_${filterClassId}_` : 'ALL_CLASSES_';
+    const examNameSafe = exam.name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim();
     res.setHeader('Content-Type', 'application/msword');
-    res.setHeader('Content-Disposition', `attachment; filename="${exam.name}_Results.doc"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filenameCls}${examNameSafe}_Results.doc"`);
     res.send(html);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1269,9 +1356,6 @@ exports.publishPublicResults = async (req, res) => {
   try {
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
     if (!exam) return res.status(404).json({ error: 'Exam not found' });
-    if (exam.status !== 'Closed') {
-      return res.status(400).json({ error: 'Only Closed exams can be published to the public portal.' });
-    }
 
     // Unpublish any other exam
     await prisma.exam.updateMany({

@@ -379,9 +379,12 @@ export default function ExamsPage() {
                           </>
                         )}
                         {exam.status !== 'Draft' && (
-                          <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/admin/exams/${exam.id}/results`)}>
-                            📊 View Results
-                          </button>
+                          <>
+                            <button className="btn btn-ghost btn-sm" onClick={() => openRename(exam)}>✏️ Edit</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/admin/exams/${exam.id}/results`)}>
+                              📊 View Results
+                            </button>
+                          </>
                         )}
                         {canPublish && (
                           <button 
@@ -392,7 +395,7 @@ export default function ExamsPage() {
                             🌐 Publish Results
                           </button>
                         )}
-                        {exam.status === 'Closed' && exam.isPublished && (
+                        {exam.isPublished && (
                           <button className="btn btn-ghost btn-sm" style={{ color: '#b45309' }} onClick={() => handleUnpublishPublic(exam.id)}>
                             🚫 Unpublish
                           </button>
@@ -406,6 +409,7 @@ export default function ExamsPage() {
                           🗑️ Delete
                         </button>
                       </div>
+
                     </td>
                   </tr>
                 );

@@ -17,9 +17,9 @@ export default function ExamResultsPage() {
   const [actioning, setActioning] = useState(false);
 
   // Export modal state
-  const [exportModal, setExportModal] = useState(false);
-  const [exportClassId, setExportClassId] = useState('all');
-  const [exportFormat, setExportFormat] = useState('excel');
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState('all');
+  const [exporting, setExporting] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError('');
@@ -47,13 +47,44 @@ export default function ExamResultsPage() {
     }
   };
 
-  const handleExport = (format) => {
-    const classParam = exportClassId !== 'all' ? `?classId=${exportClassId}` : '';
-    const endpoint = format === 'excel'
-      ? `/api/admin/exams/${id}/export/excel${classParam}`
-      : `/api/admin/exams/${id}/export/word${classParam}`;
-    window.location.href = endpoint;
-    setExportModal(false);
+  const handleExport = async (format) => {
+    try {
+      setExporting(true);
+      const classParam = selectedClassId !== 'all' 
+        ? `?classId=${selectedClassId}` 
+        : '';
+      const url = `/api/admin/exams/${id}/export/${format}${classParam}`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        alert('Export failed: ' + error.error);
+        return;
+      }
+      
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      const examSafeName = data?.exam?.name?.replace(/[^a-zA-Z0-9_\- ]/g, '').trim() || 'results';
+      a.download = format === 'excel' 
+        ? `${examSafeName}_results.xlsx` 
+        : `${examSafeName}_results.doc`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+      setShowExportModal(false);
+    } catch (err) {
+      alert('Export error: ' + err.message);
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (loading) return <div className="admin-page"><div className="empty-state"><div className="spinner spinner-dark" /></div></div>;
@@ -168,14 +199,14 @@ export default function ExamResultsPage() {
           <button
             className="btn btn-primary"
             style={{ background: '#059669', borderColor: '#059669' }}
-            onClick={() => { setExportModal(true); setExportClassId('all'); }}
+            onClick={() => setShowExportModal(true)}
           >
             📊 Export Excel
           </button>
           <button
             className="btn btn-primary"
             style={{ background: '#2563eb', borderColor: '#2563eb' }}
-            onClick={() => { setExportModal(true); setExportClassId('all'); }}
+            onClick={() => setShowExportModal(true)}
           >
             📝 Export Word
           </button>
@@ -301,33 +332,30 @@ export default function ExamResultsPage() {
       ))}
 
       {/* Export Modal */}
-      {exportModal && (
-        <div className="modal-overlay" onClick={() => setExportModal(false)}>
+      {showExportModal && (
+        <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div className="modal-header">
               <h2 className="modal-title">📥 Export Results</h2>
-              <button className="modal-close" onClick={() => setExportModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowExportModal(false)}>✕</button>
             </div>
 
             <div style={{ padding: '4px 0 16px' }}>
-              <p className="form-label" style={{ marginBottom: 10 }}>Select Class</p>
+              <p className="form-label" style={{ marginBottom: 10 }}>Select Class to Export:</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: `2px solid ${exportClassId === 'all' ? '#1E3A8A' : '#e2e8f0'}`, cursor: 'pointer', background: exportClassId === 'all' ? '#eff6ff' : 'white' }}>
-                  <input type="radio" value="all" checked={exportClassId === 'all'} onChange={() => setExportClassId('all')} />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: `2px solid ${selectedClassId === 'all' ? '#1E3A8A' : '#e2e8f0'}`, cursor: 'pointer', background: selectedClassId === 'all' ? '#eff6ff' : 'white' }}>
+                  <input type="radio" value="all" checked={selectedClassId === 'all'} onChange={(e) => setSelectedClassId(e.target.value)} />
                   <span>
                     <strong>All Classes (Combined)</strong>
-                    <span style={{ fontSize: '0.8rem', color: '#64748b', marginLeft: 8 }}>
-                      {classResults.length} classes · {classResults.reduce((a, c) => a + c.studentCount, 0)} students
-                    </span>
                   </span>
                 </label>
                 {classResults.map(cls => (
-                  <label key={cls.classId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: `2px solid ${exportClassId === String(cls.classId) ? '#1E3A8A' : '#e2e8f0'}`, cursor: 'pointer', background: exportClassId === String(cls.classId) ? '#eff6ff' : 'white' }}>
-                    <input type="radio" value={String(cls.classId)} checked={exportClassId === String(cls.classId)} onChange={() => setExportClassId(String(cls.classId))} />
+                  <label key={cls.classId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: `2px solid ${selectedClassId === String(cls.classId) ? '#1E3A8A' : '#e2e8f0'}`, cursor: 'pointer', background: selectedClassId === String(cls.classId) ? '#eff6ff' : 'white' }}>
+                    <input type="radio" value={String(cls.classId)} checked={selectedClassId === String(cls.classId)} onChange={(e) => setSelectedClassId(e.target.value)} />
                     <span>
                       <strong>{cls.className}</strong>
                       <span style={{ fontSize: '0.8rem', color: '#64748b', marginLeft: 8 }}>
-                        {cls.studentCount} students · {cls.status === 'Finalized' ? '✅ Finalized' : '⏳ Pending'}
+                        ({cls.studentCount} students)
                       </span>
                     </span>
                   </label>
@@ -336,20 +364,22 @@ export default function ExamResultsPage() {
             </div>
 
             <div className="modal-footer" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
-              <button className="btn btn-ghost" onClick={() => setExportModal(false)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => setShowExportModal(false)}>Cancel</button>
               <button 
                 className="btn btn-primary" 
                 style={{ background: '#059669', borderColor: '#059669' }} 
                 onClick={() => handleExport('excel')}
+                disabled={exporting}
               >
-                📊 Export Excel
+                {exporting ? <span className="spinner" /> : '📊 Export Excel'}
               </button>
               <button 
                 className="btn btn-primary" 
                 style={{ background: '#2563eb', borderColor: '#2563eb' }} 
                 onClick={() => handleExport('word')}
+                disabled={exporting}
               >
-                📝 Export Word
+                {exporting ? <span className="spinner" /> : '📝 Export Word'}
               </button>
             </div>
           </div>

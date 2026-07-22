@@ -47,6 +47,9 @@ router.get   ('/exams',                      ctrl.getExams);
 router.post  ('/exams',                      ctrl.createExam);
 router.put   ('/exams/:id',                  ctrl.updateExam);
 router.post  ('/exams/:id/subject-config',   ctrl.configExamSubjects);
+router.put   ('/exams/:id/max-marks',        ctrl.adminUpdateMaxMarks);
+router.post  ('/exams/:id/classes',          ctrl.addExamClass);
+router.delete('/exams/:id/classes/:classId', ctrl.removeExamClass);
 router.put   ('/exams/:id/publish',          ctrl.publishExam);
 router.delete('/exams/:id',                  ctrl.deleteExam);
 

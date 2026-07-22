@@ -31,6 +31,15 @@ export default function ExamsPage() {
   const [maxMarksValues, setMaxMarksValues] = useState({});
   const [configSuccess, setConfigSuccess] = useState([]);
 
+  // State for enhanced Edit modal
+  const [editAccordion, setEditAccordion] = useState({ basic: true, classes: true, maxmarks: false });
+  const [editEnrollments, setEditEnrollments] = useState([]); // local copy of enrollments
+  const [editSubjects, setEditSubjects] = useState({}); // { classId: [subjects] }
+  const [editMaxMarks, setEditMaxMarks] = useState({}); // { subjectId: maxMarks }
+  const [addClassId, setAddClassId] = useState('');
+  const [editActionError, setEditActionError] = useState('');
+  const [editActionLoading, setEditActionLoading] = useState(false);
+
   const loadData = useCallback(async () => {
     setLoading(true); setError('');
     try {
@@ -209,10 +218,53 @@ export default function ExamsPage() {
 
 
 
-  const openRename = (exam) => {
+  const openRename = async (exam) => {
     setSelectedExam(exam);
     setForm({ name: exam.name, deadline: exam.deadline ? exam.deadline.split('T')[0] : '' });
     setFormError('');
+    setEditActionError('');
+    setAddClassId('');
+    setEditAccordion({ basic: true, classes: exam.examType === 'INTERNAL_EXAM', maxmarks: false });
+
+    // Populate enrollments from exam data
+    const enrollments = exam.enrollments || [];
+    setEditEnrollments(enrollments);
+
+    // Load subjects per enrolled class for max marks
+    const subjects = {};
+    const maxMarks = {};
+    exam.subjectConfigs.forEach(c => {
+      maxMarks[c.subjectId] = c.maxMarks;
+    });
+    setEditMaxMarks(maxMarks);
+
+    if (exam.examType === 'INTERNAL_EXAM' && enrollments.length > 0) {
+      try {
+        const promises = enrollments.map(async (e) => {
+          const res = await apiCall(`/api/admin/subjects?classId=${e.classId}`);
+          subjects[e.classId] = res.subjects;
+          // Set default 100 for unconfigured subjects
+          res.subjects.forEach(s => {
+            if (!maxMarks[s.id]) maxMarks[s.id] = 100;
+          });
+        });
+        await Promise.all(promises);
+      } catch (err) {
+        // non-fatal
+      }
+    } else if (exam.examType === 'CLASS_EXAM' && exam.classId) {
+      try {
+        const res = await apiCall(`/api/admin/subjects?classId=${exam.classId}`);
+        subjects[exam.classId] = res.subjects;
+        res.subjects.forEach(s => {
+          if (!maxMarks[s.id]) maxMarks[s.id] = 100;
+        });
+      } catch (err) {
+        // non-fatal
+      }
+    }
+    setEditSubjects(subjects);
+    setEditMaxMarks({ ...maxMarks });
     setModal('rename');
   };
 
@@ -228,6 +280,68 @@ export default function ExamsPage() {
       setFormError(e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveMaxMarks = async () => {
+    if (!selectedExam) return;
+    setEditActionLoading(true); setEditActionError('');
+    try {
+      const allSubjectIds = Object.keys(editMaxMarks);
+      if (allSubjectIds.length === 0) {
+        setEditActionError('No subjects to configure.');
+        return;
+      }
+      const configs = allSubjectIds.map(subjectId => ({
+        subjectId: Number(subjectId),
+        maxMarks: Number(editMaxMarks[subjectId]) || 100
+      }));
+      await apiCall(`/api/admin/exams/${selectedExam.id}/max-marks`, { method: 'PUT', body: { configs } });
+      setConfigSuccess(['✅ Max marks updated successfully!']);
+      setTimeout(() => setConfigSuccess([]), 4000);
+      loadData();
+    } catch (err) {
+      setEditActionError(err.message);
+    } finally {
+      setEditActionLoading(false);
+    }
+  };
+
+  const handleAddClass = async () => {
+    if (!addClassId || !selectedExam) return;
+    setEditActionLoading(true); setEditActionError('');
+    try {
+      const res = await apiCall(`/api/admin/exams/${selectedExam.id}/classes`, { method: 'POST', body: { classId: Number(addClassId) } });
+      // Update local state
+      const newEnrollment = res.enrollment;
+      setEditEnrollments(prev => [...prev, newEnrollment]);
+      // Load subjects for new class
+      const subjRes = await apiCall(`/api/admin/subjects?classId=${addClassId}`);
+      setEditSubjects(prev => ({ ...prev, [addClassId]: subjRes.subjects }));
+      subjRes.subjects.forEach(s => {
+        setEditMaxMarks(prev => ({ ...prev, [s.id]: prev[s.id] || 100 }));
+      });
+      setAddClassId('');
+      loadData();
+    } catch (err) {
+      setEditActionError(err.message);
+    } finally {
+      setEditActionLoading(false);
+    }
+  };
+
+  const handleRemoveClass = async (classId, className) => {
+    if (!selectedExam) return;
+    if (!window.confirm(`Remove ${className} from this exam?`)) return;
+    setEditActionLoading(true); setEditActionError('');
+    try {
+      await apiCall(`/api/admin/exams/${selectedExam.id}/classes/${classId}`, { method: 'DELETE' });
+      setEditEnrollments(prev => prev.filter(e => e.classId !== classId));
+      loadData();
+    } catch (err) {
+      setEditActionError(err.message);
+    } finally {
+      setEditActionLoading(false);
     }
   };
 
@@ -419,44 +533,216 @@ export default function ExamsPage() {
         </div>
       )}
 
-      {/* Rename Modal */}
-      {modal === 'rename' && (
+      {/* Edit Exam Modal — Full Accordion */}
+      {modal === 'rename' && selectedExam && (
         <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Edit Exam</h2>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 680, maxHeight: '92vh', overflowY: 'auto' }}>
+            <div className="modal-header" style={{ position: 'sticky', top: 0, background: 'white', zIndex: 10, borderBottom: '1px solid #e2e8f0' }}>
+              <h2 className="modal-title">✏️ Edit Exam — {selectedExam.name}</h2>
               <button className="modal-close" onClick={() => setModal(null)}>✕</button>
             </div>
-            <form onSubmit={handleRename}>
-              {formError && <div className="alert alert-error" style={{ marginBottom: 12 }}>⚠ {formError}</div>}
-              
-              <div className="form-group">
-                <label className="form-label">Exam Name <span className="required">*</span></label>
-                <input 
-                  className="form-input" 
-                  value={form.name} 
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))} 
-                  autoFocus 
-                />
+
+            {editActionError && <div className="alert alert-error" style={{ margin: '12px 16px 0' }}>⚠ {editActionError}</div>}
+            {formError && <div className="alert alert-error" style={{ margin: '12px 16px 0' }}>⚠ {formError}</div>}
+
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+              {/* ── SECTION 1: Basic Info ── */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditAccordion(a => ({ ...a, basic: !a.basic }))}
+                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.95rem', color: '#1e293b' }}
+                >
+                  <span>📋 Basic Info</span>
+                  <span>{editAccordion.basic ? '▲' : '▼'}</span>
+                </button>
+                {editAccordion.basic && (
+                  <form onSubmit={handleRename} style={{ padding: '16px' }}>
+                    <div className="form-group">
+                      <label className="form-label">Exam Name <span className="required">*</span></label>
+                      <input
+                        className="form-input"
+                        value={form.name}
+                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Deadline (Optional)</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={form.deadline}
+                        onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
+                        {saving ? <span className="spinner" /> : '💾 Save Name & Deadline'}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Deadline (Optional)</label>
-                <input 
-                  type="date"
-                  className="form-input" 
-                  value={form.deadline} 
-                  onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} 
-                />
-              </div>
-              
-              <div className="modal-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? <span className="spinner" /> : 'Save Changes'}
+              {/* ── SECTION 2: Enrolled Classes (Internal Exams only) ── */}
+              {selectedExam.examType === 'INTERNAL_EXAM' && (
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditAccordion(a => ({ ...a, classes: !a.classes }))}
+                    style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.95rem', color: '#1e293b' }}
+                  >
+                    <span>🏫 Enrolled Classes ({editEnrollments.length})</span>
+                    <span>{editAccordion.classes ? '▲' : '▼'}</span>
+                  </button>
+                  {editAccordion.classes && (
+                    <div style={{ padding: '16px' }}>
+
+                      {/* Enrolled list */}
+                      <div style={{ marginBottom: 16 }}>
+                        <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 8, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Currently Enrolled</p>
+                        {editEnrollments.length === 0 ? (
+                          <p style={{ color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>No classes enrolled.</p>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {editEnrollments.map(e => {
+                              const cls = e.class;
+                              const studentCount = cls?._count?.students ?? (cls?.students?.length ?? '?');
+                              return (
+                                <div key={e.classId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+                                  <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                                    ✅ {cls?.name || `Class #${e.classId}`}
+                                    <span style={{ color: '#64748b', fontWeight: 400, marginLeft: 8, fontSize: '0.82rem' }}>({studentCount} students)</span>
+                                    {e.status === 'Finalized' && <span style={{ marginLeft: 8, fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>• Finalized</span>}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-sm"
+                                    style={{ color: '#dc2626', borderColor: '#fecaca', fontSize: '0.78rem', padding: '2px 8px' }}
+                                    onClick={() => handleRemoveClass(e.classId, cls?.name)}
+                                    disabled={editActionLoading}
+                                  >
+                                    ✕ Remove
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Add class */}
+                      <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14 }}>
+                        <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 8, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Add a New Class</p>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <select
+                            className="form-input"
+                            style={{ flex: 1 }}
+                            value={addClassId}
+                            onChange={e => setAddClassId(e.target.value)}
+                          >
+                            <option value="">— Select class to add —</option>
+                            {classes
+                              .filter(c => !editEnrollments.some(e => e.classId === c.id))
+                              .map(c => (
+                                <option key={c.id} value={c.id}>{c.name} ({c._count?.students ?? 0} students)</option>
+                              ))
+                            }
+                          </select>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            onClick={handleAddClass}
+                            disabled={!addClassId || editActionLoading}
+                            style={{ whiteSpace: 'nowrap' }}
+                          >
+                            {editActionLoading ? <span className="spinner" /> : '+ Add'}
+                          </button>
+                        </div>
+                        <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: 6 }}>
+                          Teachers for the new class will be notified automatically.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── SECTION 3: Max Marks per Subject ── */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditAccordion(a => ({ ...a, maxmarks: !a.maxmarks }))}
+                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.95rem', color: '#1e293b' }}
+                >
+                  <span>📊 Max Marks per Subject</span>
+                  <span>{editAccordion.maxmarks ? '▲' : '▼'}</span>
                 </button>
+                {editAccordion.maxmarks && (
+                  <div style={{ padding: '16px' }}>
+                    {selectedExam.status !== 'Draft' && (
+                      <div className="alert alert-warning" style={{ marginBottom: 12, fontSize: '0.82rem' }}>
+                        ⚠️ Changing max marks after teachers have entered marks will affect percentage calculations.
+                      </div>
+                    )}
+                    {Object.keys(editSubjects).length === 0 ? (
+                      <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No subjects loaded. Try closing and reopening this modal.</p>
+                    ) : (
+                      Object.entries(editSubjects).map(([classId, subjects]) => {
+                        const classEnroll = editEnrollments.find(e => e.classId === Number(classId));
+                        const cls = classEnroll?.class;
+                        const singleClass = selectedExam.examType === 'CLASS_EXAM';
+                        return (
+                          <div key={classId} style={{ marginBottom: 16 }}>
+                            {!singleClass && (
+                              <p style={{ fontWeight: 600, fontSize: '0.88rem', color: '#0f172a', marginBottom: 8 }}>
+                                🏫 {cls?.name || `Class #${classId}`}
+                              </p>
+                            )}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {subjects.map(sub => (
+                                <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                                  <span style={{ fontSize: '0.88rem', fontWeight: 500 }}>{sub.name}</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Max:</span>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max="1000"
+                                      value={editMaxMarks[sub.id] ?? 100}
+                                      onChange={e => setEditMaxMarks(prev => ({ ...prev, [sub.id]: e.target.value }))}
+                                      style={{ width: 64, padding: '4px 8px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '0.88rem', textAlign: 'center' }}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={handleSaveMaxMarks}
+                        disabled={editActionLoading}
+                        style={{ background: '#0f766e', borderColor: '#0f766e' }}
+                      >
+                        {editActionLoading ? <span className="spinner" /> : '💾 Save Max Marks'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </form>
+
+            </div>{/* end sections */}
+
+            <div className="modal-footer" style={{ position: 'sticky', bottom: 0, background: 'white', borderTop: '1px solid #e2e8f0', padding: '12px 20px' }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setModal(null)}>Close</button>
+            </div>
           </div>
         </div>
       )}

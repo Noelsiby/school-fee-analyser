@@ -710,6 +710,152 @@ exports.updateExam = async (req, res) => {
   }
 };
 
+// Add a class to an existing exam
+exports.addExamClass = async (req, res) => {
+  const examId = Number(req.params.id);
+  const { classId } = req.body;
+  if (!classId) return res.status(400).json({ error: 'classId is required.' });
+
+  try {
+    const exam = await prisma.exam.findUnique({
+      where: { id: examId },
+      include: {
+        enrollments: { include: { class: true } },
+        subjectConfigs: { include: { subject: true } }
+      }
+    });
+    if (!exam) return res.status(404).json({ error: 'Exam not found.' });
+    if (exam.examType !== 'INTERNAL_EXAM') {
+      return res.status(400).json({ error: 'Can only add classes to Internal Exams.' });
+    }
+
+    const alreadyEnrolled = exam.enrollments.some(e => e.classId === Number(classId));
+    if (alreadyEnrolled) return res.status(409).json({ error: 'Class is already enrolled in this exam.' });
+
+    // Add the enrollment
+    const enrollment = await prisma.examClassEnrollment.create({
+      data: { examId, classId: Number(classId) },
+      include: { class: { include: { classTeacher: true, teacherAssignments: { include: { teacher: true } } } } }
+    });
+
+    // Notify Class Teacher and subject teachers of the newly added class
+    const cls = enrollment.class;
+    const teachersToNotify = new Set();
+    const configuredSubjectIds = new Set(exam.subjectConfigs.map(c => c.subjectId));
+
+    if (cls.classTeacherId) teachersToNotify.add(cls.classTeacherId);
+    for (const assignment of (cls.teacherAssignments || [])) {
+      if (configuredSubjectIds.has(assignment.subjectId)) {
+        teachersToNotify.add(assignment.teacherId);
+      }
+    }
+
+    if (teachersToNotify.size > 0) {
+      const deadlineStr = exam.deadline ? ` before ${new Date(exam.deadline).toLocaleDateString('en-IN')}` : '';
+      await prisma.notification.createMany({
+        data: Array.from(teachersToNotify).map(userId => ({
+          userId,
+          message: `📋 ${cls.name} has been added to the exam "${exam.name}". Please enter marks${deadlineStr}.`,
+          type: 'Info'
+        }))
+      });
+    }
+
+    res.json({ enrollment, notifiedCount: teachersToNotify.size });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Remove a class from an existing exam
+exports.removeExamClass = async (req, res) => {
+  const examId = Number(req.params.id);
+  const classId = Number(req.params.classId);
+
+  try {
+    const exam = await prisma.exam.findUnique({
+      where: { id: examId },
+      include: {
+        enrollments: { include: { class: { include: { classTeacher: true } } } }
+      }
+    });
+    if (!exam) return res.status(404).json({ error: 'Exam not found.' });
+
+    const enrollment = exam.enrollments.find(e => e.classId === classId);
+    if (!enrollment) return res.status(404).json({ error: 'Class is not enrolled in this exam.' });
+
+    // Check if any marks have been submitted for this class
+    const marksExist = await prisma.mark.count({
+      where: {
+        examId,
+        student: { classId }
+      }
+    });
+
+    if (marksExist > 0) {
+      return res.status(400).json({
+        error: `Cannot remove ${enrollment.class.name} — ${marksExist} mark(s) already submitted by teachers. Delete the marks first.`
+      });
+    }
+
+    // Safe to remove — delete the enrollment and any subject configs for subjects belonging to this class
+    await prisma.examClassEnrollment.delete({
+      where: { examId_classId: { examId, classId } }
+    });
+
+    // Notify Class Teacher
+    const cls = enrollment.class;
+    if (cls.classTeacherId) {
+      await prisma.notification.create({
+        data: {
+          userId: cls.classTeacherId,
+          message: `⚠️ ${cls.name} has been removed from the exam "${exam.name}" by Admin.`,
+          type: 'Warning'
+        }
+      });
+    }
+
+    res.json({ message: `${cls.name} removed from exam successfully.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Admin update max marks (works on any exam status, not just Draft)
+exports.adminUpdateMaxMarks = async (req, res) => {
+  const examId = Number(req.params.id);
+  const { configs } = req.body; // Array of { subjectId, maxMarks }
+
+  if (!Array.isArray(configs)) {
+    return res.status(400).json({ error: 'configs array is required.' });
+  }
+
+  try {
+    const exam = await prisma.exam.findUnique({ where: { id: examId } });
+    if (!exam) return res.status(404).json({ error: 'Exam not found.' });
+
+    // Upsert configs (no status check — Admin can update at any time)
+    const upserts = configs.map(c =>
+      prisma.examSubjectConfig.upsert({
+        where: { examId_subjectId: { examId, subjectId: Number(c.subjectId) } },
+        update: { maxMarks: Number(c.maxMarks) },
+        create: { examId, subjectId: Number(c.subjectId), maxMarks: Number(c.maxMarks) },
+      })
+    );
+
+    await prisma.$transaction(upserts);
+
+    const updated = await prisma.exam.findUnique({
+      where: { id: examId },
+      include: { subjectConfigs: { include: { subject: true } } },
+    });
+
+    res.json({ exam: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.configExamSubjects = async (req, res) => {
   const examId = Number(req.params.id);
   const { configs } = req.body; // Array of { subjectId, maxMarks }

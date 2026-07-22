@@ -225,6 +225,7 @@ export default function ExamsPage() {
     setEditActionError('');
     setAddClassId('');
     setEditAccordion({ basic: true, classes: exam.examType === 'INTERNAL_EXAM', maxmarks: false });
+    setModal('rename'); // Open modal immediately for better UX
 
     // Populate enrollments from exam data
     const enrollments = exam.enrollments || [];
@@ -233,7 +234,7 @@ export default function ExamsPage() {
     // Load subjects per enrolled class for max marks
     const subjects = {};
     const maxMarks = {};
-    exam.subjectConfigs.forEach(c => {
+    (exam.subjectConfigs || []).forEach(c => {
       maxMarks[c.subjectId] = c.maxMarks;
     });
     setEditMaxMarks(maxMarks);
@@ -242,30 +243,29 @@ export default function ExamsPage() {
       try {
         const promises = enrollments.map(async (e) => {
           const res = await apiCall(`/api/admin/subjects?classId=${e.classId}`);
-          subjects[e.classId] = res.subjects;
+          subjects[e.classId] = res.subjects || [];
           // Set default 100 for unconfigured subjects
-          res.subjects.forEach(s => {
+          (res.subjects || []).forEach(s => {
             if (!maxMarks[s.id]) maxMarks[s.id] = 100;
           });
         });
         await Promise.all(promises);
       } catch (err) {
-        // non-fatal
+        console.error(err);
       }
     } else if (exam.examType === 'CLASS_EXAM' && exam.classId) {
       try {
         const res = await apiCall(`/api/admin/subjects?classId=${exam.classId}`);
-        subjects[exam.classId] = res.subjects;
-        res.subjects.forEach(s => {
+        subjects[exam.classId] = res.subjects || [];
+        (res.subjects || []).forEach(s => {
           if (!maxMarks[s.id]) maxMarks[s.id] = 100;
         });
       } catch (err) {
-        // non-fatal
+        console.error(err);
       }
     }
     setEditSubjects(subjects);
     setEditMaxMarks({ ...maxMarks });
-    setModal('rename');
   };
 
   const handleRename = async (e) => {

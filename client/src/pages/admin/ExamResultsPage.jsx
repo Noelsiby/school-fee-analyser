@@ -47,9 +47,9 @@ export default function ExamResultsPage() {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = (format) => {
     const classParam = exportClassId !== 'all' ? `?classId=${exportClassId}` : '';
-    const endpoint = exportFormat === 'excel'
+    const endpoint = format === 'excel'
       ? `/api/admin/exams/${id}/export/excel${classParam}`
       : `/api/admin/exams/${id}/export/word${classParam}`;
     window.location.href = endpoint;
@@ -59,7 +59,8 @@ export default function ExamResultsPage() {
   if (loading) return <div className="admin-page"><div className="empty-state"><div className="spinner spinner-dark" /></div></div>;
   if (error) return <div className="admin-page"><div className="empty-state"><p style={{ color: '#dc2626' }}>⚠ {error}</p><button className="btn btn-primary" onClick={() => navigate('/admin/exams')}>Back to Exams</button></div></div>;
 
-  const { exam } = data;
+  const exam = data?.exam;
+  const classResults = data?.classResults || [];
 
   return (
     <div className="admin-page">
@@ -166,10 +167,17 @@ export default function ExamResultsPage() {
           )}
           <button
             className="btn btn-primary"
-            style={{ background: '#0f766e', borderColor: '#0f766e' }}
-            onClick={() => { setExportModal(true); setExportClassId('all'); setExportFormat('excel'); }}
+            style={{ background: '#059669', borderColor: '#059669' }}
+            onClick={() => { setExportModal(true); setExportClassId('all'); }}
           >
-            📥 Export
+            📊 Export Excel
+          </button>
+          <button
+            className="btn btn-primary"
+            style={{ background: '#2563eb', borderColor: '#2563eb' }}
+            onClick={() => { setExportModal(true); setExportClassId('all'); }}
+          >
+            📝 Export Word
           </button>
           <button className="btn btn-ghost" onClick={() => window.print()}>
             🖨️ Print
@@ -190,16 +198,16 @@ export default function ExamResultsPage() {
           <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
             <div>
               <span style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase' }}>Total Classes</span>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{data.classResults.length}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{classResults.length}</div>
             </div>
             <div>
               <span style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase' }}>Total Students</span>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{data.classResults.reduce((acc, c) => acc + c.studentCount, 0)}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{classResults.reduce((acc, c) => acc + c.studentCount, 0)}</div>
             </div>
             <div style={{ flex: 1 }}>
               <span style={{ color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase' }}>Class Breakdown</span>
               <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: 4 }}>
-                {data.classResults.map(cls => (
+                {classResults.map(cls => (
                   <span key={cls.classId} style={{ background: '#f1f5f9', padding: '4px 12px', borderRadius: 16, fontSize: '0.9rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
                     {cls.className}: {cls.studentCount}
                     {cls.status === 'Finalized' ? '✅' : '⏳'}
@@ -212,7 +220,7 @@ export default function ExamResultsPage() {
       )}
 
       {/* Render tables per class */}
-      {data.classResults.map((cls, idx) => (
+      {classResults.map((cls, idx) => (
         <div key={cls.classId} className="print-section" style={{ pageBreakBefore: idx > 0 ? 'always' : 'auto', marginBottom: 40 }}>
           {exam.examType === 'INTERNAL_EXAM' && (
             <h2 style={{ color: '#1e293b', marginBottom: 12, fontSize: '1.25rem', borderBottom: '2px solid #e2e8f0', paddingBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -309,11 +317,11 @@ export default function ExamResultsPage() {
                   <span>
                     <strong>All Classes (Combined)</strong>
                     <span style={{ fontSize: '0.8rem', color: '#64748b', marginLeft: 8 }}>
-                      {data.classResults.length} classes · {data.classResults.reduce((a, c) => a + c.studentCount, 0)} students
+                      {classResults.length} classes · {classResults.reduce((a, c) => a + c.studentCount, 0)} students
                     </span>
                   </span>
                 </label>
-                {data.classResults.map(cls => (
+                {classResults.map(cls => (
                   <label key={cls.classId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: `2px solid ${exportClassId === String(cls.classId) ? '#1E3A8A' : '#e2e8f0'}`, cursor: 'pointer', background: exportClassId === String(cls.classId) ? '#eff6ff' : 'white' }}>
                     <input type="radio" value={String(cls.classId)} checked={exportClassId === String(cls.classId)} onChange={() => setExportClassId(String(cls.classId))} />
                     <span>
@@ -325,30 +333,23 @@ export default function ExamResultsPage() {
                   </label>
                 ))}
               </div>
-
-              <p className="form-label" style={{ marginTop: 20, marginBottom: 10 }}>Format</p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button
-                  className={`btn ${exportFormat === 'excel' ? 'btn-primary' : 'btn-ghost'}`}
-                  style={exportFormat === 'excel' ? { background: '#059669', borderColor: '#059669' } : {}}
-                  onClick={() => setExportFormat('excel')}
-                >
-                  📊 Excel (.xlsx)
-                </button>
-                <button
-                  className={`btn ${exportFormat === 'word' ? 'btn-primary' : 'btn-ghost'}`}
-                  style={exportFormat === 'word' ? { background: '#2563eb', borderColor: '#2563eb' } : {}}
-                  onClick={() => setExportFormat('word')}
-                >
-                  📝 Word (.doc)
-                </button>
-              </div>
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
               <button className="btn btn-ghost" onClick={() => setExportModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleExport}>
-                ⬇️ Download
+              <button 
+                className="btn btn-primary" 
+                style={{ background: '#059669', borderColor: '#059669' }} 
+                onClick={() => handleExport('excel')}
+              >
+                📊 Export Excel
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ background: '#2563eb', borderColor: '#2563eb' }} 
+                onClick={() => handleExport('word')}
+              >
+                📝 Export Word
               </button>
             </div>
           </div>

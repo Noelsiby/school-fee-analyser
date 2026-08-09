@@ -1,14 +1,25 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// Get the latest published exam
 const getLatestPublishedExam = async () => {
   return await prisma.exam.findFirst({
     where: { isPublished: true },
     orderBy: { publishedAt: 'desc' },
     include: {
-      enrollments: { include: { class: true } },
-      class: true
+      enrollments: { 
+        include: { 
+          class: {
+            include: {
+              _count: { select: { students: true } }
+            }
+          } 
+        } 
+      },
+      class: {
+        include: {
+          _count: { select: { students: true } }
+        }
+      }
     }
   });
 };

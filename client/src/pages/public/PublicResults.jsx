@@ -30,6 +30,7 @@ export default function PublicResults() {
   
   const [publishedExam, setPublishedExam] = useState(null);
   const [classesData, setClassesData] = useState([]);
+  const [loadingClassId, setLoadingClassId] = useState(null);
   
   const [selectedClass, setSelectedClass] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,7 +60,7 @@ export default function PublicResults() {
   const loadAllData = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      // 1. Fetch published exam & class list
+      // 1. Fetch published exam & class list ONLY
       const res = await apiCall('/api/public/classes');
       if (!res.publishedExam) {
         setPublishedExam(null);
@@ -68,16 +69,7 @@ export default function PublicResults() {
       }
       
       setPublishedExam(res.publishedExam);
-      const classList = res.classes;
-      
-      // 2. Fetch results for ALL classes concurrently
-      const classPromises = classList.map(async (cls) => {
-        const cRes = await apiCall(`/api/public/classes/${cls.id}/results`);
-        return processClassData(cRes);
-      });
-      
-      const allClassData = await Promise.all(classPromises);
-      setClassesData(allClassData);
+      setClassesData(res.classes);
       
     } catch (e) {
       setError(e.message || 'Failed to load public results.');
@@ -203,10 +195,20 @@ export default function PublicResults() {
     };
   };
 
-  const handleSelectClass = (clsData) => {
-    setSelectedClass(clsData);
-    setSearchTerm('');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleSelectClass = async (clsInfo) => {
+    if (loadingClassId) return; // Prevent multiple clicks
+    setLoadingClassId(clsInfo.id);
+    try {
+      const cRes = await apiCall(`/api/public/classes/${clsInfo.id}/results`);
+      const processed = processClassData(cRes);
+      setSelectedClass(processed);
+      setSearchTerm('');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      alert(err.message || 'Failed to load results for this class');
+    } finally {
+      setLoadingClassId(null);
+    }
   };
 
   const handleBack = () => {
@@ -332,24 +334,35 @@ export default function PublicResults() {
             </div>
             
             <div className="class-grid">
-              {classesData.map((clsData, index) => (
-                <div 
-                  key={clsData.classInfo.id} 
-                  className="class-card" 
-                  style={{ animationDelay: `${index * 100}ms` }}
-                  onClick={() => handleSelectClass(clsData)}
-                >
-                  <div className="class-card-header">
-                    <div>
-                      <h3 className="class-card-title">{clsData.classInfo.name}</h3>
-                      <p className="class-card-subtitle">{clsData.classInfo.students.length} Students</p>
+              {classesData.map((clsInfo, index) => {
+                const studentCount = clsInfo._count?.students || clsInfo.students?.length || 0;
+                const isLoading = loadingClassId === clsInfo.id;
+                
+                return (
+                  <div 
+                    key={clsInfo.id} 
+                    className={`class-card ${isLoading ? 'loading' : ''}`} 
+                    style={{ animationDelay: `${index * 100}ms` }}
+                    onClick={() => handleSelectClass(clsInfo)}
+                  >
+                    <div className="class-card-header">
+                      <div>
+                        <h3 className="class-card-title">{clsInfo.name}</h3>
+                        <p className="class-card-subtitle">{studentCount} Students</p>
+                      </div>
+                    </div>
+                    <div className="class-card-action">
+                      {isLoading ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#0f172a' }}>
+                          <span className="spinner spinner-dark" style={{ width: 14, height: 14, borderWidth: 2 }} /> Loading...
+                        </span>
+                      ) : (
+                        <>View Marksheet <span className="arrow-icon">→</span></>
+                      )}
                     </div>
                   </div>
-                  <div className="class-card-action">
-                    View Marksheet <span className="arrow-icon">→</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

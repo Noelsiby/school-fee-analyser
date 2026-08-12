@@ -26,8 +26,17 @@ import SubjectTeacherDashboard from './pages/subject-teacher/SubjectTeacherDashb
 import MarksEntryPage         from './pages/subject-teacher/MarksEntryPage';
 
 // Root redirect: if logged in → go to active role's dashboard; else → /login
+// Exception: if accessed via results.mathaschool.in, serve PublicResults directly
+// so the browser URL stays at results.mathaschool.in/ with no redirect.
 function RootRedirect() {
   const { isAuthenticated, activeRole } = useAuth();
+
+  // Hostname-based shortcut for the results subdomain.
+  // window.location.hostname is 'localhost' in development, so this is production-safe.
+  if (window.location.hostname === 'results.mathaschool.in') {
+    return <PublicResults />;
+  }
+
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (activeRole)        return <Navigate to={getRolePath(activeRole)} replace />;
   return <Navigate to="/role-select" replace />;

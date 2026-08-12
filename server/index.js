@@ -56,18 +56,6 @@ if (process.env.NODE_ENV === 'production') {
 
   app.use(express.static(clientDistPath));
 
-  // Hostname-based redirect for results.mathaschool.in
-  // When someone visits results.mathaschool.in/ (root), send them directly to
-  // https://portal.mathaschool.in/results so the browser URL reflects the correct domain.
-  // Safe for localhost/dev: only fires for the specific production hostname.
-  app.get('/', (req, res, next) => {
-    const host = (req.headers.host || '').split(':')[0]; // strip port if any
-    if (host === 'results.mathaschool.in') {
-      return res.redirect(301, 'https://portal.mathaschool.in/results');
-    }
-    next();
-  });
-
   // React Router fallback — must come AFTER all API routes
   app.get(/^(?!\/api).*/, (req, res) => {
     res.sendFile(path.join(clientDistPath, 'index.html'));

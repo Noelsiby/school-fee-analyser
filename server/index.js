@@ -63,6 +63,6 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // ── Start ──────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`[server] Running on http://localhost:${PORT} (${process.env.NODE_ENV || 'development'})`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[server] Running on http://0.0.0.0:${PORT} (${process.env.NODE_ENV || 'development'})`);
 });

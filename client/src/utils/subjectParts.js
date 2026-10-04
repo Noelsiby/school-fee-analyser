@@ -79,3 +79,17 @@ export function partsSummary(obj) {
   if (!isObj(obj)) return '';
   return partKeys(obj).map(k => `${k === MAIN ? 'Main' : k.charAt(0)} ${obj[k] ?? '–'}`).join(' · ');
 }
+
+/**
+ * "Apply to all": copy the filled-in boxes of `fields` ({ Main, Reading, ... }) onto a
+ * subject's current max-marks value. Empty boxes leave that value as it is.
+ * Ordinary subjects take the Main box as their single max mark.
+ */
+export function applyMaxMarks(subject, current, fields) {
+  const filled = (k) => fields[k] !== '' && fields[k] != null;
+  if (!hasParts(subject)) return filled(MAIN) ? fields[MAIN] : current;
+  const value = isObj(current) ? { ...current } : initialMaxMarks(subject, current);
+  if (filled(MAIN)) value[MAIN] = fields[MAIN];
+  subject.components.forEach(p => { if (filled(p)) value[p] = fields[p]; });
+  return value;
+}

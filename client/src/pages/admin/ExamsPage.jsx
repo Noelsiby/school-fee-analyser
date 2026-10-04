@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import Modal from '../../components/Modal';
 import MaxMarksField from '../../components/MaxMarksField';
+import ApplyAllBar from '../../components/ApplyAllBar';
 import { hasParts, partsLabel, initialMaxMarks, savedMaxMarks, toConfigPayload, totalOf } from '../../utils/subjectParts';
 import './admin.css';
 
@@ -29,7 +30,6 @@ export default function ExamsPage() {
   const [classSubjects, setClassSubjects] = useState([]);
   const [groupedSubjects, setGroupedSubjects] = useState([]); // Array of { classId, className, studentCount, subjects }
   const [expandedSections, setExpandedSections] = useState({}); // { [classId]: boolean }
-  const [copyToAllValue, setCopyToAllValue] = useState('');
   const [maxMarksValues, setMaxMarksValues] = useState({});
   const [configSuccess, setConfigSuccess] = useState([]);
 
@@ -104,7 +104,6 @@ export default function ExamsPage() {
       setClassSubjects(subjects);
       setGroupedSubjects(grouped);
       setExpandedSections(initExpanded);
-      setCopyToAllValue('');
       
       const saved = Object.fromEntries(exam.subjectConfigs.map(c => [c.subjectId, savedMaxMarks(c)]));
       const initialValues = {};
@@ -680,6 +679,13 @@ export default function ExamsPage() {
                         ⚠️ Changing max marks after teachers have entered marks will affect percentage calculations.
                       </div>
                     )}
+                    {Object.keys(editSubjects).length > 1 && (
+                      <ApplyAllBar
+                        label="Set all classes to same marks:"
+                        subjects={Object.values(editSubjects).flat()}
+                        setValues={setEditMaxMarks}
+                      />
+                    )}
                     {Object.keys(editSubjects).length === 0 ? (
                       <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No subjects loaded. Try closing and reopening this modal.</p>
                     ) : (
@@ -694,6 +700,12 @@ export default function ExamsPage() {
                                 🏫 {cls?.name || `Class #${classId}`}
                               </p>
                             )}
+                            <ApplyAllBar
+                              compact
+                              label={singleClass ? 'Set all subjects to same marks:' : `${cls?.name || 'This class'} only:`}
+                              subjects={subjects}
+                              setValues={setEditMaxMarks}
+                            />
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                               {subjects.map(sub => (
                                 <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0' }}>
@@ -868,36 +880,11 @@ export default function ExamsPage() {
                   </div>
                 ) : (
                   <>
-                    {selectedExam.examType === 'INTERNAL_EXAM' && (
-                      <div style={{ background: '#f0f9ff', padding: 12, borderRadius: 8, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #bae6fd' }}>
-                        <span style={{ fontSize: '0.85rem', color: '#0369a1', fontWeight: 600 }}>Set all subjects to same marks:</span>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <input 
-                            type="number" 
-                            className="form-input" 
-                            style={{ width: '80px', padding: '4px 8px' }}
-                            placeholder="e.g. 100"
-                            value={copyToAllValue}
-                            onChange={e => setCopyToAllValue(e.target.value)}
-                          />
-                          <button 
-                            type="button" 
-                            className="btn btn-primary btn-sm"
-                            onClick={() => {
-                              if (!copyToAllValue) return;
-                              const val = Number(copyToAllValue);
-                              setMaxMarksValues(prev => {
-                                const next = { ...prev };
-                                Object.keys(next).forEach(k => { next[k] = typeof next[k] === 'object' ? { ...next[k], Main: val } : val; }); // parts keep their own max
-                                return next;
-                              });
-                            }}
-                          >
-                            Apply to all
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    <ApplyAllBar
+                      label={selectedExam.examType === 'INTERNAL_EXAM' ? 'Set all classes to same marks:' : 'Set all subjects to same marks:'}
+                      subjects={classSubjects}
+                      setValues={setMaxMarksValues}
+                    />
 
                     <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
                       {selectedExam.examType === 'INTERNAL_EXAM' ? (
@@ -918,6 +905,12 @@ export default function ExamsPage() {
                               </div>
                               {isExpanded && (
                                 <div style={{ padding: '12px 16px', background: '#fff' }}>
+                                  <ApplyAllBar
+                                    compact
+                                    label={`${group.className} only:`}
+                                    subjects={group.subjects}
+                                    setValues={setMaxMarksValues}
+                                  />
                                   {group.subjects.length === 0 ? (
                                     <div style={{ fontSize: '0.85rem', color: '#64748b' }}>No subjects in this class.</div>
                                   ) : (

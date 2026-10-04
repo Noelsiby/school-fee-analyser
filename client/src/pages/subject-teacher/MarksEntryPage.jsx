@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import MaxMarksField from '../../components/MaxMarksField';
-import { MAIN, partKeys, partsLabel, keyLabel, totalOf, marksForKeys } from '../../utils/subjectParts';
+import { MAIN, partKeys, partsLabel, keyLabel, totalOf, marksForKeys, editableSubject, initialMaxMarks, savedMaxMarks, maxMarksBody } from '../../utils/subjectParts';
 import '../admin/admin.css';
 import './MarksEntryPage.css';
 
@@ -32,6 +32,8 @@ export default function MarksEntryPage() {
   const isSplit = !!data?.componentMaxMarks;
   const keys = partKeys(data?.componentMaxMarks); // e.g. ['Main', 'Reading', 'Writing']
   const subjectName = data?.subject?.name || 'Marks';
+  // What the teacher may set when editing max marks: main mark + the subject's parts.
+  const editSubject = editableSubject({ name: subjectName, components: data?.subject?.components }, data?.componentMaxMarks);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError('');
@@ -119,28 +121,13 @@ export default function MarksEntryPage() {
   };
 
   const handleSaveMaxMarks = async () => {
-    let body;
-    if (isSplit) {
-      if (keys.some(k => !(Number(maxMarksInput[k]) > 0))) {
-        setMaxMarksError('Each part needs max marks greater than 0.');
-        return;
-      }
-      body = { componentMaxMarks: Object.fromEntries(keys.map(k => [k, Number(maxMarksInput[k])])) };
-    } else {
-      const val = Number(maxMarksInput);
-      if (isNaN(val) || val <= 0) {
-        setMaxMarksError('Please enter a valid positive number.');
-        return;
-      }
-      body = { maxMarks: val };
-    }
+    const { body, error: invalid } = maxMarksBody(editSubject, maxMarksInput);
+    if (invalid) { setMaxMarksError(invalid); return; }
     setSavingMaxMarks(true); setMaxMarksError('');
     try {
       await apiCall(`/api/subject-teacher/exam-config/${data.configId}/max-marks`, { method: 'PUT', body });
-      setData(prev => isSplit
-        ? { ...prev, componentMaxMarks: body.componentMaxMarks, maxMarks: totalOf(body.componentMaxMarks) }
-        : { ...prev, maxMarks: body.maxMarks });
       setEditingMaxMarks(false);
+      await loadData(); // columns change when parts are added or removed
     } catch (e) {
       setMaxMarksError(e.message);
     } finally {
@@ -230,8 +217,7 @@ export default function MarksEntryPage() {
             {editingMaxMarks ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <MaxMarksField
-                  subject={{ name: subjectName, components: keys.filter(k => k !== MAIN) }}
-                  requireParts
+                  subject={editSubject}
                   value={maxMarksInput}
                   onChange={setMaxMarksInput}
                 />
@@ -256,7 +242,7 @@ export default function MarksEntryPage() {
                     style={{ padding: '2px 8px', fontSize: '0.8rem' }}
                     onClick={() => {
                       setEditingMaxMarks(true);
-                      setMaxMarksInput(isSplit ? { ...data.componentMaxMarks } : String(data.maxMarks));
+                      setMaxMarksInput(initialMaxMarks(editSubject, savedMaxMarks(data)));
                     }}
                     title="Edit maximum marks"
                   >

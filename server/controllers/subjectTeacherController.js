@@ -1,7 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient, Prisma } = require('@prisma/client');
 const prisma = new PrismaClient();
 const {
-  partKeys, parseComponentMarks, sameComponentMarks, maxMarksUpdate,
+  partKeys, parseComponentMarks, sameComponentMarks, maxMarksUpdate, reconcileMarkOps,
 } = require('../lib/components');
 
 // Fetch Open exams where the teacher has subject assignments
@@ -115,7 +115,7 @@ exports.getStudentsAndMarks = async (req, res) => {
       maxMarks,
       configId,
       componentMaxMarks,                                   // null for ordinary subjects
-      subject: { id: subject.id, name: subject.name },
+      subject: { id: subject.id, name: subject.name, components: subject.components },
       components: partKeys(componentMaxMarks),
       maxMarksLocked: anySubmitted, // true = can't edit max marks anymore
       students: studentsWithMarks
@@ -391,7 +391,14 @@ exports.updateMaxMarks = async (req, res) => {
     } catch (e) {
       return res.status(400).json({ error: e.message });
     }
-    await prisma.examSubjectConfig.update({ where: { id: Number(configId) }, data });
+    const marks = await prisma.mark.findMany({ where: { examId: config.examId, subjectId: config.subjectId } });
+    await prisma.$transaction([
+      prisma.examSubjectConfig.update({
+        where: { id: Number(configId) },
+        data: { maxMarks: data.maxMarks, componentMaxMarks: data.componentMaxMarks ?? Prisma.DbNull },
+      }),
+      ...reconcileMarkOps(prisma, marks, data.componentMaxMarks),
+    ]);
 
     res.json({ message: 'Max marks updated successfully.' });
   } catch (err) {

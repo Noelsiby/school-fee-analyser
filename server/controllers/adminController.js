@@ -6,7 +6,7 @@
 
 const { PrismaClient, Prisma } = require('@prisma/client');
 const {
-  MAIN, ComponentError, partKeys, normalizeComponents, parseComponentMaxMarks,
+  MAIN, ComponentError, partKeys, normalizeComponents, parseComponentMaxMarks, reconcileMarkOps,
 } = require('../lib/components');
 const bcrypt           = require('bcryptjs');
 const fs               = require('fs');
@@ -1025,8 +1025,14 @@ exports.adminUpdateMaxMarks = async (req, res) => {
 
     // Upsert configs (no status check — Admin can update at any time)
     const upserts = await buildConfigUpserts(examId, configs);
-
     await prisma.$transaction(upserts);
+
+    // Marks already entered follow the new parts (old single marks become Main, totals recomputed).
+    const saved = await prisma.examSubjectConfig.findMany({ where: { examId } });
+    const marks = await prisma.mark.findMany({ where: { examId } });
+    const markOps = saved.flatMap((cfg) => reconcileMarkOps(
+      prisma, marks.filter((m) => m.subjectId === cfg.subjectId), cfg.componentMaxMarks));
+    if (markOps.length) await prisma.$transaction(markOps);
 
     const updated = await prisma.exam.findUnique({
       where: { id: examId },

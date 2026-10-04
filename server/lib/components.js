@@ -13,6 +13,8 @@
  * so only screens that show the breakdown need to know about parts.
  */
 
+const { Prisma } = require('@prisma/client');
+
 const MAIN = 'Main';
 const PARTS = ['Reading', 'Writing', 'Dictation'];
 const ALL_KEYS = [MAIN, ...PARTS];
@@ -97,25 +99,68 @@ function sameComponentMarks(a, b) {
 
 /**
  * Request body → ExamSubjectConfig update data, for teachers editing max marks.
- * Subjects with parts in this exam take { componentMaxMarks }; others take { maxMarks }.
- * Teachers may change the numbers but not which parts the exam includes.
- * `config` must include its subject (for the error message).
+ * Teachers get the same choice as the admin: { componentMaxMarks } with the main mark
+ * plus any of the subject's ticked parts (blank = not in this exam), or { maxMarks }
+ * for a subject without parts. Returns { maxMarks, componentMaxMarks } where
+ * componentMaxMarks is null when no part is included.
+ * `config` must include its subject.
  */
 function maxMarksUpdate(config, body) {
-  if (config.componentMaxMarks) {
-    const included = partKeys(config.componentMaxMarks).filter((k) => k !== MAIN);
-    const parsed = parseComponentMaxMarks(body.componentMaxMarks, config.subject?.name, included);
-    if (partKeys(parsed.componentMaxMarks).length !== included.length + 1) {
-      throw new ComponentError('Every part in this exam needs max marks greater than 0.');
-    }
-    return parsed;
+  // Parts the teacher may use: the subject's ticked parts, plus any already in this exam.
+  const allowed = normalizeComponents([
+    ...(config.subject?.components || []),
+    ...partKeys(config.componentMaxMarks),
+  ]);
+  if (body.componentMaxMarks && typeof body.componentMaxMarks === 'object') {
+    return parseComponentMaxMarks(body.componentMaxMarks, config.subject?.name, allowed);
   }
   const maxMarks = Number(body.maxMarks);
   if (isBlank(body.maxMarks) || isNaN(maxMarks) || maxMarks <= 0) {
     throw new ComponentError('Invalid max marks value.');
   }
-  return { maxMarks };
+  return { maxMarks, componentMaxMarks: null };
 }
+
+/**
+ * After an exam's max marks change for one subject, bring every student's saved
+ * marks in line with the new set of parts:
+ *  - marks typed before parts existed become the Main mark;
+ *  - parts no longer in the exam are dropped;
+ *  - the total is recomputed, and is empty until every part is filled
+ *    (so nothing can be submitted with a part missing).
+ * Returns the Prisma update operations (run them in the same transaction).
+ */
+function reconcileMarkOps(prisma, marks, componentMaxMarks) {
+  const ops = [];
+  for (const m of marks) {
+    let componentMarks;
+    let marksObtained;
+    if (componentMaxMarks) {
+      const base = m.componentMarks || (m.marksObtained === null ? {} : { [MAIN]: m.marksObtained });
+      componentMarks = {};
+      let total = 0;
+      let complete = true;
+      for (const key of partKeys(componentMaxMarks)) {
+        const v = base[key] ?? null;
+        componentMarks[key] = v;
+        if (v === null) complete = false; else total += v;
+      }
+      marksObtained = complete ? total : null;
+    } else {
+      if (!m.componentMarks) continue; // already a single mark
+      componentMarks = null;
+      marksObtained = m.componentMarks[MAIN] ?? m.marksObtained;
+    }
+    if (marksObtained === m.marksObtained && sameComponentMarks(componentMarks, m.componentMarks)
+        && (componentMarks === null) === (m.componentMarks === null)) continue;
+    ops.push(prisma.mark.update({
+      where: { id: m.id },
+      data: { marksObtained, componentMarks: componentMarks ?? Prisma.DbNull },
+    }));
+  }
+  return ops;
+}
+
 
 module.exports = {
   MAIN,
@@ -127,4 +172,5 @@ module.exports = {
   parseComponentMarks,
   sameComponentMarks,
   maxMarksUpdate,
+  reconcileMarkOps,
 };

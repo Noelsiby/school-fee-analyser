@@ -74,6 +74,29 @@ export function marksForKeys(markRecord, keys) {
   ]));
 }
 
+/**
+ * Subject shape for a teacher editing max marks in one exam: the subject's ticked
+ * parts plus any parts already in this exam, so teachers can add or clear parts too.
+ */
+export function editableSubject(subject, componentMaxMarks) {
+  const inExam = partKeys(componentMaxMarks).filter(k => k !== MAIN);
+  return { ...subject, components: PARTS.filter(p => subject?.components?.includes(p) || inExam.includes(p)) };
+}
+
+/**
+ * Teacher max-marks form value → request body for PUT .../exam-config/:id/max-marks.
+ * Returns { body } or { error }.
+ */
+export function maxMarksBody(subject, value) {
+  const payload = toConfigPayload(subject, value);
+  if (payload.componentMaxMarks) {
+    if (!(payload.componentMaxMarks[MAIN] > 0)) return { error: 'Main max marks must be greater than 0.' };
+    return { body: { componentMaxMarks: payload.componentMaxMarks } };
+  }
+  if (!(payload.maxMarks > 0)) return { error: 'Please enter a valid positive number.' };
+  return { body: { maxMarks: payload.maxMarks } };
+}
+
 /** Short "Main 40 · R 5 · W 4" text for a marks / max-marks object (blank entries show as –). */
 export function partsSummary(obj) {
   if (!isObj(obj)) return '';

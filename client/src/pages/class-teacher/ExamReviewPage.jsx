@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import FullMarksheetReview from './FullMarksheetReview';
 import MaxMarksField from '../../components/MaxMarksField';
-import { MAIN, partKeys, partsLabel, partsSummary } from '../../utils/subjectParts';
+import { MAIN, partKeys, partsLabel, partsSummary, editableSubject, initialMaxMarks, savedMaxMarks, maxMarksBody } from '../../utils/subjectParts';
 import MyStudentsList from './MyStudentsList';
 import SubjectMarksReview from './SubjectMarksReview';
 import '../admin/admin.css';
@@ -102,23 +102,15 @@ export default function ExamReviewPage() {
     }
   };
 
+  /** Subject as a teacher may edit it in this exam: main mark + the subject's parts. */
+  const editSubjectFor = (review) => editableSubject(review.subject, review.componentMaxMarks);
+
   const handleSaveMaxMarks = async (configId) => {
-    const input = maxMarksInputs[configId];
-    let body;
-    if (input && typeof input === 'object') {
-      const keys = partKeys(input);
-      if (keys.some(k => !(Number(input[k]) > 0))) {
-        setMaxMarksErrors(prev => ({ ...prev, [configId]: 'Each part needs max marks greater than 0.' }));
-        return;
-      }
-      body = { componentMaxMarks: Object.fromEntries(keys.map(k => [k, Number(input[k])])) };
-    } else {
-      const val = Number(input);
-      if (isNaN(val) || val <= 0) {
-        setMaxMarksErrors(prev => ({ ...prev, [configId]: 'Enter a valid positive number.' }));
-        return;
-      }
-      body = { maxMarks: val };
+    const review = data.subjectReviews.find(r => r.configId === configId);
+    const { body, error: invalid } = maxMarksBody(editSubjectFor(review), maxMarksInputs[configId]);
+    if (invalid) {
+      setMaxMarksErrors(prev => ({ ...prev, [configId]: invalid }));
+      return;
     }
     setSavingMaxMarks(prev => ({ ...prev, [configId]: true }));
     setMaxMarksErrors(prev => ({ ...prev, [configId]: '' }));
@@ -244,8 +236,7 @@ export default function ExamReviewPage() {
                     {isEditingThis ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                         <MaxMarksField
-                          subject={{ name: subject.name, components: partKeys(review.componentMaxMarks).filter(k => k !== MAIN) }}
-                          requireParts
+                          subject={editSubjectFor(review)}
                           value={maxMarksInputs[configId]}
                           onChange={v => setMaxMarksInputs(prev => ({ ...prev, [configId]: v }))}
                         />
@@ -278,7 +269,7 @@ export default function ExamReviewPage() {
                             style={{ padding: '0px 6px', fontSize: '0.72rem' }}
                             onClick={() => {
                               setEditingMaxMarks(prev => ({ ...prev, [configId]: true }));
-                              setMaxMarksInputs(prev => ({ ...prev, [configId]: review.componentMaxMarks ? { ...review.componentMaxMarks } : String(review.maxMarks) }));
+                              setMaxMarksInputs(prev => ({ ...prev, [configId]: initialMaxMarks(editSubjectFor(review), savedMaxMarks(review)) }));
                               setMaxMarksErrors(prev => ({ ...prev, [configId]: '' }));
                             }}
                             title="Edit max marks"

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import MaxMarksField from '../../components/MaxMarksField';
-import { MAIN, partKeys, partsLabel, keyLabel, totalOf } from '../../utils/subjectParts';
+import { MAIN, partKeys, partsLabel, keyLabel, totalOf, marksForKeys } from '../../utils/subjectParts';
 import '../admin/admin.css';
 import './MarksEntryPage.css';
 
@@ -42,7 +42,7 @@ export default function MarksEntryPage() {
       const initialInputs = {};
       res.students.forEach(s => {
         initialInputs[s.id] = res.componentMaxMarks
-          ? Object.fromEntries(partKeys(res.componentMaxMarks).map(k => [k, s.markRecord?.componentMarks?.[k] ?? '']))
+          ? marksForKeys(s.markRecord, partKeys(res.componentMaxMarks))
           : s.markRecord?.marksObtained ?? '';
       });
       setInputValues(initialInputs);

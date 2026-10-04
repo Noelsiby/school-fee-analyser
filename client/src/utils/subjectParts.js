@@ -61,6 +61,19 @@ export function toConfigPayload(subject, value) {
   return { subjectId: subject.id, maxMarks: Number(value) };
 }
 
+/**
+ * A student's saved marks as { Main, ...parts } for the keys in this exam.
+ * Marks entered before the subject had parts have no breakdown yet: their
+ * single mark becomes the Main mark so nothing already typed is lost.
+ */
+export function marksForKeys(markRecord, keys) {
+  const saved = markRecord?.componentMarks;
+  return Object.fromEntries(keys.map(k => [
+    k,
+    saved ? (saved[k] ?? '') : (k === MAIN ? (markRecord?.marksObtained ?? '') : ''),
+  ]));
+}
+
 /** Short "Main 40 · R 5 · W 4" text for a marks / max-marks object (blank entries show as –). */
 export function partsSummary(obj) {
   if (!isObj(obj)) return '';

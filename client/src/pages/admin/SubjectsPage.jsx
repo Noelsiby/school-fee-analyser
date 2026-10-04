@@ -120,7 +120,10 @@ export default function SubjectsPage() {
             classIds: form.classIds,
           },
         });
-        showNotice(`✅ ${res.message}`);
+        const partsAdded = form.components.some(p => !group.components.includes(p) || group.mixedParts);
+        showNotice(`✅ ${res.message}` + (partsAdded
+          ? ' For exams that are already set up, add the part max marks in Exams → ✏️ Edit → Max Marks.'
+          : ''));
       }
       close(); load();
     } catch (err) { setFormError(err.message); }

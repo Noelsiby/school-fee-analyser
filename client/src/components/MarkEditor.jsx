@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MAIN, partKeys } from '../utils/subjectParts';
+import { MAIN, partKeys, marksForKeys } from '../utils/subjectParts';
 
 /**
  * Inline editor a Class Teacher uses to correct one student's mark.
@@ -11,9 +11,7 @@ import { MAIN, partKeys } from '../utils/subjectParts';
 export default function MarkEditor({ markRecord, maxMarks, componentMaxMarks, onSave, onCancel, saving, color = '#2563eb' }) {
   const [single, setSingle] = useState(markRecord.marksObtained ?? '');
   const keys = partKeys(componentMaxMarks); // e.g. ['Main', 'Reading', 'Writing']
-  const [parts, setParts] = useState(() =>
-    Object.fromEntries(keys.map(k => [k, markRecord.componentMarks?.[k] ?? '']))
-  );
+  const [parts, setParts] = useState(() => marksForKeys(markRecord, keys));
 
   const save = () => {
     if (saving) return;

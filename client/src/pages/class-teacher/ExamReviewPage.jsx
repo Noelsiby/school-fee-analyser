@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import FullMarksheetReview from './FullMarksheetReview';
+import MaxMarksField from '../../components/MaxMarksField';
+import { MAIN, partKeys, partsLabel, partsSummary } from '../../utils/subjectParts';
 import MyStudentsList from './MyStudentsList';
 import SubjectMarksReview from './SubjectMarksReview';
 import '../admin/admin.css';
@@ -40,7 +42,7 @@ export default function ExamReviewPage() {
       setData(res);
       // Initialize max marks inputs
       const inputs = {};
-      res.subjectReviews.forEach(r => { inputs[r.configId] = String(r.maxMarks); });
+      res.subjectReviews.forEach(r => { inputs[r.configId] = r.componentMaxMarks ? { ...r.componentMaxMarks } : String(r.maxMarks); });
       setMaxMarksInputs(inputs);
     } catch (e) {
       setError(e.message || 'Failed to load review data.');
@@ -101,17 +103,29 @@ export default function ExamReviewPage() {
   };
 
   const handleSaveMaxMarks = async (configId) => {
-    const val = Number(maxMarksInputs[configId]);
-    if (isNaN(val) || val <= 0) {
-      setMaxMarksErrors(prev => ({ ...prev, [configId]: 'Enter a valid positive number.' }));
-      return;
+    const input = maxMarksInputs[configId];
+    let body;
+    if (input && typeof input === 'object') {
+      const keys = partKeys(input);
+      if (keys.some(k => !(Number(input[k]) > 0))) {
+        setMaxMarksErrors(prev => ({ ...prev, [configId]: 'Each part needs max marks greater than 0.' }));
+        return;
+      }
+      body = { componentMaxMarks: Object.fromEntries(keys.map(k => [k, Number(input[k])])) };
+    } else {
+      const val = Number(input);
+      if (isNaN(val) || val <= 0) {
+        setMaxMarksErrors(prev => ({ ...prev, [configId]: 'Enter a valid positive number.' }));
+        return;
+      }
+      body = { maxMarks: val };
     }
     setSavingMaxMarks(prev => ({ ...prev, [configId]: true }));
     setMaxMarksErrors(prev => ({ ...prev, [configId]: '' }));
     try {
       await apiCall(`/api/class-teacher/exam-config/${configId}/max-marks`, {
         method: 'PUT',
-        body: { maxMarks: val }
+        body
       });
       setEditingMaxMarks(prev => ({ ...prev, [configId]: false }));
       loadData();
@@ -223,17 +237,17 @@ export default function ExamReviewPage() {
                 <tr key={subject.id}>
                   <td>
                     <div style={{ fontWeight: 600 }}>{subject.name}</div>
+                    {review.componentMaxMarks && (
+                      <div style={{ fontSize: '0.72rem', color: '#6d28d9' }}>{partsLabel(partKeys(review.componentMaxMarks).filter(k => k !== MAIN))}</div>
+                    )}
                     {/* Max Marks inline edit for Class Teacher */}
                     {isEditingThis ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                        <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Max:</span>
-                        <input
-                          type="number"
-                          value={maxMarksInputs[configId] || ''}
-                          onChange={e => setMaxMarksInputs(prev => ({ ...prev, [configId]: e.target.value }))}
-                          style={{ width: 60, padding: '2px 6px', border: '2px solid #1E3A8A', borderRadius: 4, fontSize: '0.8rem' }}
-                          autoFocus
-                          min="1"
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                        <MaxMarksField
+                          subject={{ name: subject.name, components: partKeys(review.componentMaxMarks).filter(k => k !== MAIN) }}
+                          requireParts
+                          value={maxMarksInputs[configId]}
+                          onChange={v => setMaxMarksInputs(prev => ({ ...prev, [configId]: v }))}
                         />
                         <button
                           className="btn btn-primary btn-sm"
@@ -257,13 +271,14 @@ export default function ExamReviewPage() {
                     ) : (
                       <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                         Max Marks: {review.maxMarks}
+                        {review.componentMaxMarks && ` (${partsSummary(review.componentMaxMarks)})`}
                         {canEditMaxMarks && (
                           <button
                             className="btn btn-ghost btn-sm"
                             style={{ padding: '0px 6px', fontSize: '0.72rem' }}
                             onClick={() => {
                               setEditingMaxMarks(prev => ({ ...prev, [configId]: true }));
-                              setMaxMarksInputs(prev => ({ ...prev, [configId]: String(review.maxMarks) }));
+                              setMaxMarksInputs(prev => ({ ...prev, [configId]: review.componentMaxMarks ? { ...review.componentMaxMarks } : String(review.maxMarks) }));
                               setMaxMarksErrors(prev => ({ ...prev, [configId]: '' }));
                             }}
                             title="Edit max marks"

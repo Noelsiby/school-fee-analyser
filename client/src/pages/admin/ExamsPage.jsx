@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import Modal from '../../components/Modal';
+import MaxMarksField from '../../components/MaxMarksField';
+import { hasParts, partsLabel, initialMaxMarks, savedMaxMarks, toConfigPayload, totalOf } from '../../utils/subjectParts';
 import './admin.css';
 
 const EMPTY_FORM = { name: '', examType: 'CLASS_EXAM', classId: '', classIds: [], deadline: '' };
@@ -104,12 +106,10 @@ export default function ExamsPage() {
       setExpandedSections(initExpanded);
       setCopyToAllValue('');
       
+      const saved = Object.fromEntries(exam.subjectConfigs.map(c => [c.subjectId, savedMaxMarks(c)]));
       const initialValues = {};
-      exam.subjectConfigs.forEach(c => {
-        initialValues[c.subjectId] = c.maxMarks;
-      });
       subjects.forEach(s => {
-        if (!initialValues[s.id]) initialValues[s.id] = 100; // default 100
+        initialValues[s.id] = initialMaxMarks(s, saved[s.id]); // 100, or R/W/D defaults for split subjects
       });
       setMaxMarksValues(initialValues);
     } catch (e) {
@@ -144,10 +144,7 @@ export default function ExamsPage() {
     e.preventDefault();
     setSaving(true); setFormError('');
     try {
-      const configs = classSubjects.map(s => ({
-        subjectId: s.id,
-        maxMarks: Number(maxMarksValues[s.id])
-      }));
+      const configs = classSubjects.map(s => toConfigPayload(s, maxMarksValues[s.id]));
       await apiCall(`/api/admin/exams/${selectedExam.id}/subject-config`, { 
         method: 'POST', 
         body: { configs } 
@@ -235,7 +232,7 @@ export default function ExamsPage() {
     const subjects = {};
     const maxMarks = {};
     (exam.subjectConfigs || []).forEach(c => {
-      maxMarks[c.subjectId] = c.maxMarks;
+      maxMarks[c.subjectId] = savedMaxMarks(c);
     });
     setEditMaxMarks(maxMarks);
 
@@ -244,9 +241,8 @@ export default function ExamsPage() {
         const promises = enrollments.map(async (e) => {
           const res = await apiCall(`/api/admin/subjects?classId=${e.classId}`);
           subjects[e.classId] = res.subjects || [];
-          // Set default 100 for unconfigured subjects
           (res.subjects || []).forEach(s => {
-            if (!maxMarks[s.id]) maxMarks[s.id] = 100;
+            maxMarks[s.id] = initialMaxMarks(s, maxMarks[s.id]);
           });
         });
         await Promise.all(promises);
@@ -258,7 +254,7 @@ export default function ExamsPage() {
         const res = await apiCall(`/api/admin/subjects?classId=${exam.classId}`);
         subjects[exam.classId] = res.subjects || [];
         (res.subjects || []).forEach(s => {
-          if (!maxMarks[s.id]) maxMarks[s.id] = 100;
+          maxMarks[s.id] = initialMaxMarks(s, maxMarks[s.id]);
         });
       } catch (err) {
         console.error(err);
@@ -287,15 +283,12 @@ export default function ExamsPage() {
     if (!selectedExam) return;
     setEditActionLoading(true); setEditActionError('');
     try {
-      const allSubjectIds = Object.keys(editMaxMarks);
-      if (allSubjectIds.length === 0) {
+      const allSubjects = Object.values(editSubjects).flat();
+      if (allSubjects.length === 0) {
         setEditActionError('No subjects to configure.');
         return;
       }
-      const configs = allSubjectIds.map(subjectId => ({
-        subjectId: Number(subjectId),
-        maxMarks: Number(editMaxMarks[subjectId]) || 100
-      }));
+      const configs = allSubjects.map(s => toConfigPayload(s, editMaxMarks[s.id]));
       await apiCall(`/api/admin/exams/${selectedExam.id}/max-marks`, { method: 'PUT', body: { configs } });
       setConfigSuccess(['✅ Max marks updated successfully!']);
       setTimeout(() => setConfigSuccess([]), 4000);
@@ -319,7 +312,7 @@ export default function ExamsPage() {
       const subjRes = await apiCall(`/api/admin/subjects?classId=${addClassId}`);
       setEditSubjects(prev => ({ ...prev, [addClassId]: subjRes.subjects }));
       subjRes.subjects.forEach(s => {
-        setEditMaxMarks(prev => ({ ...prev, [s.id]: prev[s.id] || 100 }));
+        setEditMaxMarks(prev => ({ ...prev, [s.id]: initialMaxMarks(s, prev[s.id]) }));
       });
       setAddClassId('');
       loadData();
@@ -704,18 +697,15 @@ export default function ExamsPage() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                               {subjects.map(sub => (
                                 <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0' }}>
-                                  <span style={{ fontSize: '0.88rem', fontWeight: 500 }}>{sub.name}</span>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Max:</span>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      max="1000"
-                                      value={editMaxMarks[sub.id] ?? 100}
-                                      onChange={e => setEditMaxMarks(prev => ({ ...prev, [sub.id]: e.target.value }))}
-                                      style={{ width: 64, padding: '4px 8px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '0.88rem', textAlign: 'center' }}
-                                    />
-                                  </div>
+                                  <span style={{ fontSize: '0.88rem', fontWeight: 500 }}>
+                                    {sub.name}
+                                    {hasParts(sub) && <span style={{ display: 'block', fontSize: '0.72rem', color: '#6d28d9' }}>{partsLabel(sub.components)}</span>}
+                                  </span>
+                                  <MaxMarksField
+                                    subject={sub}
+                                    value={editMaxMarks[sub.id]}
+                                    onChange={v => setEditMaxMarks(prev => ({ ...prev, [sub.id]: v }))}
+                                  />
                                 </div>
                               ))}
                             </div>
@@ -853,7 +843,7 @@ export default function ExamsPage() {
       {/* Config Modal */}
       {modal === 'config' && selectedExam && (
         <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 720 }}>
             <div className="modal-header">
               <h2 className="modal-title">Configure Max Marks</h2>
               <button className="modal-close" onClick={() => setModal(null)}>✕</button>
@@ -867,6 +857,9 @@ export default function ExamsPage() {
                 
                 <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 16 }}>
                   Set the maximum marks for each subject in <strong>{selectedExam.name}</strong>.
+                  {classSubjects.some(s => s.components?.length) && (
+                    <> For Reading / Writing / Dictation, type the max marks for each part — leave a part empty if it isn’t in this exam.</>
+                  )}
                 </p>
 
                 {classSubjects.length === 0 ? (
@@ -895,7 +888,7 @@ export default function ExamsPage() {
                               const val = Number(copyToAllValue);
                               setMaxMarksValues(prev => {
                                 const next = { ...prev };
-                                Object.keys(next).forEach(k => next[k] = val);
+                                Object.keys(next).forEach(k => { next[k] = typeof next[k] === 'object' ? { ...next[k], Main: val } : val; }); // parts keep their own max
                                 return next;
                               });
                             }}
@@ -930,21 +923,15 @@ export default function ExamsPage() {
                                   ) : (
                                     group.subjects.map(sub => (
                                       <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 12, borderBottom: '1px dashed #e2e8f0' }}>
-                                        <div style={{ fontWeight: 500, color: '#334155' }}>{sub.name}</div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Max Marks:</span>
-                                          <input 
-                                            type="number" 
-                                            step="0.1" 
-                                            min="1"
-                                            max="999"
-                                            className="form-input" 
-                                            style={{ width: '80px', padding: '6px' }}
-                                            value={maxMarksValues[sub.id] || ''} 
-                                            onChange={e => setMaxMarksValues(prev => ({ ...prev, [sub.id]: e.target.value }))} 
-                                            required
-                                          />
+                                        <div style={{ fontWeight: 500, color: '#334155' }}>
+                                          {sub.name}
+                                          {hasParts(sub) && <div style={{ fontSize: '0.72rem', color: '#6d28d9', fontWeight: 500 }}>{partsLabel(sub.components)}</div>}
                                         </div>
+                                        <MaxMarksField
+                                          subject={sub}
+                                          value={maxMarksValues[sub.id]}
+                                          onChange={v => setMaxMarksValues(prev => ({ ...prev, [sub.id]: v }))}
+                                        />
                                       </div>
                                     ))
                                   )}
@@ -959,22 +946,16 @@ export default function ExamsPage() {
                           <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
                             <div>
                               <div style={{ fontWeight: 600, color: '#334155' }}>📚 {sub.name}</div>
-                              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Class: {sub.className}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                Class: {sub.className}
+                                {hasParts(sub) && <span style={{ color: '#6d28d9' }}> · {partsLabel(sub.components)}</span>}
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Max Marks:</span>
-                              <input 
-                                type="number" 
-                                step="0.1" 
-                                min="1" 
-                                max="999"
-                                className="form-input" 
-                                style={{ width: '90px' }}
-                                value={maxMarksValues[sub.id] || ''} 
-                                onChange={e => setMaxMarksValues(prev => ({ ...prev, [sub.id]: e.target.value }))} 
-                                required
-                              />
-                            </div>
+                            <MaxMarksField
+                              subject={sub}
+                              value={maxMarksValues[sub.id]}
+                              onChange={v => setMaxMarksValues(prev => ({ ...prev, [sub.id]: v }))}
+                            />
                           </div>
                         ))
                       )}
@@ -984,8 +965,8 @@ export default function ExamsPage() {
                       <div style={{ marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
                         <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#475569', marginBottom: 8 }}>Configuration Summary</div>
                         {groupedSubjects.map(group => {
-                          const classTotal = group.subjects.reduce((sum, s) => sum + Number(maxMarksValues[s.id] || 0), 0);
-                          const subjectBreakdown = group.subjects.map(s => `${s.name}(${maxMarksValues[s.id] || 0})`).join(' + ');
+                          const classTotal = group.subjects.reduce((sum, s) => sum + totalOf(maxMarksValues[s.id]), 0);
+                          const subjectBreakdown = group.subjects.map(s => `${s.name}(${totalOf(maxMarksValues[s.id])})`).join(' + ');
                           return (
                             <div key={group.classId} style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 4 }}>
                               <strong>{group.className}:</strong> {subjectBreakdown || '0'} = {classTotal} total

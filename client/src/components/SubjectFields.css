@@ -1,0 +1,73 @@
+/* ── Subjects: class picker (tick many classes) ───────────── */
+.class-picker {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.class-picker-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+}
+.class-picker-count {
+  margin-left: auto;
+  font-weight: 500;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+.class-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.class-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s;
+}
+.class-picker-item:hover { background: #f8fafc; }
+.class-picker-item.checked { background: #eff6ff; border-color: #93c5fd; color: #1e3a8a; font-weight: 600; }
+.class-picker-item.locked { cursor: default; opacity: 0.85; }
+.class-picker input[type="checkbox"] { accent-color: #1E3A8A; width: 15px; height: 15px; }
+
+/* ── Subjects: extra parts (Reading / Writing / Dictation) ── */
+.parts-box {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.parts-box-title { font-size: 0.86rem; font-weight: 700; color: #0f172a; margin: 0; }
+.parts-box-title span { font-weight: 400; color: #94a3b8; }
+.parts-box-hint { font-size: 0.76rem; color: #64748b; margin: 2px 0 10px; }
+.parts-box-options { display: flex; gap: 8px; flex-wrap: wrap; }
+.parts-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.84rem;
+  transition: background 0.12s, border-color 0.12s;
+}
+.parts-toggle:has(input:checked) { background: #f5f3ff; border-color: #c4b5fd; color: #5b21b6; }
+.parts-toggle input { accent-color: #6d28d9; width: 15px; height: 15px; }

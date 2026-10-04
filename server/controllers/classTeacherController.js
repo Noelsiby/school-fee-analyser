@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { partKeys, parseComponentMarks, sameComponentMarks, maxMarksUpdate } = require('../lib/components');
 
 // Fetch exams for classes the teacher manages
 exports.getExams = async (req, res) => {
@@ -198,6 +199,7 @@ exports.getExamReview = async (req, res) => {
         configId: config.id,
         subject: config.subject,
         maxMarks: config.maxMarks,
+        componentMaxMarks: config.componentMaxMarks,
         subjectTeacher,
         status,
         wasResubmitted: resubmittedSubjectIds.has(subjectId),
@@ -283,6 +285,8 @@ exports.getSubjectMarks = async (req, res) => {
     res.json({
       subject: config.subject,
       maxMarks: config.maxMarks,
+      componentMaxMarks: config.componentMaxMarks,
+      components: partKeys(config.componentMaxMarks),
       results,
       stats: {
         highest: enteredCount > 0 ? highest : null,
@@ -370,7 +374,11 @@ exports.getFullMarksheet = async (req, res) => {
 
     res.json({
       exam,
-      subjects: classConfigs.map(c => c.subject),
+      subjects: classConfigs.map(c => ({
+        ...c.subject,
+        maxMarks: c.maxMarks,
+        componentMaxMarks: c.componentMaxMarks,
+      })),
       results
     });
   } catch (err) {
@@ -380,7 +388,8 @@ exports.getFullMarksheet = async (req, res) => {
 
 // Edit a specific mark
 exports.editMark = async (req, res) => {
-  const { markId, newMarks } = req.body;
+  const { markId, componentMarks } = req.body;
+  let { newMarks } = req.body;
   const teacherId = req.user.userId;
 
   try {
@@ -412,25 +421,40 @@ exports.editMark = async (req, res) => {
       where: { examId_subjectId: { examId: existingMark.examId, subjectId: existingMark.subjectId } }
     });
 
-    if (newMarks < 0 || newMarks > config.maxMarks) {
+    // Split subjects: edit the parts, the total follows. A submitted mark always
+    // has every part filled, so the edited set must be complete too.
+    let parts = null;
+    if (config.componentMaxMarks) {
+      try {
+        const parsed = parseComponentMarks(componentMarks, config.componentMaxMarks);
+        if (parsed.marksObtained === null) {
+          return res.status(400).json({ error: 'Enter marks for every part.' });
+        }
+        parts = parsed.componentMarks;
+        newMarks = parsed.marksObtained;
+      } catch (e) {
+        return res.status(400).json({ error: e.message });
+      }
+    } else if (newMarks < 0 || newMarks > config.maxMarks) {
       return res.status(400).json({ error: `Marks must be between 0 and ${config.maxMarks}` });
     }
 
     const oldVal = existingMark.marksObtained;
-    
-    if (oldVal !== newMarks) {
+    const partsChanged = parts && !sameComponentMarks(parts, existingMark.componentMarks);
+
+    if (oldVal !== newMarks || partsChanged) {
       await prisma.$transaction([
         prisma.mark.update({
           where: { id: Number(markId) },
-          data: { marksObtained: newMarks }
+          data: { marksObtained: newMarks, ...(parts ? { componentMarks: parts } : {}) }
         }),
         prisma.auditLog.create({
           data: {
             tableName: 'marks',
             recordId: String(markId),
             action: 'UPDATE',
-            oldValue: { marksObtained: oldVal },
-            newValue: { marksObtained: newMarks },
+            oldValue: { marksObtained: oldVal, componentMarks: existingMark.componentMarks },
+            newValue: { marksObtained: newMarks, componentMarks: parts },
             changedById: teacherId
           }
         })
@@ -638,12 +662,7 @@ exports.getMyStudents = async (req, res) => {
 // Update max marks for a subject config — Class Teacher can edit before submission
 exports.updateMaxMarks = async (req, res) => {
   const { configId } = req.params;
-  const { maxMarks } = req.body;
   const teacherId = req.user.userId;
-
-  if (!maxMarks || isNaN(Number(maxMarks)) || Number(maxMarks) <= 0) {
-    return res.status(400).json({ error: 'Invalid max marks value.' });
-  }
 
   try {
     const config = await prisma.examSubjectConfig.findUnique({
@@ -676,10 +695,13 @@ exports.updateMaxMarks = async (req, res) => {
       return res.status(400).json({ error: 'Cannot change max marks after marks have been submitted.' });
     }
 
-    await prisma.examSubjectConfig.update({
-      where: { id: Number(configId) },
-      data: { maxMarks: Number(maxMarks) }
-    });
+    let data;
+    try {
+      data = maxMarksUpdate(config, req.body);
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+    await prisma.examSubjectConfig.update({ where: { id: Number(configId) }, data });
 
     res.json({ message: 'Max marks updated successfully.' });
   } catch (err) {

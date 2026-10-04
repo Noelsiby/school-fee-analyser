@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApi } from '../../hooks/useApi';
+import MarkEditor from '../../components/MarkEditor';
+import { partsSummary } from '../../utils/subjectParts';
 
 export default function FullMarksheetReview({ examId, classId, isLocked }) {
   const { apiCall } = useApi();
@@ -7,8 +9,7 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  const [editingCell, setEditingCell] = useState(null);
-  const [editValue, setEditValue] = useState('');
+  const [editingCell, setEditingCell] = useState(null); // { studentId, subjectId }
   const [saving, setSaving] = useState(false);
 
   const loadMarksheet = async () => {
@@ -26,25 +27,17 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
     loadMarksheet();
   }, [examId, classId]);
 
-  const handleEditClick = (studentId, subjectId, currentMarks, maxMarks) => {
+  const handleEditClick = (studentId, subjectId) => {
     if (isLocked) return;
-    setEditingCell({ studentId, subjectId, maxMarks });
-    setEditValue(currentMarks !== null ? String(currentMarks) : '');
+    setEditingCell({ studentId, subjectId });
   };
 
-  const handleSaveEdit = async (markId) => {
-    if (saving) return;
-    const val = Number(editValue);
-    if (isNaN(val) || val < 0 || val > editingCell.maxMarks) {
-      alert(`Marks must be between 0 and ${editingCell.maxMarks}`);
-      return;
-    }
-
+  const handleSaveEdit = async (markId, body) => {
     setSaving(true);
     try {
       await apiCall('/api/class-teacher/marks/edit', {
         method: 'PUT',
-        body: { markId, newMarks: val }
+        body: { markId, ...body }
       });
       setEditingCell(null);
       loadMarksheet(); // reload to get new totals and highlight
@@ -55,18 +48,10 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
     }
   };
 
-  const handleKeyDown = (e, markId) => {
-    if (e.key === 'Enter') handleSaveEdit(markId);
-    if (e.key === 'Escape') setEditingCell(null);
-  };
-
   if (loading) return <div style={{ padding: 20, textAlign: 'center' }}><div className="spinner spinner-dark" /></div>;
   if (error) return <div style={{ color: '#dc2626', padding: 20 }}>⚠ {error}</div>;
 
-  const totalMaxMarks = data?.subjects?.reduce((sum, sub) => {
-    const config = data.exam.subjectConfigs.find(c => c.subjectId === sub.id);
-    return sum + (config ? config.maxMarks : 100);
-  }, 0) || 0;
+  const totalMaxMarks = data?.subjects?.reduce((sum, sub) => sum + (sub.maxMarks ?? 100), 0) || 0;
 
   return (
     <div className="data-card" style={{ marginTop: 24, overflowX: 'auto' }}>
@@ -78,18 +63,19 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
           <tr>
             <th>Student</th>
             <th>Roll No</th>
-            {data.subjects.map(sub => {
-              const config = data.exam.subjectConfigs.find(c => c.subjectId === sub.id);
-              const maxMarks = config ? config.maxMarks : 100;
-              return (
-                <th key={sub.id} style={{ textAlign: 'center' }}>
-                  <div>{sub.name}</div>
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'normal', marginTop: 4 }}>
-                    Max: {maxMarks}
+            {data.subjects.map(sub => (
+              <th key={sub.id} style={{ textAlign: 'center' }}>
+                <div>{sub.name}</div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'normal', marginTop: 4 }}>
+                  Max: {sub.maxMarks}
+                </div>
+                {sub.componentMaxMarks && (
+                  <div style={{ fontSize: '0.68rem', color: '#6d28d9', fontWeight: 'normal' }}>
+                    {partsSummary(sub.componentMaxMarks)}
                   </div>
-                </th>
-              );
-            })}
+                )}
+              </th>
+            ))}
             <th style={{ textAlign: 'center' }}>
               <div>Total</div>
               <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'normal', marginTop: 4 }}>
@@ -110,10 +96,6 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
                 const markRecord = row.marksBySubject[sub.id];
                 const isEditing = editingCell?.studentId === row.student.id && editingCell?.subjectId === sub.id;
                 
-                // Find maxMarks for this subject from the config
-                const config = data.exam.subjectConfigs.find(c => c.subjectId === sub.id);
-                const maxMarks = config ? config.maxMarks : 100;
-                
                 return (
                   <td 
                     key={sub.id} 
@@ -125,33 +107,28 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
                     }}
                     onClick={() => {
                       if (!isEditing && markRecord && ['SubmittedToClassTeacher', 'Approved'].includes(markRecord.status)) {
-                        handleEditClick(row.student.id, sub.id, markRecord.marksObtained, maxMarks);
+                        handleEditClick(row.student.id, sub.id);
                       }
                     }}
                     title={!isLocked && markRecord && ['SubmittedToClassTeacher', 'Approved'].includes(markRecord.status) ? "Click to edit" : ""}
                   >
                     {isEditing ? (
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                        <input
-                          type="number"
-                          autoFocus
-                          value={editValue}
-                          onChange={e => setEditValue(e.target.value)}
-                          onKeyDown={e => handleKeyDown(e, markRecord.id)}
-                          style={{ width: 60, padding: '4px', textAlign: 'center', border: '2px solid #2563eb', borderRadius: 4 }}
-                          disabled={saving}
-                        />
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleSaveEdit(markRecord.id); }}
-                          disabled={saving}
-                          style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', padding: '0 8px' }}
-                        >
-                          ✓
-                        </button>
-                      </div>
+                      <MarkEditor
+                        markRecord={markRecord}
+                        maxMarks={sub.maxMarks}
+                        componentMaxMarks={sub.componentMaxMarks}
+                        saving={saving}
+                        onSave={body => handleSaveEdit(markRecord.id, body)}
+                        onCancel={() => setEditingCell(null)}
+                      />
                     ) : (
                       <>
                         {markRecord?.marksObtained ?? '—'}
+                        {sub.componentMaxMarks && markRecord?.componentMarks && (
+                          <div style={{ fontSize: '0.68rem', color: '#64748b', whiteSpace: 'nowrap' }}>
+                            {partsSummary(markRecord.componentMarks)}
+                          </div>
+                        )}
                         {markRecord && markRecord.lastEditedById !== markRecord.enteredById && (
                           <span style={{ 
                             position: 'absolute', top: 4, right: 4, 

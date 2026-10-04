@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
+import { partsSummary } from '../../utils/subjectParts';
 import './admin.css';
 import schoolLogo from '../../assets/school-logo.png';
 
@@ -283,6 +284,9 @@ export default function ExamResultsPage() {
                     <th key={sub.id} style={{ textAlign: 'center' }}>
                       <div>{sub.name}</div>
                       <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Max: {sub.maxMarks}</div>
+                      {sub.componentMaxMarks && (
+                        <div style={{ fontSize: '0.68rem', color: '#6d28d9', fontWeight: 500, whiteSpace: 'nowrap' }}>{partsSummary(sub.componentMaxMarks)}</div>
+                      )}
                     </th>
                   ))}
                   <th style={{ textAlign: 'center', background: '#f0f9ff' }}>Total</th>
@@ -303,6 +307,11 @@ export default function ExamResultsPage() {
                       return (
                         <td key={sub.id} style={{ textAlign: 'center', color: isFail ? '#dc2626' : 'inherit', fontWeight: isFail ? 600 : 400 }}>
                           {val !== null ? val : '—'}
+                          {sub.componentMaxMarks && row.components?.[sub.id] && (
+                            <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 400, whiteSpace: 'nowrap' }}>
+                              {partsSummary(row.components[sub.id])}
+                            </div>
+                          )}
                         </td>
                       );
                     })}

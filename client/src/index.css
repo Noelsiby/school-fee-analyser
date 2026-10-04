@@ -8,3 +8,84 @@
 #root {
   min-height: 100vh;
 }
+
+/* ── Inline popups (.modal-overlay > .modal) ──────────────────
+   Used by pages that build their dialogs inline rather than via
+   components/Modal.jsx. Without these rules the dialogs rendered
+   as normal page content at the bottom of the page. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1000;
+  animation: modal-fade-in 0.18s ease;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2), 0 4px 16px rgba(15, 23, 42, 0.1);
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 0 24px 20px;
+  animation: modal-slide-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.modal > .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 0 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.modal .modal-title { font-size: 1.05rem; font-weight: 700; color: #0f172a; }
+
+.modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 0 0;
+  margin-top: 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s, color 0.15s;
+}
+.modal-close:hover { background: #f1f5f9; color: #475569; }
+
+body:has(.modal-overlay) { overflow: hidden; }
+
+@keyframes modal-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-slide-up {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (max-width: 600px) {
+  .modal { border-radius: 12px; padding: 0 16px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay, .modal { animation: none; }
+}

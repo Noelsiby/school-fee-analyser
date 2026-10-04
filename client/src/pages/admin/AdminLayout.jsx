@@ -8,6 +8,7 @@ const NAV = [
   { path: '/admin/dashboard', label: 'Dashboard',  icon: '📊' },
   { path: '/admin/classes',   label: 'Classes',     icon: '🏛️' },
   { path: '/admin/teachers',  label: 'Teachers',    icon: '👩‍🏫' },
+  { path: '/admin/subjects',  label: 'Subjects',    icon: '📚' },
   { path: '/admin/students',  label: 'Students',    icon: '👦' },
   { path: '/admin/exams',     label: 'Exams',       icon: '📝' },
 ];

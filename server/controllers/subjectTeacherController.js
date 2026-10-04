@@ -1,5 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const {
+  partKeys, parseComponentMarks, sameComponentMarks, maxMarksUpdate,
+} = require('../lib/components');
 
 // Fetch Open exams where the teacher has subject assignments
 exports.getExams = async (req, res) => {
@@ -90,6 +93,7 @@ exports.getStudentsAndMarks = async (req, res) => {
     const config = exam.subjectConfigs[0];
     const maxMarks = config?.maxMarks || 100;
     const configId = config?.id || null;
+    const componentMaxMarks = config?.componentMaxMarks || null;
 
     const marks = await prisma.mark.findMany({
       where: { examId: Number(examId), subjectId: Number(subjectId) }
@@ -110,6 +114,9 @@ exports.getStudentsAndMarks = async (req, res) => {
       class: { id: subject.class.id, name: subject.class.name },
       maxMarks,
       configId,
+      componentMaxMarks,                                   // null for ordinary subjects
+      subject: { id: subject.id, name: subject.name },
+      components: partKeys(componentMaxMarks),
       maxMarksLocked: anySubmitted, // true = can't edit max marks anymore
       students: studentsWithMarks
     });
@@ -134,32 +141,46 @@ exports.saveMarks = async (req, res) => {
     if (exam.status !== 'Open') return res.status(403).json({ error: 'Exam is not open for editing.' });
 
     const maxMarks = exam.subjectConfigs[0]?.maxMarks || 100;
+    const componentMaxMarks = exam.subjectConfigs[0]?.componentMaxMarks || null;
 
+    // Normalise every row to { studentId, val, parts } — split subjects send
+    // componentMarks and their total is computed here, never trusted from the client.
+    const rows = [];
     for (const item of marksData) {
+      if (componentMaxMarks) {
+        try {
+          const { componentMarks, marksObtained } = parseComponentMarks(item.componentMarks, componentMaxMarks);
+          rows.push({ studentId: Number(item.studentId), val: marksObtained, parts: componentMarks });
+        } catch (e) {
+          return res.status(400).json({ error: e.message });
+        }
+        continue;
+      }
+      let val = null;
       if (item.marksObtained !== null && item.marksObtained !== '') {
-        const val = Number(item.marksObtained);
+        val = Number(item.marksObtained);
         if (isNaN(val) || val < 0 || val > maxMarks) {
           return res.status(400).json({ error: `Marks must be between 0 and ${maxMarks}` });
         }
       }
+      rows.push({ studentId: Number(item.studentId), val, parts: null });
     }
 
     const existingMarks = await prisma.mark.findMany({
       where: {
         examId: Number(examId),
         subjectId: Number(subjectId),
-        studentId: { in: marksData.map(m => Number(m.studentId)) }
+        studentId: { in: rows.map(r => r.studentId) }
       }
     });
 
     const auditLogs = [];
     const upserts = [];
 
-    for (const item of marksData) {
-      const studentId = Number(item.studentId);
-      const val = (item.marksObtained === null || item.marksObtained === '') ? null : Number(item.marksObtained);
+    for (const { studentId, val, parts } of rows) {
       const existing = existingMarks.find(m => m.studentId === studentId);
-      const hasChanged = !existing || existing.marksObtained !== val;
+      const hasChanged = !existing || existing.marksObtained !== val ||
+        (parts && !sameComponentMarks(existing.componentMarks, parts));
 
       if (hasChanged) {
         if (existing) {
@@ -171,15 +192,15 @@ exports.saveMarks = async (req, res) => {
 
           upserts.push(prisma.mark.update({
             where: { id: existing.id },
-            data: { marksObtained: val, lastEditedById: teacherId, status: newStatus }
+            data: { marksObtained: val, componentMarks: parts ?? undefined, lastEditedById: teacherId, status: newStatus }
           }));
 
           auditLogs.push({
             tableName: 'marks',
             recordId: String(existing.id),
             action: 'UPDATE',
-            oldValue: { marksObtained: existing.marksObtained, oldStatus: existing.status },
-            newValue: { marksObtained: val, newStatus: newStatus },
+            oldValue: { marksObtained: existing.marksObtained, componentMarks: existing.componentMarks, oldStatus: existing.status },
+            newValue: { marksObtained: val, componentMarks: parts, newStatus: newStatus },
             changedById: teacherId
           });
         } else {
@@ -189,6 +210,7 @@ exports.saveMarks = async (req, res) => {
               subjectId: Number(subjectId),
               studentId,
               marksObtained: val,
+              componentMarks: parts ?? undefined,
               enteredById: teacherId,
               lastEditedById: teacherId,
               status: 'Pending'
@@ -329,12 +351,7 @@ exports.resubmitMarks = async (req, res) => {
 // Update max marks for a subject config — only allowed before submission
 exports.updateMaxMarks = async (req, res) => {
   const { configId } = req.params;
-  const { maxMarks } = req.body;
   const teacherId = req.user.userId;
-
-  if (!maxMarks || isNaN(Number(maxMarks)) || Number(maxMarks) <= 0) {
-    return res.status(400).json({ error: 'Invalid max marks value.' });
-  }
 
   try {
     const config = await prisma.examSubjectConfig.findUnique({
@@ -368,13 +385,17 @@ exports.updateMaxMarks = async (req, res) => {
       return res.status(400).json({ error: 'Cannot change max marks after marks have been submitted.' });
     }
 
-    await prisma.examSubjectConfig.update({
-      where: { id: Number(configId) },
-      data: { maxMarks: Number(maxMarks) }
-    });
+    let data;
+    try {
+      data = maxMarksUpdate(config, req.body);
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+    await prisma.examSubjectConfig.update({ where: { id: Number(configId) }, data });
 
     res.json({ message: 'Max marks updated successfully.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
+

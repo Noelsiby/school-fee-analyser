@@ -20,6 +20,8 @@ router.put   ('/classes/:id/assign-class-teacher', ctrl.assignClassTeacher);
 // ── Subjects ─────────────────────────────────────────────────
 router.get   ('/subjects',     ctrl.getSubjects);
 router.post  ('/subjects',     ctrl.createSubject);
+router.post  ('/subjects/copy', ctrl.copySubjects);
+router.put   ('/subjects/group', ctrl.updateSubjectGroup);
 router.put   ('/subjects/:id', ctrl.updateSubject);
 router.delete('/subjects/:id', ctrl.deleteSubject);
 

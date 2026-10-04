@@ -49,3 +49,26 @@
   border-radius: 4px;
   display: inline-block;
 }
+
+/* ── Reading / Writing / Dictation columns ─────────────────── */
+.marks-entry-card { padding: 24px; }
+
+.part-col { width: 92px; text-align: center; }
+.part-max { font-weight: 400; color: #94a3b8; white-space: nowrap; }
+.part-input { width: 72px; text-align: center; }
+.part-total {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+.part-col .save-status-indicator {
+  position: static;
+  display: block;
+  margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+  .marks-entry-card { padding: 12px; }
+  .part-col { width: 70px; }
+  .part-input { width: 58px; padding-left: 4px; padding-right: 4px; }
+}

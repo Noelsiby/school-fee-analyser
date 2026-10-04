@@ -140,6 +140,11 @@ model Subject {
   id      Int    @id @default(autoincrement())
   name    String // e.g. "Mathematics", "English"
 
+  // Extra parts marked on top of the subject's main mark, any of
+  // "Reading", "Writing", "Dictation" (see server/lib/components.js).
+  // e.g. English: [Reading, Writing, Dictation], Maths: [Reading], Computer: [].
+  components String[] @default([])
+
   // A subject belongs to exactly one class
   classId Int
   class   Class  @relation(fields: [classId], references: [id])
@@ -276,6 +281,11 @@ model ExamSubjectConfig {
 
   maxMarks  Float   // Allows decimal max marks (e.g. 33.5)
 
+  // Main mark + extra parts for this exam, e.g. {"Main":50,"Reading":5,"Writing":5}.
+  // Null when the subject has no parts in this exam. When set, maxMarks is the sum.
+  // Snapshotted per exam, so changing Subject.components later never breaks an existing exam.
+  componentMaxMarks Json?
+
   @@unique([examId, subjectId])  // One config per exam-subject pair
   @@index([examId])
   @@index([subjectId])
@@ -300,6 +310,10 @@ model Mark {
   student        Student    @relation(fields: [studentId], references: [id])
 
   marksObtained  Float?     // Null means not yet entered
+
+  // Main mark + parts, e.g. {"Main":40,"Reading":5,"Writing":4} (same keys as the exam config).
+  // marksObtained holds their sum once every key is entered (null until then).
+  componentMarks Json?
 
   // Who entered the mark initially
   enteredById    Int

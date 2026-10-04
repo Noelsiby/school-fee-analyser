@@ -4,7 +4,10 @@
  * All routes are Admin-only (enforced by the router middleware).
  */
 
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient, Prisma } = require('@prisma/client');
+const {
+  MAIN, ComponentError, partKeys, normalizeComponents, parseComponentMaxMarks,
+} = require('../lib/components');
 const bcrypt           = require('bcryptjs');
 const fs               = require('fs');
 const path             = require('path');
@@ -30,6 +33,25 @@ const deleteFile = (filePath) => {
   const abs = path.join(__dirname, '..', filePath.replace(/^\//, ''));
   if (fs.existsSync(abs)) fs.unlinkSync(abs);
 };
+
+/** Export column label for one key of a subject with parts: "English" for Main, "English Reading" otherwise. */
+const partColumnName = (s, key) => key === MAIN ? s.name : `${s.name} ${key}`;
+
+/** Export column headers for one subject: subjects with parts get main + one column per part + total. */
+const subjectHeaders = (s) => s.componentMaxMarks
+  ? [...partKeys(s.componentMaxMarks).map(k => `${partColumnName(s, k)} (/${s.componentMaxMarks[k]})`), `${s.name} Total (/${s.maxMarks})`]
+  : [`${s.name} (/${s.maxMarks})`];
+
+/** Export cells matching subjectHeaders(). */
+const subjectCells = (s, markRecord, obtained) => s.componentMaxMarks
+  ? [...partKeys(s.componentMaxMarks).map(k => markRecord?.componentMarks?.[k] ?? 0), obtained]
+  : [obtained];
+
+/** Short Word-export labels for each key. */
+const PART_SHORT = { Main: 'Main', Reading: 'R', Writing: 'W', Dictation: 'D' };
+
+/** Subject names that differ only in case, spaces or dots ("P S", "P. S", "p.s") are the same subject. */
+const subjectKey = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /** Handle Prisma unique-constraint error */
 const isDupError = (err) => err?.code === 'P2002';
@@ -193,7 +215,11 @@ exports.getSubjects = async (req, res) => {
   try {
     const subjects = await prisma.subject.findMany({
       where: classId ? { classId: Number(classId) } : undefined,
-      include: { class: { select: { id: true, name: true } } },
+      include: {
+        class: { select: { id: true, name: true } },
+        // How much each subject is used: the Subjects page warns before removing a used one.
+        _count: { select: { examConfigs: true, marks: true, teacherAssignments: true } },
+      },
       orderBy: [{ class: { name: 'asc' } }, { name: 'asc' }],
     });
     res.json({ subjects });
@@ -202,25 +228,142 @@ exports.getSubjects = async (req, res) => {
   }
 };
 
+/**
+ * Create a subject in one or many classes at once.
+ * Body: { name, components?: string[], classIds: number[] }  (classId: number still accepted)
+ * Classes that already have a subject with this name are skipped, not failed.
+ */
 exports.createSubject = async (req, res) => {
-  const { name, classId } = req.body;
-  if (!name?.trim())  return res.status(400).json({ error: 'Subject name is required.' });
-  if (!classId)       return res.status(400).json({ error: 'Class is required.' });
+  const { name, classId, classIds } = req.body;
+  const components = normalizeComponents(req.body.components);
+  const targetIds = [...new Set((Array.isArray(classIds) ? classIds : [classId]).filter(Boolean).map(Number))];
+  if (!name?.trim())      return res.status(400).json({ error: 'Subject name is required.' });
+  if (!targetIds.length)  return res.status(400).json({ error: 'Select at least one class.' });
+
+  const subjectName = name.trim();
   try {
-    const subject = await prisma.subject.create({
-      data: { name: name.trim(), classId: Number(classId) },
+    // "P S", "P. S" and "p.s" are the same subject: compare ignoring case, spaces and dots.
+    const existing = (await prisma.subject.findMany({
+      where: { classId: { in: targetIds } },
       include: { class: { select: { id: true, name: true } } },
+    })).filter((s) => subjectKey(s.name) === subjectKey(subjectName));
+    const existingClassIds = new Set(existing.map((s) => s.classId));
+    const toCreate = targetIds.filter((id) => !existingClassIds.has(id));
+
+    const created = await prisma.$transaction(
+      toCreate.map((id) => prisma.subject.create({
+        data: { name: subjectName, classId: id, components },
+        include: { class: { select: { id: true, name: true } } },
+      }))
+    );
+
+    if (!created.length) {
+      return res.status(409).json({ error: `"${subjectName}" already exists in the selected class(es).` });
+    }
+    res.status(201).json({
+      subject: created[0],
+      created,
+      skipped: existing.map((s) => s.class.name),
     });
-    res.status(201).json({ subject });
   } catch (err) {
     if (isDupError(err)) return res.status(409).json({ error: 'This subject already exists in the selected class.' });
     res.status(500).json({ error: err.message });
   }
 };
 
+/**
+ * Copy every subject (name + parts setting) from one class into other classes.
+ * Body: { fromClassId, toClassIds: number[] }. Subjects a class already has are skipped.
+ */
+exports.copySubjects = async (req, res) => {
+  const fromClassId = Number(req.body.fromClassId);
+  const toClassIds = [...new Set((req.body.toClassIds || []).map(Number))].filter((id) => id && id !== fromClassId);
+  if (!fromClassId)       return res.status(400).json({ error: 'Choose a class to copy from.' });
+  if (!toClassIds.length) return res.status(400).json({ error: 'Select at least one class to copy into.' });
+
+  try {
+    const source = await prisma.subject.findMany({ where: { classId: fromClassId }, orderBy: { name: 'asc' } });
+    if (!source.length) return res.status(400).json({ error: 'That class has no subjects to copy.' });
+
+    const existing = await prisma.subject.findMany({
+      where: { classId: { in: toClassIds } },
+      select: { classId: true, name: true },
+    });
+    const taken = new Set(existing.map((s) => `${s.classId}:${subjectKey(s.name)}`));
+
+    const data = [];
+    for (const classId of toClassIds) {
+      for (const s of source) {
+        if (!taken.has(`${classId}:${subjectKey(s.name)}`)) {
+          data.push({ name: s.name, classId, components: s.components });
+        }
+      }
+    }
+    const { count } = data.length
+      ? await prisma.subject.createMany({ data, skipDuplicates: true })
+      : { count: 0 };
+
+    res.status(201).json({
+      created: count,
+      skipped: source.length * toClassIds.length - count,
+      message: `Copied ${count} subject(s).`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * Save one school-wide subject (the same subject across many classes) in a single step.
+ * Body: { subjectIds: number[], name, components: string[], classIds: number[] }
+ *  - subjectIds: the subject's current rows (one per class) — all renamed / re-parted
+ *  - classIds:   the classes it should be in after saving; new ones are created,
+ *                classes no longer ticked lose the subject (refused if it already has marks or exams)
+ */
+exports.updateSubjectGroup = async (req, res) => {
+  const subjectIds = [...new Set((req.body.subjectIds || []).map(Number))];
+  const classIds = [...new Set((req.body.classIds || []).map(Number))].filter(Boolean);
+  const name = req.body.name?.trim();
+  const components = normalizeComponents(req.body.components);
+  if (!name)             return res.status(400).json({ error: 'Subject name is required.' });
+  if (!classIds.length)  return res.status(400).json({ error: 'Select at least one class.' });
+
+  try {
+    const current = await prisma.subject.findMany({
+      where: { id: { in: subjectIds } },
+      include: {
+        class: { select: { name: true } },
+        _count: { select: { examConfigs: true, marks: true } },
+      },
+    });
+    const keep   = current.filter((s) => classIds.includes(s.classId));
+    const remove = current.filter((s) => !classIds.includes(s.classId));
+    const addTo  = classIds.filter((id) => !current.some((s) => s.classId === id));
+
+    const used = remove.filter((s) => s._count.examConfigs || s._count.marks);
+    if (used.length) {
+      return res.status(409).json({
+        error: `Can't remove ${name} from ${used.map((s) => s.class.name).join(', ')} — it already has exams or marks there.`,
+      });
+    }
+
+    await prisma.$transaction([
+      ...keep.map((s) => prisma.subject.update({ where: { id: s.id }, data: { name, components } })),
+      ...addTo.map((classId) => prisma.subject.create({ data: { name, classId, components } })),
+      prisma.teacherSubjectAssignment.deleteMany({ where: { subjectId: { in: remove.map((s) => s.id) } } }),
+      prisma.subject.deleteMany({ where: { id: { in: remove.map((s) => s.id) } } }),
+    ]);
+
+    res.json({ message: `${name} saved — in ${classIds.length} class${classIds.length === 1 ? '' : 'es'}.` });
+  } catch (err) {
+    if (isDupError(err)) return res.status(409).json({ error: `Some of those classes already have another subject called "${name}".` });
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.updateSubject = async (req, res) => {
   const id = Number(req.params.id);
-  const { name, classId } = req.body;
+  const { name, classId, components } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Subject name is required.' });
   try {
     const subject = await prisma.subject.update({
@@ -228,6 +371,7 @@ exports.updateSubject = async (req, res) => {
       data: {
         name: name.trim(),
         ...(classId ? { classId: Number(classId) } : {}),
+        ...(Array.isArray(components) ? { components: normalizeComponents(components) } : {}),
       },
       include: { class: { select: { id: true, name: true } } },
     });
@@ -239,8 +383,20 @@ exports.updateSubject = async (req, res) => {
 };
 
 exports.deleteSubject = async (req, res) => {
+  const id = Number(req.params.id);
   try {
-    await prisma.subject.delete({ where: { id: Number(req.params.id) } });
+    const [examCount, markCount] = await Promise.all([
+      prisma.examSubjectConfig.count({ where: { subjectId: id } }),
+      prisma.mark.count({ where: { subjectId: id } }),
+    ]);
+    if (examCount || markCount) {
+      return res.status(409).json({ error: 'This subject is already used in exams or marks, so it can’t be deleted.' });
+    }
+    // Teacher assignments go with the subject (the UI warns about this).
+    await prisma.$transaction([
+      prisma.teacherSubjectAssignment.deleteMany({ where: { subjectId: id } }),
+      prisma.subject.delete({ where: { id } }),
+    ]);
     res.json({ message: 'Subject deleted.' });
   } catch (err) {
     if (err?.code === 'P2025') return res.status(404).json({ error: 'Subject not found.' });
@@ -821,6 +977,39 @@ exports.removeExamClass = async (req, res) => {
   }
 };
 
+/**
+ * Build the ExamSubjectConfig upserts for an array of { subjectId, maxMarks, componentMaxMarks? }.
+ * Split subjects (Reading/Writing/Dictation) must send componentMaxMarks; their maxMarks is the sum.
+ * Throws ComponentError (400) on invalid input.
+ */
+async function buildConfigUpserts(examId, configs) {
+  const subjectIds = configs.map((c) => Number(c.subjectId));
+  const subjects = await prisma.subject.findMany({ where: { id: { in: subjectIds } } });
+  const byId = new Map(subjects.map((s) => [s.id, s]));
+
+  return configs.map((c) => {
+    const subjectId = Number(c.subjectId);
+    const subject = byId.get(subjectId);
+    if (!subject) throw new ComponentError(`Subject ${subjectId} not found.`);
+
+    let data;
+    if (subject.components.length) {
+      const { componentMaxMarks, maxMarks } = parseComponentMaxMarks(c.componentMaxMarks, subject.name, subject.components);
+      data = { maxMarks, componentMaxMarks: componentMaxMarks ?? Prisma.DbNull };
+    } else {
+      const maxMarks = Number(c.maxMarks);
+      if (isNaN(maxMarks) || maxMarks <= 0) throw new ComponentError(`Max marks for ${subject.name} must be greater than 0.`);
+      data = { maxMarks, componentMaxMarks: Prisma.DbNull };
+    }
+
+    return prisma.examSubjectConfig.upsert({
+      where: { examId_subjectId: { examId, subjectId } },
+      update: data,
+      create: { examId, subjectId, ...data },
+    });
+  });
+}
+
 // Admin update max marks (works on any exam status, not just Draft)
 exports.adminUpdateMaxMarks = async (req, res) => {
   const examId = Number(req.params.id);
@@ -835,13 +1024,7 @@ exports.adminUpdateMaxMarks = async (req, res) => {
     if (!exam) return res.status(404).json({ error: 'Exam not found.' });
 
     // Upsert configs (no status check — Admin can update at any time)
-    const upserts = configs.map(c =>
-      prisma.examSubjectConfig.upsert({
-        where: { examId_subjectId: { examId, subjectId: Number(c.subjectId) } },
-        update: { maxMarks: Number(c.maxMarks) },
-        create: { examId, subjectId: Number(c.subjectId), maxMarks: Number(c.maxMarks) },
-      })
-    );
+    const upserts = await buildConfigUpserts(examId, configs);
 
     await prisma.$transaction(upserts);
 
@@ -852,7 +1035,7 @@ exports.adminUpdateMaxMarks = async (req, res) => {
 
     res.json({ exam: updated });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 };
 
@@ -872,13 +1055,7 @@ exports.configExamSubjects = async (req, res) => {
     }
 
     // Upsert configs in a transaction
-    const upserts = configs.map(c => 
-      prisma.examSubjectConfig.upsert({
-        where: { examId_subjectId: { examId, subjectId: Number(c.subjectId) } },
-        update: { maxMarks: Number(c.maxMarks) },
-        create: { examId, subjectId: Number(c.subjectId), maxMarks: Number(c.maxMarks) },
-      })
-    );
+    const upserts = await buildConfigUpserts(examId, configs);
     
     await prisma.$transaction(upserts);
     
@@ -889,7 +1066,7 @@ exports.configExamSubjects = async (req, res) => {
     
     res.json({ exam: updated });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 };
 
@@ -1023,7 +1200,8 @@ exports.getExamResults = async (req, res) => {
         .map(c => ({
           id: c.subjectId,
           name: c.subject.name,
-          maxMarks: c.maxMarks
+          maxMarks: c.maxMarks,
+          componentMaxMarks: c.componentMaxMarks
         }));
 
       const results = cls.students.map(student => {
@@ -1031,11 +1209,13 @@ exports.getExamResults = async (req, res) => {
         let totalMarks = 0;
         let totalMaxMarks = 0;
         const subjectsMap = {};
+        const componentsMap = {}; // subjectId -> { Reading, Writing, Dictation } for split subjects
 
         classSubjects.forEach(sub => {
           const markRecord = studentMarks.find(m => m.subjectId === sub.id);
           const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
           subjectsMap[sub.id] = obtained;
+          if (sub.componentMaxMarks) componentsMap[sub.id] = markRecord?.componentMarks || null;
           
           totalMarks += obtained;
           totalMaxMarks += sub.maxMarks;
@@ -1053,6 +1233,7 @@ exports.getExamResults = async (req, res) => {
         return {
           student,
           subjects: subjectsMap,
+          components: componentsMap,
           totalMarks,
           totalMaxMarks,
           percentage: Number(percentage),
@@ -1136,6 +1317,9 @@ exports.exportExamResults = async (req, res) => {
         class: {
           include: { students: { orderBy: { rollNumber: 'asc' } } }
         },
+        enrollments: {
+          include: { class: { include: { students: { orderBy: { rollNumber: 'asc' } } } } }
+        },
         subjectConfigs: {
           include: { subject: true }
         }
@@ -1161,11 +1345,12 @@ exports.exportExamResults = async (req, res) => {
       const allSubjects = exam.subjectConfigs.map(c => ({
         id: c.subjectId,
         name: c.subject.name,
-        maxMarks: c.maxMarks
+        maxMarks: c.maxMarks,
+        componentMaxMarks: c.componentMaxMarks
       }));
 
       const header = ['Class', 'Roll No', 'Student Name'];
-      allSubjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
+      allSubjects.forEach(s => header.push(...subjectHeaders(s)));
       header.push('Total Marks', 'Max Marks', 'Percentage');
       rows.push(header.join(','));
 
@@ -1184,11 +1369,11 @@ exports.exportExamResults = async (req, res) => {
             if (config && config.subject.classId === cls.id) {
               const markRecord = studentMarks.find(m => m.subjectId === subject.id);
               const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
-              row.push(obtained);
+              row.push(...subjectCells(subject, markRecord, obtained));
               totalMarks += obtained;
               totalMaxMarks += subject.maxMarks;
             } else {
-              row.push('N/A');
+              row.push(...subjectHeaders(subject).map(() => 'N/A'));
             }
           });
 
@@ -1203,11 +1388,12 @@ exports.exportExamResults = async (req, res) => {
       const subjects = exam.subjectConfigs.map(c => ({
         id: c.subjectId,
         name: c.subject.name,
-        maxMarks: c.maxMarks
+        maxMarks: c.maxMarks,
+          componentMaxMarks: c.componentMaxMarks
       }));
 
       const header = ['Roll No', 'Student Name'];
-      subjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
+      subjects.forEach(s => header.push(...subjectHeaders(s)));
       header.push('Total Marks', 'Max Marks', 'Percentage');
       rows.push(header.join(','));
 
@@ -1221,7 +1407,7 @@ exports.exportExamResults = async (req, res) => {
         subjects.forEach(subject => {
           const markRecord = studentMarks.find(m => m.subjectId === subject.id);
           const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
-          row.push(obtained);
+          row.push(...subjectCells(subject, markRecord, obtained));
           totalMarks += obtained;
           totalMaxMarks += subject.maxMarks;
         });
@@ -1288,11 +1474,12 @@ exports.exportExamResultsExcel = async (req, res) => {
         id: c.subjectId,
         name: c.subject.name,
         maxMarks: c.maxMarks,
+        componentMaxMarks: c.componentMaxMarks,
         classId: c.subject.classId
       }));
 
       const header = ['Class', 'Roll No', 'Student Name'];
-      allSubjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
+      allSubjects.forEach(s => header.push(...subjectHeaders(s)));
       header.push('Total Marks', 'Max Marks', 'Percentage', 'Grade');
       const headerRow = combinedSheet.addRow(header);
       headerRow.font = { bold: true };
@@ -1312,11 +1499,11 @@ exports.exportExamResultsExcel = async (req, res) => {
             if (config && config.subject.classId === cls.id) {
               const markRecord = studentMarks.find(m => m.subjectId === subject.id);
               const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
-              row.push(obtained);
+              row.push(...subjectCells(subject, markRecord, obtained));
               totalMarks += obtained;
               totalMaxMarks += subject.maxMarks;
             } else {
-              row.push('N/A');
+              row.push(...subjectHeaders(subject).map(() => 'N/A'));
             }
           });
 
@@ -1334,10 +1521,10 @@ exports.exportExamResultsExcel = async (req, res) => {
       
       const classSubjects = exam.subjectConfigs
         .filter(c => c.subject.classId === cls.id)
-        .map(c => ({ id: c.subjectId, name: c.subject.name, maxMarks: c.maxMarks }));
+        .map(c => ({ id: c.subjectId, name: c.subject.name, maxMarks: c.maxMarks, componentMaxMarks: c.componentMaxMarks }));
 
       const header = ['Roll No', 'Student Name'];
-      classSubjects.forEach(s => header.push(`${s.name} (/${s.maxMarks})`));
+      classSubjects.forEach(s => header.push(...subjectHeaders(s)));
       header.push('Total Marks', 'Max Marks', 'Percentage', 'Grade');
       const headerRow = worksheet.addRow(header);
       headerRow.font = { bold: true };
@@ -1353,7 +1540,7 @@ exports.exportExamResultsExcel = async (req, res) => {
         classSubjects.forEach(subject => {
           const markRecord = studentMarks.find(m => m.subjectId === subject.id);
           const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
-          row.push(obtained);
+          row.push(...subjectCells(subject, markRecord, obtained));
           totalMarks += obtained;
           totalMaxMarks += subject.maxMarks;
         });
@@ -1364,8 +1551,8 @@ exports.exportExamResultsExcel = async (req, res) => {
       });
 
       // Auto-fit columns
-      worksheet.columns.forEach(col => {
-        col.width = Math.max(10, (col.header || '').length + 4);
+      worksheet.columns.forEach((col, i) => {
+        col.width = Math.max(10, String(header[i] || '').length + 2);
       });
     });
 
@@ -1449,17 +1636,31 @@ exports.exportExamResultsWord = async (req, res) => {
 
       const classSubjects = exam.subjectConfigs
         .filter(c => c.subject.classId === cls.id)
-        .map(c => ({ id: c.subjectId, name: c.subject.name, maxMarks: c.maxMarks }));
+        .map(c => ({ id: c.subjectId, name: c.subject.name, maxMarks: c.maxMarks, componentMaxMarks: c.componentMaxMarks }));
 
       const students = cls.students || [];
+      const hasSplit = classSubjects.some(s => s.componentMaxMarks);
 
       html += `<h3>${cls.name} &mdash; ${students.length} Students</h3>`;
       html += `<table>`;
 
-      // Header row
-      html += `<tr><th>Roll No</th><th>Student Name</th>`;
-      classSubjects.forEach(s => { html += `<th>${s.name}<br>/${s.maxMarks}</th>`; });
-      html += `<th>Total</th><th>%</th><th>Grade</th></tr>`;
+      // Header row(s): split subjects get a second row with R / W / D / Tot
+      const rowSpan = hasSplit ? ` rowspan="2"` : '';
+      html += `<tr><th${rowSpan}>Roll No</th><th${rowSpan}>Student Name</th>`;
+      classSubjects.forEach(s => {
+        html += s.componentMaxMarks
+          ? `<th colspan="${partKeys(s.componentMaxMarks).length + 1}">${s.name}</th>`
+          : `<th${rowSpan}>${s.name}<br>/${s.maxMarks}</th>`;
+      });
+      html += `<th${rowSpan}>Total</th><th${rowSpan}>%</th><th${rowSpan}>Grade</th></tr>`;
+      if (hasSplit) {
+        html += `<tr>`;
+        classSubjects.filter(s => s.componentMaxMarks).forEach(s => {
+          partKeys(s.componentMaxMarks).forEach(k => { html += `<th>${PART_SHORT[k]}<br>/${s.componentMaxMarks[k]}</th>`; });
+          html += `<th>Tot<br>/${s.maxMarks}</th>`;
+        });
+        html += `</tr>`;
+      }
 
       // Data rows
       students.forEach(student => {
@@ -1472,7 +1673,7 @@ exports.exportExamResultsWord = async (req, res) => {
         classSubjects.forEach(subject => {
           const markRecord = studentMarks.find(m => m.subjectId === subject.id);
           const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
-          html += `<td>${obtained}</td>`;
+          subjectCells(subject, markRecord, obtained).forEach(v => { html += `<td>${v}</td>`; });
           totalMarks += obtained;
           totalMaxMarks += subject.maxMarks;
         });

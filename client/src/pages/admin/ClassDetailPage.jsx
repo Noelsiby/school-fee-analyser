@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
+import { partsLabel } from '../../utils/subjectParts';
+import { ClassPicker, PartsPicker, byClassName } from '../../components/SubjectFields';
 import './admin.css';
 import './ClassDetailPage.css';
 
@@ -232,39 +234,75 @@ function ClassTeacherTab({ cls, teachers, onRefresh }) {
 // ─────────────────────────────────────────────
 // Tab: Subjects
 // ─────────────────────────────────────────────
-function SubjectsTab({ cls, onRefresh }) {
+function SubjectsTab({ cls, allClasses, onRefresh }) {
   const { apiCall } = useApi();
-  const [modal, setModal]         = useState(null);
+  const [modal, setModal]         = useState(null); // 'add' | 'edit' | 'delete' | 'copy'
   const [selected, setSelected]   = useState(null);
-  const [form, setForm]           = useState({ name: '' });
+  const [form, setForm]           = useState({ name: '', components: [], classIds: [] });
+  const [copyForm, setCopyForm]   = useState({ fromClassId: '', toClassIds: [] });
   const [formError, setFormError] = useState('');
+  const [notice, setNotice]       = useState('');
   const [saving, setSaving]       = useState(false);
 
   const subjects = cls.subjects || [];
+  const otherClasses = allClasses.filter(c => c.id !== cls.id);
+  const sourceClasses = otherClasses.filter(c => (c._count?.subjects ?? 0) > 0).sort(byClassName);
 
-  const openAdd  = () => { setForm({ name: '' }); setFormError(''); setModal('add'); };
-  const openEdit = (s) => { setSelected(s); setForm({ name: s.name }); setFormError(''); setModal('edit'); };
-  const openDel  = (s) => { setSelected(s); setModal('delete'); };
+  const close = () => setModal(null);
+  const openAdd  = () => { setForm({ name: '', components: [], classIds: [cls.id] }); setFormError(''); setModal('add'); };
+  const openEdit = (s) => { setSelected(s); setForm({ name: s.name, components: s.components || [], classIds: [cls.id] }); setFormError(''); setModal('edit'); };
+  const openDel  = (s) => { setSelected(s); setFormError(''); setModal('delete'); };
+  const openCopy = () => { setCopyForm({ fromClassId: sourceClasses[0]?.id ?? '', toClassIds: [cls.id] }); setFormError(''); setModal('copy'); };
+
+  const showNotice = (msg) => { setNotice(msg); setTimeout(() => setNotice(''), 6000); };
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) { setFormError('Subject name is required.'); return; }
     setSaving(true); setFormError('');
     try {
-      const isEdit = modal === 'edit';
-      await apiCall(
-        isEdit ? `/api/admin/subjects/${selected.id}` : '/api/admin/subjects',
-        { method: isEdit ? 'PUT' : 'POST', body: { name: form.name.trim(), classId: cls.id } }
-      );
-      setModal(null); onRefresh();
+      if (modal === 'edit') {
+        await apiCall(`/api/admin/subjects/${selected.id}`, {
+          method: 'PUT',
+          body: { name: form.name.trim(), classId: cls.id, components: form.components },
+        });
+      } else {
+        const res = await apiCall('/api/admin/subjects', {
+          method: 'POST',
+          body: { name: form.name.trim(), components: form.components, classIds: form.classIds },
+        });
+        const made = res.created?.length ?? 1;
+        const skipped = res.skipped?.length ? ` Already existed in: ${res.skipped.join(', ')}.` : '';
+        showNotice(`✅ "${form.name.trim()}" added to ${made} class${made === 1 ? '' : 'es'}.${skipped}`);
+      }
+      close(); onRefresh();
+    } catch (e) { setFormError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleCopy = async (e) => {
+    e.preventDefault();
+    if (!copyForm.fromClassId) { setFormError('Choose a class to copy from.'); return; }
+    setSaving(true); setFormError('');
+    try {
+      const res = await apiCall('/api/admin/subjects/copy', {
+        method: 'POST',
+        body: { fromClassId: Number(copyForm.fromClassId), toClassIds: copyForm.toClassIds },
+      });
+      showNotice(`✅ ${res.message}${res.skipped ? ` ${res.skipped} already existed and were skipped.` : ''}`);
+      close(); onRefresh();
     } catch (e) { setFormError(e.message); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
-    setSaving(true);
-    try { await apiCall(`/api/admin/subjects/${selected.id}`, { method: 'DELETE' }); } catch (_) {}
-    setSaving(false); setModal(null); onRefresh();
+    setSaving(true); setFormError('');
+    try {
+      await apiCall(`/api/admin/subjects/${selected.id}`, { method: 'DELETE' });
+      close(); onRefresh();
+    } catch (e) {
+      setFormError(e.message);
+    } finally { setSaving(false); }
   };
 
   return (
@@ -272,30 +310,42 @@ function SubjectsTab({ cls, onRefresh }) {
       <div className="tab-section-header">
         <div>
           <h3>Subjects <span className="count-badge">{subjects.length}</span></h3>
-          <p className="tab-desc">Subjects taught in {cls.name}</p>
+          <p className="tab-desc">Subjects taught in {cls.name}. Add a subject once and tick every class that has it.</p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Subject</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-ghost btn-sm" onClick={openCopy} disabled={sourceClasses.length === 0}
+            title={sourceClasses.length === 0 ? 'No other class has subjects yet' : ''}>
+            ⧉ Copy from class
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Subject</button>
+        </div>
       </div>
+
+      {notice && <div className="alert alert-success" style={{ marginBottom: 12 }}>{notice}</div>}
 
       {subjects.length === 0 ? (
         <div className="empty-state" style={{ padding: '32px 0' }}>
           <p className="empty-state-icon">📚</p>
           <p className="empty-state-text">No subjects yet. Add subjects like Mathematics, Science, English…</p>
+          {sourceClasses.length > 0 && (
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 10 }} onClick={openCopy}>⧉ Copy subjects from another class</button>
+          )}
         </div>
       ) : (
         <div className="subjects-list">
           {subjects.map(s => (
             <div key={s.id} className="subject-row-item">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <span>📚</span>
                 <span style={{ fontWeight: 600 }}>{s.name}</span>
+                {s.components?.length > 0 && <span className="badge badge-purple" title="Extra parts marked on top of the main mark">{partsLabel(s.components)}</span>}
                 <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
                   {s.teacherAssignments?.length || 0} teacher(s) assigned
                 </span>
               </div>
               <div className="table-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>✏️</button>
-                <button className="btn btn-danger btn-sm" onClick={() => openDel(s)}>🗑️</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)} aria-label={`Edit ${s.name}`}>✏️</button>
+                <button className="btn btn-danger btn-sm" onClick={() => openDel(s)} aria-label={`Delete ${s.name}`}>🗑️</button>
               </div>
             </div>
           ))}
@@ -303,21 +353,87 @@ function SubjectsTab({ cls, onRefresh }) {
       )}
 
       {(modal === 'add' || modal === 'edit') && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+        <div className="modal-overlay" onClick={close}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
             <div className="modal-header">
               <h2 className="modal-title">{modal === 'add' ? 'Add Subject' : 'Edit Subject'}</h2>
-              <button className="modal-close" onClick={() => setModal(null)}>✕</button>
+              <button className="modal-close" onClick={close}>✕</button>
             </div>
             <form onSubmit={handleSave}>
               {formError && <div className="alert alert-error" style={{ marginBottom: 12 }}>⚠ {formError}</div>}
               <div className="form-group">
                 <label className="form-label">Subject Name <span className="required">*</span></label>
-                <input className="form-input" value={form.name} placeholder="e.g. Mathematics, English" onChange={e => setForm(f => ({ ...f, name: e.target.value }))} autoFocus />
+                <input className="form-input" value={form.name} placeholder="e.g. Mathematics, English"
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))} autoFocus />
+              </div>
+
+              <PartsPicker
+                subjectName={form.name}
+                value={form.components}
+                onChange={components => setForm(f => ({ ...f, components }))}
+              />
+              {modal === 'edit' && (
+                <p className="form-hint" style={{ marginTop: -8, marginBottom: 12 }}>
+                  Exams already set up keep their current setting. New exams use this one.
+                </p>
+              )}
+
+              {modal === 'add' && (
+                <div className="form-group">
+                  <label className="form-label">Add to classes</label>
+                  <ClassPicker
+                    classes={allClasses}
+                    selected={form.classIds}
+                    lockedId={cls.id}
+                    onChange={ids => setForm(f => ({ ...f, classIds: ids }))}
+                  />
+                </div>
+              )}
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={close}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? <span className="spinner" /> : modal === 'add' && form.classIds.length > 1 ? `Add to ${form.classIds.length} classes` : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {modal === 'copy' && (
+        <div className="modal-overlay" onClick={close}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Copy Subjects</h2>
+              <button className="modal-close" onClick={close}>✕</button>
+            </div>
+            <form onSubmit={handleCopy}>
+              {formError && <div className="alert alert-error" style={{ marginBottom: 12 }}>⚠ {formError}</div>}
+              <div className="form-group">
+                <label className="form-label">Copy all subjects from</label>
+                <select className="form-select" value={copyForm.fromClassId}
+                  onChange={e => setCopyForm(f => ({ ...f, fromClassId: e.target.value }))}>
+                  {sourceClasses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({c._count?.subjects} subjects)</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Into classes</label>
+                <ClassPicker
+                  classes={allClasses.filter(c => c.id !== Number(copyForm.fromClassId))}
+                  selected={copyForm.toClassIds}
+                  lockedId={cls.id}
+                  onChange={ids => setCopyForm(f => ({ ...f, toClassIds: ids }))}
+                />
+                <p className="form-hint">Subjects a class already has are skipped. Extra parts (Reading / Writing / Dictation) are copied too.</p>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? <span className="spinner" /> : 'Save'}</button>
+                <button type="button" className="btn btn-ghost" onClick={close}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving || copyForm.toClassIds.length === 0}>
+                  {saving ? <span className="spinner" /> : 'Copy Subjects'}
+                </button>
               </div>
             </form>
           </div>
@@ -325,18 +441,19 @@ function SubjectsTab({ cls, onRefresh }) {
       )}
 
       {modal === 'delete' && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
+        <div className="modal-overlay" onClick={close}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
             <div className="modal-header">
               <h2 className="modal-title">Delete Subject</h2>
-              <button className="modal-close" onClick={() => setModal(null)}>✕</button>
+              <button className="modal-close" onClick={close}>✕</button>
             </div>
+            {formError && <div className="alert alert-error" style={{ marginBottom: 12 }}>⚠ {formError}</div>}
             <div className="confirm-body">
               <p className="confirm-icon">⚠️</p>
-              <p className="confirm-msg">Delete <strong>{selected?.name}</strong>? Teacher assignments for this subject will also be removed.</p>
+              <p className="confirm-msg">Delete <strong>{selected?.name}</strong> from {cls.name}? Teacher assignments for this subject will also be removed.</p>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={close}>Cancel</button>
               <button className="btn btn-danger" disabled={saving} onClick={handleDelete}>{saving ? <span className="spinner" /> : 'Delete'}</button>
             </div>
           </div>
@@ -481,6 +598,7 @@ export default function ClassDetailPage() {
 
   const [cls, setCls]           = useState(null);
   const [teachers, setTeachers] = useState([]);
+  const [allClasses, setAllClasses] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
   const [activeTab, setActiveTab] = useState('students');
@@ -488,12 +606,14 @@ export default function ClassDetailPage() {
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const [clsData, teacherData] = await Promise.all([
+      const [clsData, teacherData, classesData] = await Promise.all([
         apiCall(`/api/admin/classes/${id}`),
         apiCall('/api/admin/teachers'),
+        apiCall('/api/admin/classes'),
       ]);
       setCls(clsData.class);
       setTeachers(teacherData.teachers);
+      setAllClasses(classesData.classes);
     } catch (e) {
       setError(e.message || 'Failed to load class.');
     } finally {
@@ -503,13 +623,14 @@ export default function ClassDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return (
+  // Full-page spinner only on first load; refreshes keep the current tab (and its messages) on screen.
+  if (loading && !cls) return (
     <div className="admin-page">
       <div className="empty-state"><div className="spinner spinner-dark" /></div>
     </div>
   );
 
-  if (error) return (
+  if (error && !cls) return (
     <div className="admin-page">
       <div className="empty-state">
         <p className="empty-state-icon">⚠️</p>
@@ -572,7 +693,7 @@ export default function ClassDetailPage() {
       <div className="data-card" style={{ padding: 24 }}>
         {activeTab === 'students'      && <StudentsTab         cls={cls} onRefresh={load} />}
         {activeTab === 'class-teacher' && <ClassTeacherTab     cls={cls} teachers={teachers} onRefresh={load} />}
-        {activeTab === 'subjects'      && <SubjectsTab         cls={cls} onRefresh={load} />}
+        {activeTab === 'subjects'      && <SubjectsTab         cls={cls} allClasses={allClasses} onRefresh={load} />}
         {activeTab === 'assignments'   && <TeacherAssignmentsTab cls={cls} teachers={teachers} onRefresh={load} />}
       </div>
     </div>

@@ -1,0 +1,38 @@
+.mmf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mmf-label { font-size: 0.8rem; color: #64748b; }
+.mmf-input { width: 80px; padding: 6px 8px; text-align: center; }
+
+.mmf-parts { gap: 6px; justify-content: flex-end; }
+.mmf-part {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #6d28d9;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.mmf-part .mmf-input { width: 64px; }
+.mmf-total {
+  align-self: flex-end;
+  padding: 6px 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+  min-width: 44px;
+}
+
+.mmf-main { color: #1e3a8a; }
+.mmf-plus-wrap { display: flex; align-items: flex-end; gap: 6px; }
+.mmf-plus {
+  padding: 6px 0;
+  font-weight: 700;
+  color: #94a3b8;
+}

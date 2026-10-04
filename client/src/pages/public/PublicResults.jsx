@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { partsSummary } from '../../utils/subjectParts';
 import { useApi } from '../../hooks/useApi';
 import schoolLogo from '../../assets/school-logo.png';
 
@@ -89,6 +90,7 @@ export default function PublicResults() {
       studentsMap[st.id] = {
         student: st,
         subjects: {},
+        components: {}, // subjectId -> { Reading, Writing, Dictation } for split subjects
         totalMarks: 0,
         totalMaxMarks: 0
       };
@@ -101,6 +103,7 @@ export default function PublicResults() {
     marks.forEach(m => {
       if (studentsMap[m.studentId] && m.marksObtained !== null) {
         studentsMap[m.studentId].subjects[m.subjectId] = m.marksObtained;
+        studentsMap[m.studentId].components[m.subjectId] = m.componentMarks || null;
         studentsMap[m.studentId].totalMarks += m.marksObtained;
       }
     });
@@ -108,7 +111,8 @@ export default function PublicResults() {
     const subjectsList = subjectConfigs.map(c => ({
       id: c.subjectId,
       name: c.subject.name,
-      maxMarks: c.maxMarks
+      maxMarks: c.maxMarks,
+      componentMaxMarks: c.componentMaxMarks
     }));
 
     const results = Object.values(studentsMap).map(row => {
@@ -218,7 +222,8 @@ export default function PublicResults() {
 
   const highlightText = (text, highlight) => {
     if (!highlight.trim() || !text) return <span>{text || '—'}</span>;
-    const regex = new RegExp(`(${highlight})`, 'gi');
+    const escaped = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // "(" or "+" in the search box must not crash the page
+    const regex = new RegExp(`(${escaped})`, 'gi');
     const parts = String(text).split(regex);
     return (
       <span>
@@ -440,6 +445,9 @@ export default function PublicResults() {
                           <th key={sub.id}>
                             <div>{sub.name}</div>
                             <div style={{ fontSize: '0.75rem', fontWeight: 400, opacity: 0.9 }}>(Max: {sub.maxMarks})</div>
+                            {sub.componentMaxMarks && (
+                              <div style={{ fontSize: '0.68rem', fontWeight: 400, opacity: 0.85, whiteSpace: 'nowrap' }}>{partsSummary(sub.componentMaxMarks)}</div>
+                            )}
                           </th>
                         ))}
                         <th>TOTAL</th>
@@ -463,6 +471,9 @@ export default function PublicResults() {
                             return (
                               <td key={sub.id} style={{ color: isFail ? '#dc2626' : 'inherit', fontWeight: isFail ? 600 : 400 }}>
                                 {val !== null ? val : '—'}
+                                {sub.componentMaxMarks && row.components[sub.id] && (
+                                  <div className="parts-breakdown">{partsSummary(row.components[sub.id])}</div>
+                                )}
                               </td>
                             );
                           })}
@@ -898,6 +909,14 @@ const Styles = () => (
       text-align: center;
       border: 1px solid var(--border);
       background-color: white;
+    }
+
+    .parts-breakdown {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      white-space: nowrap;
+      margin-top: 2px;
     }
 
     .results-table td:nth-child(1), .results-table td:nth-child(2), .results-table td:nth-child(3) {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApi } from '../../hooks/useApi';
 import { ClassPicker, PartsPicker, byClassName } from '../../components/SubjectFields';
-import { partsLabel } from '../../utils/subjectParts';
+import { PARTS, partsLabel } from '../../utils/subjectParts';
 import './admin.css';
 
 const EMPTY_FORM = { name: '', components: [], classIds: [] };
@@ -26,13 +26,19 @@ function groupSubjects(subjects) {
     const spellings = {};
     rows.forEach(r => { spellings[r.name] = (spellings[r.name] || 0) + 1; });
     const name = Object.entries(spellings).sort((a, b) => b[1] - a[1])[0][0];
-    const partsSet = new Set(rows.map(r => (r.components || []).join()));
+    // Parts used in any class; when classes disagree, Edit starts from all of them ticked.
+    const components = PARTS.filter(p => rows.some(r => (r.components || []).includes(p)));
+    const missingParts = rows
+      .filter(r => (r.components || []).length < components.length)
+      .map(r => r.class)
+      .sort(byClassName);
     return {
       name,
       rows,
       classes: rows.map(r => r.class).sort(byClassName),
-      components: rows[0].components || [],
-      mixedParts: partsSet.size > 1,
+      components,
+      missingParts,
+      mixedParts: missingParts.length > 0,
       mixedSpelling: Object.keys(spellings).length > 1,
       teachers: rows.reduce((n, r) => n + (r._count?.teacherAssignments ?? 0), 0),
     };
@@ -194,7 +200,11 @@ export default function SubjectsPage() {
                       {g.components.length
                         ? <span className="badge badge-purple">{partsLabel(g.components)}</span>
                         : <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>—</span>}
-                      {g.mixedParts && <div style={{ fontSize: '0.72rem', color: '#b45309' }}>Differs between classes</div>}
+                      {g.mixedParts && (
+                        <div style={{ fontSize: '0.72rem', color: '#b45309', marginTop: 4 }}>
+                          Missing in {g.missingParts.map(c => c.name).join(', ')} — Edit &amp; Save to match
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -252,6 +262,11 @@ export default function SubjectsPage() {
               {blockedRemovals.length > 0 && (
                 <div className="alert alert-error" style={{ marginBottom: 12 }}>
                   ⚠ Can’t remove {form.name || 'this subject'} from {blockedRemovals.join(', ')} — it already has exams or marks there. Tick {blockedRemovals.length === 1 ? 'it' : 'them'} again to save.
+                </div>
+              )}
+              {modal === 'edit' && group.mixedParts && (
+                <div className="alert alert-info" style={{ marginBottom: 12 }}>
+                  ℹ️ {group.missingParts.map(c => c.name).join(', ')} {group.missingParts.length === 1 ? 'doesn’t' : 'don’t'} have all these parts yet. Saving gives every ticked class the same parts.
                 </div>
               )}
               {modal === 'edit' && (

@@ -204,8 +204,26 @@ model Student {
   classId     Int
   class       Class  @relation(fields: [classId], references: [id])
 
+  // Profile (Bio Data on the progress report). All optional.
+  fatherName     String?   // Father's / Guardian's name
+  section        String?
+  admissionNo    String?
+  admissionDate  DateTime?
+  dateOfBirth    DateTime?
+  bloodGroup     String?
+  idMark1        String?   // Identification marks ("Moles") 1 and 2
+  idMark2        String?
+  address        String?
+  aadhaarNo      String?
+  apaarNo        String?
+  phoneRes       String?   // Residence phone
+  parentPhone    String?   // Cell — results are sent here on WhatsApp
+
   // Marks obtained by this student
   marks       Mark[]
+
+  photo            StudentPhoto?
+  whatsappMessages WhatsAppMessage[]
 
   @@unique([rollNumber, classId])  // Roll numbers unique per class
   @@index([classId])
@@ -254,6 +272,7 @@ model Exam {
 
   subjectConfigs ExamSubjectConfig[]
   marks          Mark[]
+  whatsappMessages WhatsAppMessage[]
 
   isPublished    Boolean    @default(false)
   publishedAt    DateTime?
@@ -383,4 +402,49 @@ model Notification {
   @@index([userId])
   @@index([isRead])
   @@map("notifications")
+}
+
+// ============================================================
+// STUDENT PHOTO
+// ============================================================
+// Kept in the database (not on disk) because Render's disk is wiped on every
+// deploy. Separate table so student lists never load the image bytes.
+
+model StudentPhoto {
+  studentId Int      @id
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  data      Bytes
+  mimeType  String
+  updatedAt DateTime @updatedAt
+
+  @@map("student_photos")
+}
+
+// ============================================================
+// WHATSAPP MESSAGE
+// ============================================================
+// One row per result message sent to a parent (via RichAutomate).
+// status: queued | sent | delivered | read | failed | skipped
+
+model WhatsAppMessage {
+  id                Int      @id @default(autoincrement())
+
+  examId            Int
+  exam              Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  studentId         Int
+  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  phone             String
+  status            String   @default("queued")
+  providerMessageId String?
+  error             String?
+  sentById          Int?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([examId, studentId])
+  @@index([status])
+  @@map("whatsapp_messages")
 }

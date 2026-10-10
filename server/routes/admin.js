@@ -16,6 +16,7 @@ router.put   ('/classes/:id',                      ctrl.updateClass);
 router.delete('/classes/:id',                      ctrl.deleteClass);
 router.get   ('/classes/:id',                      ctrl.getClassDetail);
 router.put   ('/classes/:id/assign-class-teacher', ctrl.assignClassTeacher);
+router.post  ('/classes/:id/renumber-rolls',       ctrl.renumberRolls);
 
 // ── Subjects ─────────────────────────────────────────────────
 router.get   ('/subjects',     ctrl.getSubjects);
@@ -73,5 +74,11 @@ router.get('/exams/:id/export/word', ctrl.exportExamResultsWord);
 // Publish results to public portal
 router.put('/exams/:id/publish-results', ctrl.publishPublicResults);
 router.put('/exams/:id/unpublish-results', ctrl.unpublishPublicResults);
+
+// ── WhatsApp results to parents ──────────────────────────────
+const wa = require('../controllers/whatsappController');
+router.get ('/whatsapp/status',  wa.getStatus);
+router.post('/whatsapp/send',    wa.send);
+router.post('/whatsapp/refresh', wa.refresh);
 
 module.exports = router;

@@ -17,6 +17,7 @@ import SubjectsPage           from './pages/admin/SubjectsPage';
 import StudentsPage           from './pages/admin/StudentsPage';
 import ExamsPage              from './pages/admin/ExamsPage';
 import ExamResultsPage        from './pages/admin/ExamResultsPage';
+import StudentProfilePage     from './pages/students/StudentProfilePage';
 
 // Class Teacher module
 import ClassTeacherLayout     from './pages/class-teacher/ClassTeacherLayout';
@@ -78,6 +79,7 @@ function AppRoutes() {
         <Route path="students"     element={<StudentsPage />} />
         <Route path="exams"        element={<ExamsPage />} />
         <Route path="exams/:id/results" element={<ExamResultsPage />} />
+        <Route path="students/:id" element={<StudentProfilePage />} />
       </Route>
 
       {/* ── Class Teacher ───────────────────────────────────── */}
@@ -92,6 +94,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<ClassTeacherDashboard />} />
         <Route path="exams/:id/review" element={<ExamReviewPage />} />
+        <Route path="students/:id" element={<StudentProfilePage />} />
       </Route>
 
       {/* ── Subject Teacher ─────────────────────────────────── */}

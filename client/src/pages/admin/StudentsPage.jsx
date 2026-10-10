@@ -4,7 +4,13 @@ import Modal from '../../components/Modal';
 import './admin.css';
 
 const EMPTY_FORM = { name: '', rollNumber: '', classId: '' };
-const CSV_TEMPLATE = 'name,rollNumber\nJohn Doe,001\nJane Smith,002';
+// Only name and rollNumber are required; every other column is optional profile data.
+// Importing again with the same roll numbers updates those students instead of skipping them.
+const CSV_TEMPLATE = [
+  'name,rollNumber,fatherName,section,admissionNo,admissionDate,dateOfBirth,bloodGroup,idMark1,idMark2,address,aadhaarNo,apaarNo,phoneRes,parentPhone',
+  'Amulya Yalamakurthi,001,Ravi Kumar,A,ADM-1023,01-06-2021,15-06-2015,B+,Mole on left hand,,"12-3, Main Road, Kaikalur",1234 5678 9012,,08677-123456,9876543210',
+  'Bindhu Sri Namburi,002,Srinivas,A,ADM-1024,01-06-2021,02-03-2015,O+,,,Gudivada,,,,9876500011',
+].join('\n');
 
 export default function StudentsPage() {
   const { apiCall, apiUpload } = useApi();
@@ -241,13 +247,20 @@ export default function StudentsPage() {
             <div className="alert alert-success">
               ✓ {csvResult.message}
             </div>
+            {csvResult.warnings?.length > 0 && (
+              <div className="alert alert-info" style={{ marginTop: 12, fontSize: '0.8rem' }}>
+                {csvResult.warnings.length} value(s) were left out:{' '}
+                {csvResult.warnings.slice(0, 5).map(w => `line ${w.line}: ${w.message}`).join('; ')}
+                {csvResult.warnings.length > 5 && ' …'}
+              </div>
+            )}
             {csvResult.errors?.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <p className="form-label" style={{ marginBottom: 6 }}>Skipped rows:</p>
                 <div style={{ maxHeight: 200, overflowY: 'auto', fontSize: '0.78rem', color: '#64748b' }}>
                   {csvResult.errors.map((e, i) => (
                     <div key={i} style={{ padding: '4px 0', borderBottom: '1px solid #f1f5f9' }}>
-                      <strong>{e.row?.name || '—'}</strong>: {e.reason}
+                      <strong>Line {e.line ?? '—'}</strong>: {e.reason}
                     </div>
                   ))}
                 </div>
@@ -276,7 +289,9 @@ export default function StudentsPage() {
                 </p>
               </div>
               <p className="form-hint">
-                CSV format: <code>name,rollNumber</code> — first row must be the header.
+                Required columns: <code>name,rollNumber</code>. Optional: father's name, section, admission no/date,
+                date of birth (dd-mm-yyyy), blood group, identification marks, address, Aadhaar, APAAR, phones,
+                <code>parentPhone</code> (WhatsApp). Existing roll numbers are <strong>updated</strong>, new ones added.
                 {' '}<button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: 4 }} onClick={downloadTemplate}>
                   ⬇ Download Template
                 </button>

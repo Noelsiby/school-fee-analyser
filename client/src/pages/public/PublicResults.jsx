@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { partsSummary } from '../../utils/subjectParts';
+import { SCHOOL } from '../../utils/school';
+import { gradeFor, gradeTone } from '../../utils/grades';
 import { useApi } from '../../hooks/useApi';
 import schoolLogo from '../../assets/school-logo.png';
 
@@ -127,12 +129,7 @@ export default function PublicResults() {
       row.totalMaxMarks = maxMarksForStudent;
       row.percentage = maxMarksForStudent > 0 ? (row.totalMarks / maxMarksForStudent) * 100 : 0;
       
-      let grade = 'F';
-      if (row.percentage >= 90) grade = 'A+';
-      else if (row.percentage >= 80) grade = 'A';
-      else if (row.percentage >= 70) grade = 'B';
-      else if (row.percentage >= 60) grade = 'C';
-      else if (row.percentage >= 50) grade = 'D';
+      const grade = gradeFor(row.percentage);
 
       row.grade = grade;
       row.hasMarks = attemptCount > 0;
@@ -181,7 +178,7 @@ export default function PublicResults() {
       classAverage = validResults.reduce((acc, r) => acc + r.percentage, 0) / validResults.length;
       highestScore = Math.max(...validResults.map(r => r.percentage));
       lowestScore = Math.min(...validResults.map(r => r.percentage));
-      const passed = validResults.filter(r => r.percentage >= 50).length;
+      const passed = validResults.filter(r => r.percentage >= 35).length; // pass mark: 35% (grade D or better)
       passRate = (passed / validResults.length) * 100;
       
       const highestRows = validResults.filter(r => r.percentage === highestScore);
@@ -258,7 +255,7 @@ export default function PublicResults() {
           <h1 className="school-name-title">Matha English Medium School</h1>
           <p className="portal-subtitle">EXAM RESULTS PORTAL</p>
           <div className="gold-divider" />
-          <div className="academic-year">Academic Year 2026-27</div>
+          <div className="academic-year">Academic Year {SCHOOL.academicYear}</div>
         </header>
         <div className="main-content">
           <div className="table-container" style={{ padding: 24 }}>
@@ -287,8 +284,8 @@ export default function PublicResults() {
         <p>Please check back later or contact the school.</p>
         <div className="not-published-card">
           <h3>Matha English Medium School</h3>
-          <p>Kaikalur, Andhra Pradesh</p>
-          <p style={{ marginTop: 8 }}>Phone: +91 99999 99999</p>
+          <p>{SCHOOL.address}</p>
+          <p style={{ marginTop: 8 }}>Phone: {SCHOOL.phones.map(p => `+91 ${p}`).join(' / ')}</p>
         </div>
       </div>
     );
@@ -323,7 +320,7 @@ export default function PublicResults() {
         <h1 className="school-name-title">Matha English Medium School</h1>
         <p className="portal-subtitle">EXAM RESULTS PORTAL</p>
         <div className="gold-divider" />
-        <div className="academic-year">Academic Year 2026-27</div>
+        <div className="academic-year">Academic Year {SCHOOL.academicYear}</div>
       </header>
 
       <main className="main-content">
@@ -467,7 +464,7 @@ export default function PublicResults() {
                           
                           {selectedClass.subjects.map(sub => {
                             const val = row.subjects[sub.id];
-                            const isFail = val !== null && val < (sub.maxMarks * 0.4);
+                            const isFail = val !== null && val < (sub.maxMarks * 0.35); // below 35% = grade E
                             return (
                               <td key={sub.id} style={{ color: isFail ? '#dc2626' : 'inherit', fontWeight: isFail ? 600 : 400 }}>
                                 {val !== null ? val : '—'}
@@ -485,7 +482,7 @@ export default function PublicResults() {
                             {row.hasMarks ? <CountUp end={row.percentage} decimals={2} suffix="%" duration={1500} /> : '—'}
                           </td>
                           <td>
-                            <span className={`badge-grade ${['A+', 'A', 'B'].includes(row.grade) ? 'badge-green' : ['C', 'D'].includes(row.grade) ? 'badge-blue' : row.grade === 'F' ? 'badge-red' : 'badge-gray'}`} style={{ animationDelay: `${(idx * 30) + 500}ms` }}>
+                            <span className={`badge-grade badge-${{ green: 'green', blue: 'blue', amber: 'blue', red: 'red', gray: 'gray' }[gradeTone(row.grade)]}`} style={{ animationDelay: `${(idx * 30) + 500}ms` }}>
                               {row.grade || '—'}
                             </span>
                           </td>
@@ -509,7 +506,7 @@ export default function PublicResults() {
       </main>
 
       <footer className="portal-footer">
-        <p style={{ margin: 0, fontSize: '0.95rem' }}>© {new Date().getFullYear()} Matha English Medium School, Kaikalur</p>
+        <p style={{ margin: 0, fontSize: '0.95rem' }}>© {new Date().getFullYear()} {SCHOOL.name}, {SCHOOL.address} · Ph: {SCHOOL.phones.join(' / ')}</p>
         <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', opacity: 0.8 }}>Powered by Matha Exam Manager</p>
       </footer>
     </div>

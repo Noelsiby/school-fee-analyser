@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { partsLabel } from '../../utils/subjectParts';
 import { ClassPicker, PartsPicker, byClassName } from '../../components/SubjectFields';
+import ClassReportsTab from './ClassReportsTab';
+import { formatPhone } from '../../utils/whatsappStatus';
+import { byRoll, nextRoll } from '../../utils/rollOrder';
 import './admin.css';
 import './ClassDetailPage.css';
 
@@ -20,20 +23,25 @@ function roleBadge(role) {
 // ─────────────────────────────────────────────
 function StudentsTab({ cls, onRefresh }) {
   const { apiCall } = useApi();
+  const navigate = useNavigate();
   const [modal, setModal]         = useState(null);
   const [selected, setSelected]   = useState(null);
   const [form, setForm]           = useState({ name: '', rollNumber: '' });
   const [formError, setFormError] = useState('');
   const [saving, setSaving]       = useState(false);
   const [search, setSearch]       = useState('');
+  const [renumber, setRenumber]   = useState(null); // preview plan for "Renumber A–Z"
+  const [notice, setNotice]       = useState('');
 
-  const students = cls.students || [];
+  // Listed by roll number. Roll numbers follow alphabetical order after "Renumber A–Z";
+  // a roll number the admin changes by hand moves the student to that position.
+  const students = [...(cls.students || [])].sort(byRoll);
   const filtered = students.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.rollNumber.includes(search)
   );
 
-  const openAdd  = () => { setForm({ name: '', rollNumber: '' }); setFormError(''); setModal('add'); };
+  const openAdd  = () => { setForm({ name: '', rollNumber: nextRoll(students) }); setFormError(''); setModal('add'); };
   const openEdit = (s) => { setSelected(s); setForm({ name: s.name, rollNumber: s.rollNumber }); setFormError(''); setModal('edit'); };
   const openDel  = (s) => { setSelected(s); setModal('delete'); };
 
@@ -60,15 +68,44 @@ function StudentsTab({ cls, onRefresh }) {
     setSaving(false); setModal(null); onRefresh();
   };
 
+  const openRenumber = async () => {
+    setSaving(true);
+    try {
+      const res = await apiCall(`/api/admin/classes/${cls.id}/renumber-rolls?preview=1`, { method: 'POST' });
+      setRenumber(res);
+    } catch (e) { setNotice(`⚠ ${e.message}`); }
+    finally { setSaving(false); }
+  };
+
+  const applyRenumber = async () => {
+    setSaving(true);
+    try {
+      const res = await apiCall(`/api/admin/classes/${cls.id}/renumber-rolls`, { method: 'POST' });
+      setRenumber(null);
+      setNotice(`✅ Roll numbers updated for ${res.changed} student${res.changed === 1 ? '' : 's'} — now in alphabetical order.`);
+      setTimeout(() => setNotice(''), 6000);
+      onRefresh();
+    } catch (e) { setNotice(`⚠ ${e.message}`); }
+    finally { setSaving(false); }
+  };
+
   return (
     <div className="tab-content">
       <div className="tab-section-header">
         <div>
           <h3>Students <span className="count-badge">{students.length}</span></h3>
-          <p className="tab-desc">Manage students enrolled in {cls.name}</p>
+          <p className="tab-desc">Students of {cls.name} in roll-number order. Click a name to open their profile and progress reports.</p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Student</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-ghost btn-sm" onClick={openRenumber} disabled={saving || students.length === 0}
+            title="Give roll numbers 001, 002, … in alphabetical order of name">
+            🔤 Renumber A–Z
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Student</button>
+        </div>
       </div>
+
+      {notice && <div className={`alert ${notice.startsWith('⚠') ? 'alert-error' : 'alert-success'}`} style={{ marginBottom: 12 }}>{notice}</div>}
 
       <input
         className="filter-input" style={{ maxWidth: 300, marginBottom: 12 }}
@@ -84,12 +121,15 @@ function StudentsTab({ cls, onRefresh }) {
       ) : (
         <div className="data-table-wrap">
           <table className="data-table">
-            <thead><tr><th>Roll No.</th><th>Name</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Roll No.</th><th>Name</th><th>Parent Cell</th><th>Actions</th></tr></thead>
             <tbody>
               {filtered.map(s => (
                 <tr key={s.id}>
                   <td><code className="roll-number">{s.rollNumber}</code></td>
-                  <td>{s.name}</td>
+                  <td>
+                    <button className="cr-link" onClick={() => navigate(`/admin/students/${s.id}`)}>{s.name}</button>
+                  </td>
+                  <td>{s.parentPhone ? formatPhone(s.parentPhone) : <span className="cr-muted">Not added</span>}</td>
                   <td>
                     <div className="table-actions">
                       <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>✏️</button>
@@ -100,6 +140,50 @@ function StudentsTab({ cls, onRefresh }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {renumber && (
+        <div className="modal-overlay" onClick={() => setRenumber(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Renumber {cls.name} A–Z</h2>
+              <button className="modal-close" onClick={() => setRenumber(null)}>✕</button>
+            </div>
+            {renumber.changed === 0 ? (
+              <div className="alert alert-success">✅ Roll numbers are already in alphabetical order.</div>
+            ) : (
+              <>
+                <p style={{ fontSize: '0.88rem', marginBottom: 10 }}>
+                  Roll numbers become <strong>001, 002, …</strong> in alphabetical order of name.
+                  <strong> {renumber.changed}</strong> student{renumber.changed === 1 ? '' : 's'} will get a new number.
+                  Marks stay with each student — only the number changes.
+                </p>
+                <div className="data-table-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
+                  <table className="data-table">
+                    <thead><tr><th>New Roll</th><th>Name</th><th>Was</th></tr></thead>
+                    <tbody>
+                      {renumber.plan.map(p => (
+                        <tr key={p.id} style={p.from !== p.to ? { background: '#fffbeb' } : undefined}>
+                          <td><code className="roll-number">{p.to}</code></td>
+                          <td>{p.name}</td>
+                          <td className="cr-muted">{p.from !== p.to ? p.from : 'same'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setRenumber(null)}>{renumber.changed ? 'Cancel' : 'Close'}</button>
+              {renumber.changed > 0 && (
+                <button className="btn btn-primary" disabled={saving} onClick={applyRenumber}>
+                  {saving ? <span className="spinner" /> : `Renumber ${renumber.changed} student${renumber.changed === 1 ? '' : 's'}`}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -589,6 +673,7 @@ const TABS = [
   { key: 'class-teacher', label: '👩‍🏫 Class Teacher' },
   { key: 'subjects',      label: '📚 Subjects' },
   { key: 'assignments',   label: '📋 Teacher Assignments' },
+  { key: 'reports',       label: '📄 Reports & WhatsApp' },
 ];
 
 export default function ClassDetailPage() {
@@ -695,6 +780,7 @@ export default function ClassDetailPage() {
         {activeTab === 'class-teacher' && <ClassTeacherTab     cls={cls} teachers={teachers} onRefresh={load} />}
         {activeTab === 'subjects'      && <SubjectsTab         cls={cls} allClasses={allClasses} onRefresh={load} />}
         {activeTab === 'assignments'   && <TeacherAssignmentsTab cls={cls} teachers={teachers} onRefresh={load} />}
+        {activeTab === 'reports'       && <ClassReportsTab cls={cls} />}
       </div>
     </div>
   );

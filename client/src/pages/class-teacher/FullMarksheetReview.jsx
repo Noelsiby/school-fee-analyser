@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApi } from '../../hooks/useApi';
 import MarkEditor from '../../components/MarkEditor';
 import { partsSummary } from '../../utils/subjectParts';
+import { gradeTone } from '../../utils/grades';
 
 export default function FullMarksheetReview({ examId, classId, isLocked }) {
   const { apiCall } = useApi();
@@ -148,7 +149,7 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
               </td>
               <td style={{ textAlign: 'center' }}>{row.percentage}{row.percentage !== '—' && '%'}</td>
               <td style={{ textAlign: 'center' }}>
-                <span className={`badge ${['A+', 'A'].includes(row.grade) ? 'badge-green' : ['B', 'C'].includes(row.grade) ? 'badge-blue' : row.grade === 'F' ? 'badge-red' : 'badge-gray'}`}>
+                <span className={`badge badge-${gradeTone(row.grade)}`}>
                   {row.grade}
                 </span>
               </td>

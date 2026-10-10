@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { partsSummary } from '../../utils/subjectParts';
+import { gradeTone } from '../../utils/grades';
 import './admin.css';
 import schoolLogo from '../../assets/school-logo.png';
 
@@ -303,7 +304,7 @@ export default function ExamResultsPage() {
                     </td>
                     {cls.subjects.map(sub => {
                       const val = row.subjects[sub.id];
-                      const isFail = val !== null && val < (sub.maxMarks * 0.4);
+                      const isFail = val !== null && val < (sub.maxMarks * 0.35); // below 35% = grade E
                       return (
                         <td key={sub.id} style={{ textAlign: 'center', color: isFail ? '#dc2626' : 'inherit', fontWeight: isFail ? 600 : 400 }}>
                           {val !== null ? val : '—'}
@@ -320,7 +321,7 @@ export default function ExamResultsPage() {
                       {row.percentage}%
                     </td>
                     <td style={{ textAlign: 'center', background: '#f8fafc', fontWeight: 700 }}>
-                      <span className={`badge ${['A+', 'A', 'B'].includes(row.grade) ? 'badge-green' : row.grade === 'F' ? 'badge-red' : 'badge-gray'}`}>
+                      <span className={`badge badge-${gradeTone(row.grade)}`}>
                         {row.grade || '—'}
                       </span>
                     </td>

@@ -379,6 +379,7 @@ table.data-table tbody tr:hover { background: var(--gray-50); }
 .badge-green { background: #dcfce7; color: #15803d; }
 .badge-gold  { background: #fef9c3; color: #b45309; }
 .badge-red   { background: #fee2e2; color: #dc2626; }
+.badge-amber { background: #fef3c7; color: #b45309; }
 .badge-gray  { background: var(--gray-100); color: var(--gray-500); }
 .badge-purple { background: #ede9fe; color: #6d28d9; }
 

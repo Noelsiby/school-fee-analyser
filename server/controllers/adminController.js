@@ -12,6 +12,9 @@ const bcrypt           = require('bcryptjs');
 const fs               = require('fs');
 const path             = require('path');
 const ExcelJS          = require('exceljs');
+const { gradeFor }     = require('../lib/grades');
+const { importStudentsCSV } = require('../lib/studentImport');
+const { renumberPlan } = require('../lib/rollOrder');
 const prisma           = new PrismaClient();
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -55,17 +58,6 @@ const subjectKey = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /** Handle Prisma unique-constraint error */
 const isDupError = (err) => err?.code === 'P2002';
-
-/** Parse a CSV text string → array of objects (uses first row as headers) */
-function parseCSV(text) {
-  const lines = text.replace(/\r/g, '').trim().split('\n').filter(Boolean);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-  return lines.slice(1).map((line) => {
-    const vals = line.split(',').map((v) => v.trim());
-    return headers.reduce((obj, h, i) => ({ ...obj, [h]: vals[i] ?? '' }), {});
-  });
-}
 
 // ════════════════════════════════════════════════════════════════
 // STATS
@@ -185,6 +177,31 @@ exports.deleteClass = async (req, res) => {
     res.json({ message: 'Class deleted.' });
   } catch (err) {
     if (err?.code === 'P2025') return res.status(404).json({ error: 'Class not found.' });
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * POST /api/admin/classes/:id/renumber-rolls — give the class roll numbers 001, 002, …
+ * in alphabetical order of name. ?preview=1 only returns the plan.
+ * Marks are linked to the student, not the roll number, so nothing else changes.
+ */
+exports.renumberRolls = async (req, res) => {
+  const classId = Number(req.params.id);
+  try {
+    const students = await prisma.student.findMany({ where: { classId }, select: { id: true, name: true, rollNumber: true } });
+    const plan = renumberPlan(students);
+    const changes = plan.filter((p) => p.from !== p.to);
+    if (req.query.preview === '1' || changes.length === 0) {
+      return res.json({ changed: req.query.preview === '1' ? changes.length : 0, plan });
+    }
+    // Two steps so swapping numbers never hits the "roll number unique per class" rule.
+    await prisma.$transaction([
+      ...changes.map((p) => prisma.student.update({ where: { id: p.id }, data: { rollNumber: `__tmp_${p.id}` } })),
+      ...changes.map((p) => prisma.student.update({ where: { id: p.id }, data: { rollNumber: p.to } })),
+    ]);
+    res.json({ changed: changes.length, plan });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
@@ -678,43 +695,15 @@ exports.bulkImportStudents = async (req, res) => {
 
   try {
     const text = fs.readFileSync(req.file.path, 'utf8');
-    const rows = parseCSV(text);
-
-    if (!rows.length) return res.status(400).json({ error: 'CSV is empty or has no data rows.' });
-
-    const results = { created: 0, skipped: 0, errors: [] };
-
-    for (const row of rows) {
-      const name       = row.name?.trim();
-      const rollNumber = (row.rollnumber || row['roll number'] || row.roll_number || row.rollno)?.trim();
-
-      if (!name || !rollNumber) {
-        results.errors.push({ row, reason: 'Missing name or rollNumber' });
-        results.skipped++;
-        continue;
-      }
-
-      try {
-        await prisma.student.create({
-          data: { name, rollNumber, classId: Number(classId) },
-        });
-        results.created++;
-      } catch (e) {
-        const reason = isDupError(e) ? 'Duplicate roll number in this class' : e.message;
-        results.errors.push({ row, reason });
-        results.skipped++;
-      }
-    }
-
-    // Clean up uploaded CSV file
-    fs.unlinkSync(req.file.path);
-
+    const results = await importStudentsCSV(prisma, Number(classId), text);
     res.json({
-      message: `Import complete: ${results.created} created, ${results.skipped} skipped.`,
+      message: `Import complete: ${results.created} added, ${results.updated} updated, ${results.skipped} skipped.`,
       ...results,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(400).json({ error: err.message });
+  } finally {
+    fs.unlink(req.file.path, () => {}); // remove the uploaded CSV
   }
 };
 
@@ -1229,12 +1218,7 @@ exports.getExamResults = async (req, res) => {
 
         const percentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(2) : 0;
         
-        let grade = 'F';
-        if (percentage >= 90) grade = 'A+';
-        else if (percentage >= 80) grade = 'A';
-        else if (percentage >= 70) grade = 'B';
-        else if (percentage >= 60) grade = 'C';
-        else if (percentage >= 50) grade = 'D';
+        const grade = gradeFor(percentage);
 
         return {
           student,
@@ -1465,14 +1449,7 @@ exports.exportExamResultsExcel = async (req, res) => {
     const examNameSafe = exam.name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim();
     const isMultiClass = exam.examType === 'INTERNAL_EXAM' && !filterClassId;
 
-    const computeGrade = (pct) => {
-      if (pct >= 90) return 'A+';
-      if (pct >= 80) return 'A';
-      if (pct >= 70) return 'B';
-      if (pct >= 60) return 'C';
-      if (pct >= 50) return 'D';
-      return 'F';
-    };
+    const computeGrade = gradeFor;
 
     if (isMultiClass) {
       const combinedSheet = workbook.addWorksheet('All Classes');
@@ -1598,14 +1575,7 @@ exports.exportExamResultsWord = async (req, res) => {
       ? allClasses.filter(c => c && c.id === filterClassId)
       : allClasses;
 
-    const computeGrade = (pct) => {
-      if (pct >= 90) return 'A+';
-      if (pct >= 80) return 'A';
-      if (pct >= 70) return 'B';
-      if (pct >= 60) return 'C';
-      if (pct >= 50) return 'D';
-      return 'F';
-    };
+    const computeGrade = gradeFor;
 
     const schoolHeader = `
       <div class="school-header">

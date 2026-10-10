@@ -1,5 +1,6 @@
 const { PrismaClient, Prisma } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { gradeFor } = require('../lib/grades');
 const { partKeys, parseComponentMarks, sameComponentMarks, maxMarksUpdate, reconcileMarkOps } = require('../lib/components');
 
 // Fetch exams for classes the teacher manages
@@ -353,12 +354,7 @@ exports.getFullMarksheet = async (req, res) => {
       let grade = '—';
       if (allEntered && totalMax > 0) {
         percentage = Number(((totalMarks / totalMax) * 100).toFixed(2));
-        if (percentage >= 90) grade = 'A+';
-        else if (percentage >= 80) grade = 'A';
-        else if (percentage >= 70) grade = 'B';
-        else if (percentage >= 60) grade = 'C';
-        else if (percentage >= 50) grade = 'D';
-        else grade = 'F';
+        grade = gradeFor(percentage);
       }
 
       return {

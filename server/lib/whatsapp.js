@@ -1,15 +1,17 @@
 /**
- * whatsapp.js — send exam results to parents through RichAutomate's API.
+ * whatsapp.js — send exam results and school notices to parents through RichAutomate's API.
  *
  * Settings (Render → Environment; never in code):
  *   RICHAUTOMATE_API_KEY        required, "ra_live_…"
- *   WHATSAPP_TEMPLATE           approved template name (default "exam_result")
+ *   WHATSAPP_TEMPLATE           approved results template name (default "exam_result")
+ *   WHATSAPP_NOTICE_TEMPLATE    approved notice template name (default "school_notice")
  *   WHATSAPP_TEMPLATE_LANGUAGE  template language code (default "en_US")
  *   RICHAUTOMATE_BASE_URL       API base (default https://richautomate.in/api/v1; tests point it at a fake)
  *
- * The approved template's variables, in order:
+ * Results template variables, in order:
  *   {{1}} student name  {{2}} class  {{3}} roll no  {{4}} exam
  *   {{5}} subject marks (one line)  {{6}} total  {{7}} percentage  {{8}} grade
+ * Notice template variables: {{1}} subject  {{2}} message
  */
 
 const baseUrl = () => (process.env.RICHAUTOMATE_BASE_URL || 'https://richautomate.in/api/v1').replace(/\/$/, '');
@@ -52,19 +54,26 @@ async function call(path, options = {}) {
   return body || {};
 }
 
-/** Send the results template. Returns the provider's message id (may be null). */
-async function sendResultTemplate(phone, variables) {
+/** Send an approved template. Returns the provider's message id (may be null). */
+async function sendTemplate(phone, template, variables) {
   const body = await call('/send-template', {
     method: 'POST',
     body: JSON.stringify({
       phone,
-      template: process.env.WHATSAPP_TEMPLATE || 'exam_result',
+      template,
       language: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en_US',
       variables: variables.map(clean),
     }),
   });
   return body.message_id || body.messageId || body.id || body.data?.message_id || body.data?.id || null;
 }
+
+const sendResultTemplate = (phone, variables) =>
+  sendTemplate(phone, process.env.WHATSAPP_TEMPLATE || 'exam_result', variables);
+
+/** School notice: [subject, message]. */
+const sendNoticeTemplate = (phone, variables) =>
+  sendTemplate(phone, process.env.WHATSAPP_NOTICE_TEMPLATE || 'school_notice', variables);
 
 /** Current delivery status from the provider: queued | sent | delivered | read | failed. */
 async function fetchStatus(providerMessageId) {
@@ -74,4 +83,4 @@ async function fetchStatus(providerMessageId) {
   return { status, error: error ? String(error) : null };
 }
 
-module.exports = { isConfigured, normalizePhone, sendResultTemplate, fetchStatus, SENT_STATUSES };
+module.exports = { isConfigured, normalizePhone, clean, sendResultTemplate, sendNoticeTemplate, fetchStatus, SENT_STATUSES };

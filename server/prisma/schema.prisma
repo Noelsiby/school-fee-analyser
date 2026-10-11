@@ -462,3 +462,39 @@ model AppSetting {
 
   @@map("app_settings")
 }
+
+// ============================================================
+// NOTICES (general WhatsApp messages to parents)
+// ============================================================
+// A notice the admin sends to parents: holidays, leave, events, meetings…
+// audience: { type: "school" | "classes" | "students", classIds?: [], studentIds?: [] }
+// One NoticeMessage per parent phone number (brothers and sisters share one message).
+
+model Notice {
+  id          Int             @id @default(autoincrement())
+  title       String
+  body        String
+  audience    Json
+  createdById Int?
+  createdAt   DateTime        @default(now())
+  messages    NoticeMessage[]
+
+  @@map("notices")
+}
+
+model NoticeMessage {
+  id                Int      @id @default(autoincrement())
+  noticeId          Int
+  notice            Notice   @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  phone             String
+  students          String   // "Arun Kumar (Class 6), Divya (Class 2)" — who this parent is for
+  status            String   @default("queued") // queued | sent | delivered | read | failed
+  providerMessageId String?
+  error             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([noticeId])
+  @@index([status])
+  @@map("notice_messages")
+}

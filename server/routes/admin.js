@@ -84,4 +84,13 @@ router.get ('/whatsapp/status',  wa.getStatus);
 router.post('/whatsapp/send',    wa.send);
 router.post('/whatsapp/refresh', wa.refresh);
 
+// ── School notices to parents (WhatsApp) ─────────────────────
+const notices = require('../controllers/noticeController');
+router.get ('/notices',             notices.list);
+router.post('/notices/recipients',  notices.recipients);
+router.post('/notices',             notices.create);
+router.get ('/notices/:id',         notices.get);
+router.post('/notices/:id/retry',   notices.retry);
+router.post('/notices/:id/refresh', notices.refresh);
+
 module.exports = router;

@@ -12,6 +12,7 @@ const NAV = [
   { path: '/admin/students',  label: 'Students',    icon: '👦' },
   { path: '/admin/exams',     label: 'Exams',       icon: '📝' },
   { path: '/admin/grading',   label: 'Grading',     icon: '🏅' },
+  { path: '/admin/messages',  label: 'Messages',    icon: '📢' },
 ];
 
 export default function AdminLayout() {

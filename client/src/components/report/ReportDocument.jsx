@@ -35,9 +35,9 @@ const BASE = {
   // Header
   header: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8 },
   logo: { width: 64, height: 71, marginRight: 12 },
-  schoolBlock: { flex: 1 },
-  schoolName: { fontFamily: 'Helvetica-Bold', fontSize: 17, color: NAVY, letterSpacing: 0.4 },
-  schoolPlace: { fontSize: 8.5, color: MUTED, marginTop: 2 },
+  schoolBlock: { flex: 1, alignItems: 'center', paddingHorizontal: 6 },
+  schoolName: { fontFamily: 'Helvetica-Bold', fontSize: 17, color: NAVY, letterSpacing: 0.4, textAlign: 'center' },
+  schoolPlace: { fontSize: 8.5, color: MUTED, marginTop: 2, textAlign: 'center' },
   titleBlock: { alignItems: 'flex-end' },
   titlePill: { backgroundColor: NAVY, color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 9, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 3, letterSpacing: 1 },
   examName: { fontFamily: 'Helvetica-Bold', fontSize: 10, marginTop: 4, color: INK },

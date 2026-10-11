@@ -65,7 +65,8 @@ async function sendTemplate(phone, template, variables) {
       variables: variables.map(clean),
     }),
   });
-  return body.message_id || body.messageId || body.id || body.data?.message_id || body.data?.id || null;
+  const id = body.message_id ?? body.messageId ?? body.id ?? body.data?.message_id ?? body.data?.id ?? null;
+  return id === null ? null : String(id); // RichAutomate sends a number (e.g. 203681); we store text
 }
 
 const sendResultTemplate = (phone, variables) =>

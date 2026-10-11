@@ -26,6 +26,9 @@ router.put   ('/subjects/group', ctrl.updateSubjectGroup);
 router.put   ('/subjects/:id', ctrl.updateSubject);
 router.delete('/subjects/:id', ctrl.deleteSubject);
 
+// ── Grading scale ────────────────────────────────────────────
+router.put('/grade-scale', require('../controllers/gradeScaleController').updateGradeScale);
+
 // ── Teachers ─────────────────────────────────────────────────
 // Returns ALL teaching-role users (ClassTeacher + SubjectTeacher) for dropdowns
 router.get   ('/teachers',     ctrl.getTeachers);

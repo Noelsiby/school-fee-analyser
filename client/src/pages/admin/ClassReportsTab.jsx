@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
-import { downloadReports } from '../../components/report/downloadReport';
+import { downloadReports, printReports } from '../../components/report/downloadReport';
+import { usePaper, PaperPicker } from '../../components/report/PaperPicker';
 import { gradeTone } from '../../utils/grades';
 import { SCHOOL } from '../../utils/school';
 import { waLabel, waPending, formatPhone } from '../../utils/whatsappStatus';
@@ -39,6 +40,7 @@ export default function ClassReportsTab({ cls }) {
   const [busy, setBusy]         = useState({});
   const [confirm, setConfirm]   = useState(false);   // whole-class send dialog
   const [resend, setResend]     = useState(false);
+  const [paper, setPaper]       = usePaper();
 
   const flash = (msg) => { setNotice(msg); setTimeout(() => setNotice(''), 6000); };
 
@@ -76,17 +78,31 @@ export default function ClassReportsTab({ cls }) {
   const downloadAll = async () => {
     setBusyKey('all', true);
     try {
-      const pages = await downloadReports(apiCall, { examId, classId: cls.id });
+      const pages = await downloadReports(apiCall, { examId, classId: cls.id, paper });
       flash(`✅ Downloaded ${pages} reports — one page per student.`);
     } catch (e) { flash(`⚠ ${e.message}`); }
     finally { setBusyKey('all', false); }
   };
 
+  const printAll = async () => {
+    setBusyKey('printAll', true);
+    try { await printReports(apiCall, { examId, classId: cls.id, paper }); }
+    catch (e) { flash(`⚠ ${e.message}`); }
+    finally { setBusyKey('printAll', false); }
+  };
+
   const downloadOne = async (studentId) => {
     setBusyKey(`pdf-${studentId}`, true);
-    try { await downloadReports(apiCall, { examId, classId: cls.id, studentId }); }
+    try { await downloadReports(apiCall, { examId, classId: cls.id, studentId, paper }); }
     catch (e) { flash(`⚠ ${e.message}`); }
     finally { setBusyKey(`pdf-${studentId}`, false); }
+  };
+
+  const printOne = async (studentId) => {
+    setBusyKey(`print-${studentId}`, true);
+    try { await printReports(apiCall, { examId, classId: cls.id, studentId, paper }); }
+    catch (e) { flash(`⚠ ${e.message}`); }
+    finally { setBusyKey(`print-${studentId}`, false); }
   };
 
   const send = async (studentIds, again) => {
@@ -161,8 +177,12 @@ export default function ClassReportsTab({ cls }) {
               <span className="badge badge-blue">{sentCount} sent on WhatsApp</span>
             </div>
             <div className="cr-actions">
+              <PaperPicker paper={paper} onChange={setPaper} />
               <button className="btn btn-primary btn-sm" disabled={busy.all || !results.length} onClick={downloadAll}>
                 {busy.all ? <><span className="spinner" /> Preparing…</> : `⬇ Download all reports (${results.length})`}
+              </button>
+              <button className="btn btn-ghost btn-sm" disabled={busy.printAll || !results.length} onClick={printAll}>
+                {busy.printAll ? <><span className="spinner spinner-dark" /> Preparing…</> : '🖨 Print all'}
               </button>
               <button className="btn btn-whatsapp btn-sm" disabled={!configured || busy.class} onClick={() => { setResend(false); setConfirm(true); }}>
                 💬 Send to whole class
@@ -203,6 +223,9 @@ export default function ClassReportsTab({ cls }) {
                         <div className="table-actions">
                           <button className="btn btn-ghost btn-sm" disabled={busy[`pdf-${r.student.id}`]} onClick={() => downloadOne(r.student.id)} title="Download this student's report">
                             {busy[`pdf-${r.student.id}`] ? <span className="spinner spinner-dark" /> : '⬇'}
+                          </button>
+                          <button className="btn btn-ghost btn-sm" disabled={busy[`print-${r.student.id}`]} onClick={() => printOne(r.student.id)} title="Print this student's report">
+                            {busy[`print-${r.student.id}`] ? <span className="spinner spinner-dark" /> : '🖨'}
                           </button>
                           <button
                             className="btn btn-whatsapp btn-sm"

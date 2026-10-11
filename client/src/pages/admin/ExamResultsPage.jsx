@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { partsSummary } from '../../utils/subjectParts';
-import { gradeTone } from '../../utils/grades';
+import { gradeTone, passMarkOf, useGradeScale } from '../../utils/grades';
 import './admin.css';
 import schoolLogo from '../../assets/school-logo.png';
 
 export default function ExamResultsPage() {
+  const passMark = passMarkOf(useGradeScale());
   const { id } = useParams();
   const { apiCall } = useApi();
   const navigate = useNavigate();
@@ -304,7 +305,7 @@ export default function ExamResultsPage() {
                     </td>
                     {cls.subjects.map(sub => {
                       const val = row.subjects[sub.id];
-                      const isFail = val !== null && val < (sub.maxMarks * 0.35); // below 35% = grade E
+                      const isFail = val !== null && Math.round((val / sub.maxMarks) * 100) < passMark; // below the pass mark = fail grade
                       return (
                         <td key={sub.id} style={{ textAlign: 'center', color: isFail ? '#dc2626' : 'inherit', fontWeight: isFail ? 600 : 400 }}>
                           {val !== null ? val : '—'}

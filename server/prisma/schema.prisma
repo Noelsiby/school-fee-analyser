@@ -448,3 +448,17 @@ model WhatsAppMessage {
   @@index([status])
   @@map("whatsapp_messages")
 }
+
+// ============================================================
+// APP SETTINGS
+// ============================================================
+// School-wide settings set by the admin, one JSON value per key.
+// "gradeScale": [{ grade, min, points }] — see lib/grades.js.
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}

@@ -1,12 +1,24 @@
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import schoolLogo from '../../assets/school-logo-report.jpg'; // small JPEG copy so multi-page PDFs stay light
+import watermarkLogo from '../../assets/school-logo-watermark.jpg'; // pale black-and-white logo for the page centre
 import { SCHOOL, formatDate, ageFrom } from '../../utils/school';
-import { BANDS } from '../../utils/grades';
+import { DEFAULT_BANDS, rangeLabel } from '../../utils/grades';
 
 /*
- * Progress report PDF: one A4 page per student.
+ * Progress report PDF: one page per student, on any paper size in PAPER_SIZES.
+ * The layout is designed for A4 and scaled to fit the chosen paper.
  * `report` is the response of GET /api/students/reports/exams/:examId/classes/:classId?photos=1
  */
+
+// Paper sizes in PDF points (1/72 inch).
+export const PAPER_SIZES = {
+  A4:     { label: 'A4',     size: [595.28, 841.89] },
+  A3:     { label: 'A3',     size: [841.89, 1190.55] },
+  A5:     { label: 'A5',     size: [419.53, 595.28] },
+  LETTER: { label: 'Letter', size: [612, 792] },
+  LEGAL:  { label: 'Legal',  size: [612, 1008] },
+};
+const [A4_W, A4_H] = PAPER_SIZES.A4.size;
 
 const NAVY = '#1e3a8a';
 const GOLD = '#d4a017';
@@ -17,12 +29,12 @@ const SOFT = '#f1f5f9';
 
 const PARTS = ['Reading', 'Writing', 'Dictation'];
 
-const s = StyleSheet.create({
+const BASE = {
   page: { padding: 26, fontFamily: 'Helvetica', fontSize: 8.5, color: INK },
 
   // Header
   header: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8 },
-  logo: { width: 52, height: 58, marginRight: 10 },
+  logo: { width: 64, height: 71, marginRight: 12 },
   schoolBlock: { flex: 1 },
   schoolName: { fontFamily: 'Helvetica-Bold', fontSize: 17, color: NAVY, letterSpacing: 0.4 },
   schoolPlace: { fontSize: 8.5, color: MUTED, marginTop: 2 },
@@ -30,68 +42,92 @@ const s = StyleSheet.create({
   titlePill: { backgroundColor: NAVY, color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 9, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 3, letterSpacing: 1 },
   examName: { fontFamily: 'Helvetica-Bold', fontSize: 10, marginTop: 4, color: INK },
   year: { fontSize: 8, color: MUTED, marginTop: 1 },
-  goldRule: { height: 2.5, backgroundColor: GOLD, marginBottom: 10 },
+  goldRule: { height: 2.5, backgroundColor: GOLD, marginBottom: 9 },
 
   sectionTitle: { fontFamily: 'Helvetica-Bold', fontSize: 9, color: NAVY, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8 },
 
   // Student details
-  bio: { flexDirection: 'row', borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 8, marginBottom: 10 },
+  bio: { flexDirection: 'row', borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 8, paddingBottom: 5, marginBottom: 8 },
   photoBox: { width: 74, height: 90, borderWidth: 1, borderColor: LINE, borderRadius: 3, marginLeft: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: SOFT },
   photo: { width: 72, height: 88, objectFit: 'cover', borderRadius: 2 },
   bioGrid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap' },
-  field: { width: '33.33%', paddingRight: 6, marginBottom: 5 },
-  fieldWide: { width: '100%', paddingRight: 6, marginBottom: 5 },
+  field: { width: '33.33%', paddingRight: 6, marginBottom: 4 },
+  fieldWide: { width: '100%', paddingRight: 6, marginBottom: 4 },
   label: { fontSize: 6.5, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
   value: { fontFamily: 'Helvetica-Bold', fontSize: 9, marginTop: 1, minHeight: 11 },
   studentName: { fontFamily: 'Helvetica-Bold', fontSize: 12.5, color: NAVY, marginTop: 1 },
 
   // Marks table
-  table: { borderWidth: 1, borderColor: LINE, borderRadius: 4, marginBottom: 10 },
-  tr: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: LINE, minHeight: 17, alignItems: 'center' },
+  table: { borderWidth: 1, borderColor: LINE, borderRadius: 4, marginBottom: 8 },
+  tr: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: LINE, minHeight: 15.5, alignItems: 'center' },
   th: { backgroundColor: NAVY, color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 7.5, textAlign: 'center', paddingVertical: 4 },
-  td: { textAlign: 'center', paddingVertical: 3, fontSize: 8.5 },
-  colSubject: { width: '22%', textAlign: 'left', paddingLeft: 6 },
-  colPart: { width: '11%' },
-  colTotal: { width: '12%' },
-  colGrade: { width: '9%' },
-  colPoints: { width: '12%' },
-  zebra: { backgroundColor: '#f8fafc' },
+  td: { textAlign: 'center', paddingVertical: 2.5, fontSize: 8.5 },
+  colSubject: { width: '19%', textAlign: 'left', paddingLeft: 6 },
+  colPart: { width: '9.5%' },
+  colTotal: { width: '11%' },
+  colGrade: { width: '7%' },
+  colPoints: { width: '8%' },
+  colRemark: { width: '17%', textAlign: 'left', paddingLeft: 5, fontSize: 7.5 },
   totalRow: { backgroundColor: '#e0e7ff', fontFamily: 'Helvetica-Bold' },
   dash: { color: '#94a3b8' },
   of: { color: MUTED, fontSize: 7 },
 
   // Summary
-  summary: { flexDirection: 'row', marginBottom: 10 },
+  summary: { flexDirection: 'row', marginBottom: 8 },
   card: { flex: 1, borderWidth: 1, borderColor: LINE, borderRadius: 4, paddingVertical: 6, alignItems: 'center', marginRight: 6 },
   cardLast: { marginRight: 0 },
   cardValue: { fontFamily: 'Helvetica-Bold', fontSize: 13, color: NAVY },
   cardLabel: { fontSize: 6.5, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
 
   // Attendance + remarks
-  twoCol: { flexDirection: 'row', marginBottom: 10 },
+  twoCol: { flexDirection: 'row', marginBottom: 8 },
   attendance: { flex: 1.15, marginRight: 8 },
   remarks: { flex: 1 },
-  blankRow: { minHeight: 17 },
-  remarkLine: { borderBottomWidth: 1, borderBottomColor: LINE, height: 19 },
+  blankRow: { minHeight: 15.5 },
+  remarkLine: { borderBottomWidth: 1, borderBottomColor: LINE, height: 17.5 },
 
   // Grade scale
-  scale: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 14, borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 5, backgroundColor: SOFT },
+  scale: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8, borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 5, backgroundColor: SOFT },
   scaleItem: { width: '25%', fontSize: 7, color: MUTED, paddingVertical: 1 },
   scaleGrade: { fontFamily: 'Helvetica-Bold', color: INK },
 
   // Signatures
-  signatures: { flexDirection: 'row', marginTop: 'auto', paddingTop: 14 },
+  signatures: { flexDirection: 'row', marginTop: 'auto', paddingTop: 12 },
   sign: { flex: 1, alignItems: 'center', marginHorizontal: 10 },
   signLine: { borderTopWidth: 1, borderTopColor: INK, width: '100%', marginBottom: 3 },
   signLabel: { fontFamily: 'Helvetica-Bold', fontSize: 8 },
   signName: { fontSize: 7, color: MUTED, marginTop: 1 },
 
   footer: { position: 'absolute', bottom: 12, left: 26, right: 26, flexDirection: 'row', justifyContent: 'space-between', fontSize: 6.5, color: '#94a3b8' },
-});
+  photoHint: { color: MUTED, fontSize: 7 },
+};
+
+// Style values that are not sizes, so they must not be scaled.
+const UNSCALED = new Set(['flex', 'opacity']);
+const scaleStyle = (style, k) =>
+  Object.fromEntries(Object.entries(style).map(([key, v]) => [key, typeof v === 'number' && !UNSCALED.has(key) ? v * k : v]));
+
+const stylesCache = {};
+/** Styles for a paper size: the A4 design scaled so it fits the page. */
+function stylesFor(paper) {
+  if (!stylesCache[paper]) {
+    const [w, h] = (PAPER_SIZES[paper] || PAPER_SIZES.A4).size;
+    const k = Math.min(w / A4_W, h / A4_H);
+    const wmW = 330 * k, wmH = wmW * (466 / 420); // watermark image is 420×466
+    stylesCache[paper] = {
+      size: [w, h],
+      s: StyleSheet.create({
+        ...Object.fromEntries(Object.entries(BASE).map(([name, st]) => [name, scaleStyle(st, k)])),
+        watermark: { position: 'absolute', width: wmW, height: wmH, left: (w - wmW) / 2, top: (h - wmH) / 2 },
+      }),
+    };
+  }
+  return stylesCache[paper];
+}
 
 const show = (v) => (v === null || v === undefined || v === '' ? null : String(v));
 
-function Field({ label, value, wide }) {
+function Field({ s, label, value, wide }) {
   return (
     <View style={wide ? s.fieldWide : s.field}>
       <Text style={s.label}>{label}</Text>
@@ -100,7 +136,7 @@ function Field({ label, value, wide }) {
   );
 }
 
-function Cell({ value, of, style }) {
+function Cell({ s, value, of, style }) {
   if (value === null || value === undefined) return <Text style={[s.td, style, s.dash]}>—</Text>;
   return (
     <Text style={[s.td, style]}>
@@ -109,10 +145,15 @@ function Cell({ value, of, style }) {
   );
 }
 
-function StudentPage({ report, result, generatedOn }) {
+function StudentPage({ report, result, generatedOn, paper }) {
+  const { s, size } = stylesFor(paper);
+  const bands = report.gradeScale || DEFAULT_BANDS;
   const st = result.student;
   return (
-    <Page size="A4" style={s.page}>
+    <Page size={size} style={s.page}>
+      {/* Pale school logo in the middle of the page, behind everything */}
+      <Image src={watermarkLogo} style={s.watermark} fixed />
+
       {/* Header */}
       <View style={s.header}>
         <Image src={schoolLogo} style={s.logo} />
@@ -137,25 +178,25 @@ function StudentPage({ report, result, generatedOn }) {
             <Text style={s.label}>Name</Text>
             <Text style={s.studentName}>{st.name}</Text>
           </View>
-          <Field label="Father's / Guardian's Name" value={st.fatherName} />
-          <Field label="Class" value={report.class.name} />
-          <Field label="Section" value={st.section} />
-          <Field label="Roll No." value={st.rollNumber} />
-          <Field label="Admission No." value={st.admissionNo} />
-          <Field label="Admission Date" value={formatDate(st.admissionDate)} />
-          <Field label="Date of Birth" value={formatDate(st.dateOfBirth)} />
-          <Field label="Age" value={ageFrom(st.dateOfBirth)} />
-          <Field label="Blood Group" value={st.bloodGroup} />
-          <Field label="Identification Mark 1" value={st.idMark1} />
-          <Field label="Identification Mark 2" value={st.idMark2} />
-          <Field label="Aadhaar No." value={st.aadhaarNo} />
-          <Field label="APAAR No." value={st.apaarNo} />
-          <Field label="Phone (Res.)" value={st.phoneRes} />
-          <Field label="Cell" value={st.parentPhone} />
-          <Field label="Address" value={st.address} wide />
+          <Field s={s} label="Father's / Guardian's Name" value={st.fatherName} />
+          <Field s={s} label="Class" value={report.class.name} />
+          <Field s={s} label="Section" value={st.section} />
+          <Field s={s} label="Roll No." value={st.rollNumber} />
+          <Field s={s} label="Admission No." value={st.admissionNo} />
+          <Field s={s} label="Admission Date" value={formatDate(st.admissionDate)} />
+          <Field s={s} label="Date of Birth" value={formatDate(st.dateOfBirth)} />
+          <Field s={s} label="Age" value={ageFrom(st.dateOfBirth)} />
+          <Field s={s} label="Blood Group" value={st.bloodGroup} />
+          <Field s={s} label="Identification Mark 1" value={st.idMark1} />
+          <Field s={s} label="Identification Mark 2" value={st.idMark2} />
+          <Field s={s} label="Aadhaar No." value={st.aadhaarNo} />
+          <Field s={s} label="APAAR No." value={st.apaarNo} />
+          <Field s={s} label="Phone (Res.)" value={st.phoneRes} />
+          <Field s={s} label="Cell" value={st.parentPhone} />
+          <Field s={s} label="Address" value={st.address} wide />
         </View>
         <View style={s.photoBox}>
-          {st.photo ? <Image src={st.photo} style={s.photo} /> : <Text style={{ color: MUTED, fontSize: 7 }}>Photo</Text>}
+          {st.photo ? <Image src={st.photo} style={s.photo} /> : <Text style={s.photoHint}>Photo</Text>}
         </View>
       </View>
 
@@ -169,29 +210,33 @@ function StudentPage({ report, result, generatedOn }) {
           <Text style={[s.th, s.colTotal]}>Total</Text>
           <Text style={[s.th, s.colGrade]}>Grade</Text>
           <Text style={[s.th, s.colPoints]}>Points</Text>
+          {/* Remarks: left blank for the teacher to write */}
+          <Text style={[s.th, s.colRemark, { fontSize: s.th.fontSize, textAlign: 'left' }]}>Remarks</Text>
         </View>
         {report.subjects.map((sub, i) => {
           const r = result.subjects[i];
           const cmm = sub.componentMaxMarks;
           return (
-            <View key={sub.id} style={[s.tr, i % 2 ? s.zebra : null]}>
+            <View key={sub.id} style={s.tr}>
               <Text style={[s.td, s.colSubject, { fontFamily: 'Helvetica-Bold' }]}>{sub.name}</Text>
-              <Cell value={r.main} of={cmm ? cmm.Main : sub.maxMarks} style={s.colPart} />
+              <Cell s={s} value={r.main} of={cmm ? cmm.Main : sub.maxMarks} style={s.colPart} />
               {PARTS.map((p) => (
-                <Cell key={p} value={cmm && p in cmm ? r.parts[p] : null} of={cmm && p in cmm ? cmm[p] : undefined} style={s.colPart} />
+                <Cell s={s} key={p} value={cmm && p in cmm ? r.parts[p] : null} of={cmm && p in cmm ? cmm[p] : undefined} style={s.colPart} />
               ))}
-              <Cell value={r.total} of={sub.maxMarks} style={[s.colTotal, { fontFamily: 'Helvetica-Bold' }]} />
-              <Cell value={r.grade} style={[s.colGrade, { fontFamily: 'Helvetica-Bold' }]} />
-              <Cell value={r.points} style={s.colPoints} />
+              <Cell s={s} value={r.total} of={sub.maxMarks} style={[s.colTotal, { fontFamily: 'Helvetica-Bold' }]} />
+              <Cell s={s} value={r.grade} style={[s.colGrade, { fontFamily: 'Helvetica-Bold' }]} />
+              <Cell s={s} value={r.points} style={s.colPoints} />
+              <Text style={[s.td, s.colRemark]} />
             </View>
           );
         })}
         <View style={[s.tr, s.totalRow, { borderBottomWidth: 0 }]}>
           <Text style={[s.td, s.colSubject, { fontFamily: 'Helvetica-Bold' }]}>TOTAL</Text>
-          <Text style={[s.td, { width: '44%' }]} />
-          <Cell value={result.total} of={result.maxTotal} style={[s.colTotal, { fontFamily: 'Helvetica-Bold' }]} />
-          <Cell value={result.grade} style={[s.colGrade, { fontFamily: 'Helvetica-Bold' }]} />
-          <Cell value={result.gpa} style={[s.colPoints, { fontFamily: 'Helvetica-Bold' }]} />
+          <Text style={[s.td, { width: '38%' }]} />
+          <Cell s={s} value={result.total} of={result.maxTotal} style={[s.colTotal, { fontFamily: 'Helvetica-Bold' }]} />
+          <Cell s={s} value={result.grade} style={[s.colGrade, { fontFamily: 'Helvetica-Bold' }]} />
+          <Cell s={s} value={result.gpa} style={[s.colPoints, { fontFamily: 'Helvetica-Bold' }]} />
+          <Text style={[s.td, s.colRemark]} />
         </View>
       </View>
 
@@ -236,15 +281,11 @@ function StudentPage({ report, result, generatedOn }) {
 
       {/* Grade scale */}
       <View style={s.scale}>
-        {BANDS.map((b, i) => {
-          const upper = i === 0 ? 100 : BANDS[i - 1].min - 1;
-          const range = b.min === 0 ? `Below ${BANDS[i - 1].min}` : `${b.min}–${upper}`;
-          return (
-            <Text key={b.grade} style={s.scaleItem}>
-              <Text style={s.scaleGrade}>{b.grade}</Text>  {range}%  ·  {b.points} pts
-            </Text>
-          );
-        })}
+        {bands.map((b, i) => (
+          <Text key={b.grade} style={s.scaleItem}>
+            <Text style={s.scaleGrade}>{b.grade}</Text>  {rangeLabel(bands, i)}%  ·  {b.points} pts
+          </Text>
+        ))}
       </View>
 
       {/* Signatures */}
@@ -272,12 +313,12 @@ function StudentPage({ report, result, generatedOn }) {
   );
 }
 
-export default function ReportDocument({ report }) {
+export default function ReportDocument({ report, paper = 'A4' }) {
   const generatedOn = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   return (
     <Document title={`${report.exam.name} — ${report.class.name} — Progress Report`} author={SCHOOL.name}>
       {report.results.map((result) => (
-        <StudentPage key={result.student.id} report={report} result={result} generatedOn={generatedOn} />
+        <StudentPage key={result.student.id} report={report} result={result} generatedOn={generatedOn} paper={paper} />
       ))}
     </Document>
   );

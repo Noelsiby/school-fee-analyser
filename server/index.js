@@ -65,6 +65,14 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // ── Start ──────────────────────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[server] Running on http://0.0.0.0:${PORT} (${process.env.NODE_ENV || 'development'})`);
-});
+// Load the admin's grading scale before taking requests (falls back to the default).
+const { PrismaClient } = require('@prisma/client');
+const { loadGradeScale } = require('./lib/grades');
+const startupPrisma = new PrismaClient();
+loadGradeScale(startupPrisma)
+  .finally(() => startupPrisma.$disconnect())
+  .finally(() => {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`[server] Running on http://0.0.0.0:${PORT} (${process.env.NODE_ENV || 'development'})`);
+    });
+  });

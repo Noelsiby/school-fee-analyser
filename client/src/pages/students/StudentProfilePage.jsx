@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../contexts/AuthContext';
-import { downloadReports } from '../../components/report/downloadReport';
+import { downloadReports, printReports } from '../../components/report/downloadReport';
+import { usePaper, PaperPicker } from '../../components/report/PaperPicker';
 import { formatDate, ageFrom } from '../../utils/school';
 import { gradeTone } from '../../utils/grades';
 import { waLabel, waPending, formatPhone } from '../../utils/whatsappStatus';
@@ -65,6 +66,7 @@ export default function StudentProfilePage() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [busy, setBusy]       = useState({});   // `pdf-${examId}` / `wa-${examId}`
   const [wa, setWa]           = useState({});   // examId → message status for this student
+  const [paper, setPaper]     = usePaper();
   const [waConfigured, setWaConfigured] = useState(true);
   const fileRef = useRef(null);
 
@@ -161,9 +163,16 @@ export default function StudentProfilePage() {
 
   const downloadPdf = async (examId) => {
     setBusy(b => ({ ...b, [`pdf-${examId}`]: true }));
-    try { await downloadReports(apiCall, { examId, classId: st.classId, studentId: st.id }); }
+    try { await downloadReports(apiCall, { examId, classId: st.classId, studentId: st.id, paper }); }
     catch (err) { flash(`⚠ ${err.message}`); }
     finally { setBusy(b => ({ ...b, [`pdf-${examId}`]: false })); }
+  };
+
+  const printPdf = async (examId) => {
+    setBusy(b => ({ ...b, [`print-${examId}`]: true }));
+    try { await printReports(apiCall, { examId, classId: st.classId, studentId: st.id, paper }); }
+    catch (err) { flash(`⚠ ${err.message}`); }
+    finally { setBusy(b => ({ ...b, [`print-${examId}`]: false })); }
   };
 
   const sendWhatsApp = async (examId, resend) => {
@@ -284,6 +293,7 @@ export default function StudentProfilePage() {
       {/* ── Exam reports ── */}
       <div className="sp-section-head" style={{ marginTop: 8 }}>
         <h2>Exam Reports</h2>
+        {data.reports.length > 0 && <PaperPicker paper={paper} onChange={setPaper} />}
       </div>
       {isAdmin && !waConfigured && (
         <div className="alert alert-info" style={{ marginBottom: 12 }}>
@@ -312,6 +322,9 @@ export default function StudentProfilePage() {
               <div className="sp-report-actions">
                 <button className="btn btn-primary btn-sm" disabled={busy[`pdf-${exam.id}`]} onClick={() => downloadPdf(exam.id)}>
                   {busy[`pdf-${exam.id}`] ? <span className="spinner" /> : '⬇ Download report'}
+                </button>
+                <button className="btn btn-ghost btn-sm" disabled={busy[`print-${exam.id}`]} onClick={() => printPdf(exam.id)}>
+                  {busy[`print-${exam.id}`] ? <span className="spinner spinner-dark" /> : '🖨 Print'}
                 </button>
                 {isAdmin && (
                   <button

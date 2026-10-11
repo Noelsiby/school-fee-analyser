@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { partsSummary } from '../../utils/subjectParts';
 import { SCHOOL } from '../../utils/school';
-import { gradeFor, gradeTone } from '../../utils/grades';
+import { gradeFor, gradeTone, passMarkOf, useGradeScale } from '../../utils/grades';
 import { useApi } from '../../hooks/useApi';
 import schoolLogo from '../../assets/school-logo.png';
 
@@ -27,6 +27,7 @@ const CountUp = ({ end, duration = 1000, suffix = '', decimals = 0 }) => {
 };
 
 export default function PublicResults() {
+  const bands = useGradeScale();
   const { apiCall } = useApi();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -129,7 +130,7 @@ export default function PublicResults() {
       row.totalMaxMarks = maxMarksForStudent;
       row.percentage = maxMarksForStudent > 0 ? (row.totalMarks / maxMarksForStudent) * 100 : 0;
       
-      const grade = gradeFor(row.percentage);
+      const grade = gradeFor(row.percentage, bands);
 
       row.grade = grade;
       row.hasMarks = attemptCount > 0;
@@ -178,7 +179,7 @@ export default function PublicResults() {
       classAverage = validResults.reduce((acc, r) => acc + r.percentage, 0) / validResults.length;
       highestScore = Math.max(...validResults.map(r => r.percentage));
       lowestScore = Math.min(...validResults.map(r => r.percentage));
-      const passed = validResults.filter(r => r.percentage >= 35).length; // pass mark: 35% (grade D or better)
+      const passed = validResults.filter(r => Math.round(r.percentage) >= passMarkOf(bands)).length; // pass mark from the grading scale
       passRate = (passed / validResults.length) * 100;
       
       const highestRows = validResults.filter(r => r.percentage === highestScore);

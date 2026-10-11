@@ -2,11 +2,12 @@
  * reportData.js — everything a progress report / WhatsApp result needs for one
  * exam and one class: subjects (with their parts and max marks), and for each
  * student their marks, subject totals, grade + points per subject, overall
- * total, percentage, GPA and average grade, plus the highest GPA in the class.
+ * total, percentage, GPA and average grade, plus the highest GPA in the class
+ * and the grading scale used (so the report can print it).
  */
 
 const { MAIN, PARTS, partKeys } = require('./components');
-const { gradeFor, pointsFor } = require('./grades');
+const { gradeFor, pointsFor, passMark, loadGradeScale } = require('./grades');
 const { byRoll } = require('./rollOrder');
 
 // Usual report-card order; anything not matched goes after these, alphabetically.
@@ -42,6 +43,7 @@ async function buildClassReport(prisma, examId, classId, opts = {}) {
     include: { enrollments: { where: { classId } } },
   });
   if (!exam) return null;
+  const bands = await loadGradeScale(prisma); // always the admin's latest scale
   const inExam = exam.examType === 'INTERNAL_EXAM' ? exam.enrollments.length > 0 : exam.classId === classId;
   if (!inExam) return null;
 
@@ -87,8 +89,8 @@ async function buildClassReport(prisma, examId, classId, opts = {}) {
         parts,
         total: obtained,
         maxMarks: sub.maxMarks,
-        grade: percentage === null ? null : gradeFor(percentage),
-        points: percentage === null ? null : pointsFor(percentage),
+        grade: percentage === null ? null : gradeFor(percentage, bands),
+        points: percentage === null ? null : pointsFor(percentage, bands),
       };
     });
 
@@ -112,7 +114,7 @@ async function buildClassReport(prisma, examId, classId, opts = {}) {
       maxTotal,
       percentage,
       gpa,
-      grade: percentage === null ? null : gradeFor(percentage),
+      grade: percentage === null ? null : gradeFor(percentage, bands),
       complete: subjects.length > 0 && entered.length === subjects.length,
     };
   });
@@ -134,6 +136,8 @@ async function buildClassReport(prisma, examId, classId, opts = {}) {
     class: { id: cls.id, name: cls.name, classTeacher: cls.classTeacher?.name || null },
     subjects,
     highestGpa,
+    gradeScale: bands,
+    passMark: passMark(bands),
     results: selected,
   };
 }

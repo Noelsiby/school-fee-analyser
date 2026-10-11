@@ -14,6 +14,7 @@ import ClassesPage            from './pages/admin/ClassesPage';
 import ClassDetailPage        from './pages/admin/ClassDetailPage';
 import TeachersPage           from './pages/admin/TeachersPage';
 import SubjectsPage           from './pages/admin/SubjectsPage';
+import GradingPage            from './pages/admin/GradingPage';
 import StudentsPage           from './pages/admin/StudentsPage';
 import ExamsPage              from './pages/admin/ExamsPage';
 import ExamResultsPage        from './pages/admin/ExamResultsPage';
@@ -76,6 +77,7 @@ function AppRoutes() {
         <Route path="classes/:id"  element={<ClassDetailPage />} />
         <Route path="teachers"     element={<TeachersPage />} />
         <Route path="subjects"     element={<SubjectsPage />} />
+        <Route path="grading"      element={<GradingPage />} />
         <Route path="students"     element={<StudentsPage />} />
         <Route path="exams"        element={<ExamsPage />} />
         <Route path="exams/:id/results" element={<ExamResultsPage />} />

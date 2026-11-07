@@ -17,6 +17,6 @@ router.put   ('/classes/:classId',            ctrl.saveRegister);
 router.get   ('/classes/:classId/summary',    ctrl.classSummary);
 router.get   ('/today',                       authorize('Admin', 'ClassTeacher'), ctrl.dayOverview);
 router.get   ('/students/:id',                ctrl.studentCalendar);
-router.post  ('/alerts',                      authorize('Admin', 'ClassTeacher'), ctrl.sendAlerts);
+router.post  ('/alerts',                      authorize('Admin'), ctrl.sendAlerts); // WhatsApp to parents: admin only
 
 module.exports = router;

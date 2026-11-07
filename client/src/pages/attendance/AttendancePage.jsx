@@ -78,7 +78,7 @@ export default function AttendancePage({ role }) {
         </div>
       )}
       <div className="data-card" style={{ padding: 20 }}>
-        {tab === 'take' && <AttendanceRegister initialClassId={params.get('class')} initialDate={params.get('date')} initialSlot={params.get('slot')} canInform={role !== 'subject-teacher'} />}
+        {tab === 'take' && <AttendanceRegister initialClassId={params.get('class')} initialDate={params.get('date')} initialSlot={params.get('slot')} canInform={role === 'admin'} />}
         {tab === 'today' && <AttendanceToday />}
         {tab === 'settings' && <AttendanceSettings />}
         {tab === 'month' && <MonthSummary />}

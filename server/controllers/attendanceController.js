@@ -219,6 +219,15 @@ exports.dayOverview = async (req, res) => {
     const classes = await prisma.class.findMany({ where, select: { id: true, name: true, _count: { select: { students: true } } } });
     const records = await prisma.attendanceRecord.findMany({ where: { date: att.toDate(date), classId: { in: classes.map((c) => c.id) } } });
     const holiday = await holidayOn(date);
+    // Who wasn't fully present: one row per student with each slot that wasn't "P"
+    const notPresentIds = [...new Set(records.filter((r) => r.status !== 'P').map((r) => r.studentId))];
+    const studentInfo = new Map((await prisma.student.findMany({
+      where: { id: { in: notPresentIds } },
+      select: { id: true, name: true, rollNumber: true, parentPhone: true },
+    })).map((s) => [s.id, s]));
+    const latestAlerts = await prisma.attendanceAlert.findMany({ where: { date: att.toDate(date), studentId: { in: notPresentIds } }, orderBy: { createdAt: 'desc' } });
+    const alertOf = new Map();
+    for (const a of latestAlerts) if (!alertOf.has(a.studentId)) alertOf.set(a.studentId, a.status);
 
     const schedules = await periodsLib.getSchedules(prisma);
     const slotsOf = (classId) => (settings.mode === 'periods'
@@ -242,6 +251,23 @@ exports.dayOverview = async (req, res) => {
         present: studentsTaken ? present : null,
         absent: studentsTaken ? studentsTaken - present : null,
         absentFirstSlot: absentNow,
+        // students absent, on leave or late, in roll order
+        notPresent: [...new Set(recs.filter((r) => r.status !== 'P').map((r) => r.studentId))]
+          .map((id) => {
+            const st = studentInfo.get(id);
+            const mine = recs.filter((r) => r.studentId === id);
+            const statuses = [...new Set(mine.map((r) => r.status))];
+            const status = statuses.includes('A') ? 'A' : statuses.includes('L') ? 'L' : 'T';
+            const missed = mine.filter((r) => r.status !== 'P' && r.status !== 'T').map((r) => r.slot);
+            return {
+              id, name: st?.name || '', rollNumber: st?.rollNumber || '', status,
+              reason: mine.find((r) => r.reason)?.reason || null,
+              slots: settings.mode === 'daily' ? [] : missed,
+              hasPhone: !!wa.normalizePhone(st?.parentPhone),
+              alert: alertOf.get(id) || null,
+            };
+          })
+          .sort((x, y) => String(x.rollNumber).localeCompare(String(y.rollNumber), undefined, { numeric: true })),
       };
     }).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
@@ -357,8 +383,8 @@ exports.sendAlerts = async (req, res) => {
   if (!att.isDateStr(date) || !ids.length) return res.status(400).json({ error: 'Choose the students to inform.' });
   if (!wa.isConfigured()) return res.status(503).json({ error: 'WhatsApp is not set up yet. Add RICHAUTOMATE_API_KEY in Render → Environment.' });
   try {
-    if (!isAdmin(req.user) && !(await isClassTeacherOf(req.user, classId))) {
-      return res.status(403).json({ error: 'Only the class teacher (or the admin) can inform parents.' });
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Only the admin can inform parents.' });
     }
     const settings = await att.getSettings(prisma);
     const slots = await att.slotsFor(prisma, settings.mode, classId, att.weekday(date));

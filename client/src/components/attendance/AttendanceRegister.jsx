@@ -17,7 +17,7 @@ const STATUS = [
  * Everyone starts as Present: tap only the absent students, then Save.
  * After saving, "Inform parents" sends WhatsApp messages to parents of absent students.
  */
-export default function AttendanceRegister({ initialClassId, initialDate, initialSlot, canInform = true }) {
+export default function AttendanceRegister({ initialClassId, initialDate, initialSlot, canInform = false }) {
   const { apiCall } = useApi();
   const [classes, setClasses] = useState(null);
   const [classId, setClassId] = useState(initialClassId ? String(initialClassId) : '');

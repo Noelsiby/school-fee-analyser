@@ -8,6 +8,7 @@ const admin = authorize('Admin');
 
 router.get   ('/periods',                     ctrl.getPeriods);
 router.put   ('/periods',                     admin, ctrl.savePeriods);
+router.delete('/periods',                     admin, ctrl.deleteAllPeriods);
 router.get   ('/overview',                    admin, ctrl.overview);
 router.post  ('/copy',                        admin, ctrl.copyTimetable);
 router.get   ('/classes/:classId',            ctrl.getClassTimetable);

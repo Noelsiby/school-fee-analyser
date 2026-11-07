@@ -276,11 +276,14 @@ function PeriodsTab({ onSaved }) {
   const [classes, setClasses] = useState([]);
   const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState('');
+  const [hasSaved, setHasSaved] = useState(false);  // periods exist on the server
+  const empty = [{ name: 'Whole school', classIds: [], periods: [], dayCounts: {} }];
 
   useEffect(() => {
     apiCall('/api/timetable/periods').then((d) => {
       setDays(d.days);
-      setSchedules(d.schedules.length ? d.schedules : [{ name: 'Whole school', classIds: [], periods: [], dayCounts: {} }]);
+      setHasSaved(d.saved);
+      setSchedules(d.schedules.length ? d.schedules : empty);
     }).catch(() => {});
     apiCall('/api/admin/classes').then((d) => setClasses([...d.classes].sort(byClassName))).catch(() => {});
   }, [apiCall]);
@@ -289,10 +292,29 @@ function PeriodsTab({ onSaved }) {
   const add = () => { setSchedules((l) => [...l, { name: `Period list ${l.length + 1}`, classIds: [], periods: [], dayCounts: {} }]); setDirty(true); };
   const remove = (i) => { setSchedules((l) => l.filter((_, k) => k !== i)); setDirty(true); };
 
+  // Remove every period list and every class timetable
+  const deleteAll = async (askFirst = true) => {
+    if (askFirst && !window.confirm('Delete ALL periods? Every period list and every class timetable will be cleared. This can\'t be undone.')) return;
+    try {
+      const d = await apiCall('/api/timetable/periods', { method: 'DELETE' });
+      setSchedules(empty); setDirty(false); setHasSaved(false);
+      setNotice(`✅ All periods deleted${d.removedCells ? `, and ${d.removedCells} timetable cell(s) cleared` : ''}.${d.attendanceChanged ? ' Attendance was set back to “once a day”.' : ''}`);
+      onSaved?.(false);
+    } catch (e) { setNotice(`⚠ ${e.message}`); }
+  };
+
   const save = async () => {
+    // Every period removed from the only list → that means "delete all periods"
+    const noPeriods = schedules.length === 1 && !schedules[0].periods.some((p) => !p.isBreak);
+    if (noPeriods) {
+      if (!hasSaved) { setNotice('⚠ Add at least one period first.'); return; }
+      if (!window.confirm('You removed every period. Delete all periods and clear every class timetable?')) return;
+      await deleteAll(false);
+      return;
+    }
     try {
       const d = await apiCall('/api/timetable/periods', { method: 'PUT', body: { schedules } });
-      setSchedules(d.schedules); setDirty(false);
+      setSchedules(d.schedules); setDirty(false); setHasSaved(true);
       setNotice(`✅ Periods saved.${d.removedCells ? ` ${d.removedCells} timetable cell(s) for periods that no longer exist were cleared.` : ''}`);
       onSaved?.();
     } catch (e) { setNotice(`⚠ ${e.message}`); }
@@ -314,6 +336,7 @@ function PeriodsTab({ onSaved }) {
       <div className="tt-actions">
         <button className="btn btn-ghost" onClick={add}>+ Another period list for some classes</button>
         <button className="btn btn-primary" disabled={!dirty} onClick={save}>Save periods</button>
+        {hasSaved && <button className="btn btn-danger" onClick={() => deleteAll()}>🗑️ Delete all periods</button>}
         <span className="an-muted">Removing a period also clears it from the timetables that used it.</span>
       </div>
     </div>
@@ -431,7 +454,7 @@ export default function TimetablePage() {
             {tab === 'all' && <AllTab />}
             {tab === 'teachers' && <TeacherTab />}
             {tab === 'subs' && <SubsTab />}
-            {tab === 'periods' && <PeriodsTab onSaved={() => setPeriodsSaved(true)} />}
+            {tab === 'periods' && <PeriodsTab onSaved={(saved = true) => setPeriodsSaved(saved)} />}
           </>
         )}
       </div>

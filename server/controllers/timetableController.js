@@ -75,6 +75,23 @@ exports.savePeriods = async (req, res) => {
   } catch (err) { fail(res, err); }
 };
 
+// ── DELETE /api/timetable/periods ── admin: remove every period list and every class timetable
+// If attendance was taken "every period", it goes back to "once a day" (attendance already taken is kept).
+exports.deleteAllPeriods = async (req, res) => {
+  try {
+    const removed = await prisma.timetableEntry.deleteMany({});
+    await prisma.appSetting.deleteMany({ where: { key: { in: [periodsLib.KEY, 'periods'] } } });
+    const settings = await att.getSettings(prisma);
+    let attendanceChanged = false;
+    if (settings.mode === 'periods') {
+      const value = { ...settings, mode: 'daily' };
+      await prisma.appSetting.upsert({ where: { key: att.ATTENDANCE_KEY }, create: { key: att.ATTENDANCE_KEY, value }, update: { value } });
+      attendanceChanged = true;
+    }
+    res.json({ removedCells: removed.count, attendanceChanged });
+  } catch (err) { fail(res, err); }
+};
+
 // ── GET /api/timetable/classes/:classId ── one class's week, its subjects and teachers
 exports.getClassTimetable = async (req, res) => {
   const classId = Number(req.params.classId);

@@ -9,6 +9,37 @@
 const { MAIN, PARTS, partKeys } = require('./components');
 const { gradeFor, pointsFor, passMark, loadGradeScale } = require('./grades');
 const { byRoll } = require('./rollOrder');
+const att = require('./attendance');
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Attendance for the report card, academic year to date: the last 3 months that have
+ * attendance, plus the year total, per student → { studentId: { months: [...], total } }.
+ */
+async function attendanceForReport(prisma, classId, studentIds) {
+  const today = att.todayIST();
+  const settings = await att.getSettings(prisma);
+  const records = await prisma.attendanceRecord.findMany({
+    where: { classId, studentId: { in: studentIds }, date: { gte: att.toDate(att.academicYearStart(today)), lte: att.toDate(today) } },
+  });
+  if (!records.length) return {};
+  const monthKeys = [...new Set(records.map((r) => att.ymd(r.date).slice(0, 7)))].sort().slice(-3);
+  const yearTotals = att.totals(records, settings.mode, settings.periodRule);
+  const monthTotals = Object.fromEntries(monthKeys.map((m) => [m, att.totals(records.filter((r) => att.ymd(r.date).startsWith(m)), settings.mode, settings.periodRule)]));
+  const out = {};
+  for (const id of studentIds) {
+    out[id] = {
+      months: monthKeys.map((m) => ({
+        label: `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`,
+        days: monthTotals[m][id]?.days ?? 0,
+        present: monthTotals[m][id]?.present ?? 0,
+      })),
+      total: yearTotals[id] || { days: 0, present: 0, percent: null },
+    };
+  }
+  return out;
+}
 
 // Usual report-card order; anything not matched goes after these, alphabetically.
 const SUBJECT_ORDER = [
@@ -123,6 +154,23 @@ async function buildClassReport(prisma, examId, classId, opts = {}) {
   const highestGpa = gpas.length ? Math.max(...gpas) : null;
 
   let selected = opts.studentId ? results.filter((r) => r.student.id === opts.studentId) : results;
+
+  // Attendance (when the school takes it) and earlier results, for the report card
+  const ids = selected.map((r) => r.student.id);
+  const attendance = await attendanceForReport(prisma, classId, ids).catch(() => ({}));
+  const earlier = await prisma.resultSnapshot.findMany({
+    where: { studentId: { in: ids }, examId: { not: examId }, examDate: { lt: exam.createdAt }, complete: true },
+    orderBy: { examDate: 'asc' },
+    select: { studentId: true, examName: true, percentage: true },
+  }).catch(() => []);
+  selected = selected.map((r) => ({
+    ...r,
+    attendance: attendance[r.student.id] || null,
+    history: [
+      ...earlier.filter((e) => e.studentId === r.student.id).slice(-4).map((e) => ({ examName: e.examName, percentage: e.percentage })),
+      ...(r.percentage !== null && r.complete ? [{ examName: exam.name, percentage: r.percentage, current: true }] : []),
+    ],
+  }));
 
   if (opts.withPhotos) {
     const ids = selected.filter((r) => r.student.hasPhoto).map((r) => r.student.id);

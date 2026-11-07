@@ -1,0 +1,56 @@
+# Daily backup of the school database.
+#
+# The backup is ENCRYPTED with BACKUP_PASSPHRASE before it leaves the runner, because
+# this repository is public and the data includes students' personal details.
+# Backups are kept for 30 days as workflow artifacts. See docs/BACKUP-RESTORE.md.
+#
+# Repository secrets (GitHub → Settings → Secrets and variables → Actions):
+#   BACKUP_DATABASE_URL  the same database URL as DATABASE_URL in Render
+#   BACKUP_PASSPHRASE    a long password; keep a copy somewhere safe — without it a backup can't be opened
+
+name: Daily database backup
+
+on:
+  schedule:
+    - cron: '30 20 * * *'   # every day at 20:30 UTC = 2:00 AM India time
+  workflow_dispatch:         # "Run workflow" button for a backup right now
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Dump and encrypt the database
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Add the BACKUP_DATABASE_URL and BACKUP_PASSPHRASE repository secrets first."
+            exit 1
+          fi
+          name="matha-db-$(date -u +%Y-%m-%d).dump.gpg"
+          # pg_dump from the official PostgreSQL 18 image (works with older servers too)
+          docker run --rm -e DATABASE_URL postgres:18 \
+              sh -c 'pg_dump --format=custom --no-owner --no-privileges "$DATABASE_URL"' \
+            | gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
+                  --passphrase-fd 3 --output "$name" 3<<<"$BACKUP_PASSPHRASE"
+          size=$(stat -c %s "$name")
+          if [ "$size" -lt 10000 ]; then
+            echo "::error::Backup is only $size bytes, something went wrong."
+            exit 1
+          fi
+          echo "Backup $name: $size bytes"
+          echo "BACKUP_FILE=$name" >> "$GITHUB_ENV"
+
+      - name: Keep the backup for 30 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BACKUP_FILE }}
+          path: ${{ env.BACKUP_FILE }}
+          retention-days: 30
+          if-no-files-found: error

@@ -81,6 +81,18 @@ exports.send = async (req, res) => {
 
     res.json({ queued: queued.length, skipped });
 
+    // "82.65% (up 4.2% from FA-1)": change since the student's previous saved result.
+    const exam = await prisma.exam.findUnique({ where: { id: examId }, select: { createdAt: true } });
+    const progress = async (studentId, pct) => {
+      const prev = await prisma.resultSnapshot.findFirst({
+        where: { studentId, examId: { not: examId }, examDate: { lt: exam.createdAt }, complete: true },
+        orderBy: { examDate: 'desc' },
+      });
+      if (!prev || prev.percentage === null) return `${pct}%`;
+      const d = Math.round((pct - prev.percentage) * 10) / 10;
+      return d === 0 ? `${pct}% (same as ${prev.examName})` : `${pct}% (${d > 0 ? 'up' : 'down'} ${Math.abs(d)}% from ${prev.examName})`;
+    };
+
     // Send in the background, one at a time.
     (async () => {
       for (const { row, result } of queued) {
@@ -91,7 +103,7 @@ exports.send = async (req, res) => {
           report.exam.name,
           marksLine(report, result),
           `${result.total}/${result.maxTotal}`,
-          `${result.percentage}%`,
+          await progress(result.student.id, result.percentage).catch(() => `${result.percentage}%`),
           result.grade,
         ];
         try {

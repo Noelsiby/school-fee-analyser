@@ -100,6 +100,8 @@ const BASE = {
 
   footer: { position: 'absolute', bottom: 12, left: 26, right: 26, flexDirection: 'row', justifyContent: 'space-between', fontSize: 6.5, color: '#94a3b8' },
   photoHint: { color: MUTED, fontSize: 7 },
+  progress: { fontSize: 8, color: INK, marginTop: -3, marginBottom: 7 },
+  progressLabel: { fontFamily: 'Helvetica-Bold', color: NAVY, fontSize: 7.5, letterSpacing: 0.6 },
 };
 
 // Style values that are not sizes, so they must not be scaled.
@@ -249,7 +251,15 @@ function StudentPage({ report, result, generatedOn, paper }) {
         <View style={[s.card, s.cardLast]}><Text style={s.cardValue}>{show(report.highestGpa) ?? '—'}</Text><Text style={s.cardLabel}>Highest GPA in Class</Text></View>
       </View>
 
-      {/* Attendance (filled in by hand) + remarks */}
+      {/* Progress across exams (when earlier results exist) */}
+      {result.history?.length > 1 && (
+        <Text style={s.progress}>
+          <Text style={s.progressLabel}>PROGRESS  </Text>
+          {result.history.map((h) => `${h.examName} ${h.percentage}%`).join('   ·   ')}
+        </Text>
+      )}
+
+      {/* Attendance (from the app, or filled in by hand) + remarks */}
       <View style={s.twoCol}>
         <View style={s.attendance}>
           <Text style={s.sectionTitle}>Attendance</Text>
@@ -259,17 +269,23 @@ function StudentPage({ report, result, generatedOn, paper }) {
               <Text style={[s.th, { width: '33%' }]}>Working Days</Text>
               <Text style={[s.th, { width: '33%' }]}>Days Present</Text>
             </View>
-            {[0, 1, 2].map((k) => (
-              <View key={k} style={[s.tr, s.blankRow]}>
-                <Text style={{ width: '34%', borderRightWidth: 1, borderRightColor: LINE, height: '100%' }} />
-                <Text style={{ width: '33%', borderRightWidth: 1, borderRightColor: LINE, height: '100%' }} />
-                <Text style={{ width: '33%' }} />
-              </View>
-            ))}
+            {/* From the attendance taken in the app (last 3 months); blank lines to fill in by hand when there is none */}
+            {[0, 1, 2].map((k) => {
+              const m = result.attendance?.months[k];
+              return (
+                <View key={k} style={[s.tr, s.blankRow]}>
+                  <Text style={[s.td, { width: '34%', borderRightWidth: 1, borderRightColor: LINE, height: '100%' }]}>{m?.label || ''}</Text>
+                  <Text style={[s.td, { width: '33%', borderRightWidth: 1, borderRightColor: LINE, height: '100%' }]}>{m ? m.days : ''}</Text>
+                  <Text style={[s.td, { width: '33%' }]}>{m ? m.present : ''}</Text>
+                </View>
+              );
+            })}
             <View style={[s.tr, s.blankRow, s.totalRow, { borderBottomWidth: 0 }]}>
-              <Text style={[s.td, { width: '34%', borderRightWidth: 1, borderRightColor: LINE }]}>TOTAL</Text>
-              <Text style={{ width: '33%', borderRightWidth: 1, borderRightColor: LINE, height: '100%' }} />
-              <Text style={{ width: '33%' }} />
+              <Text style={[s.td, { width: '34%', borderRightWidth: 1, borderRightColor: LINE }]}>{result.attendance ? 'THIS YEAR' : 'TOTAL'}</Text>
+              <Text style={[s.td, { width: '33%', borderRightWidth: 1, borderRightColor: LINE, height: '100%' }]}>{result.attendance ? result.attendance.total.days : ''}</Text>
+              <Text style={[s.td, { width: '33%' }]}>
+                {result.attendance ? `${result.attendance.total.present}${result.attendance.total.percent !== null ? ` (${result.attendance.total.percent}%)` : ''}` : ''}
+              </Text>
             </View>
           </View>
         </View>

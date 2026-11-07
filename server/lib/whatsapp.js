@@ -12,6 +12,8 @@
  *   {{1}} student name  {{2}} class  {{3}} roll no  {{4}} exam
  *   {{5}} subject marks (one line)  {{6}} total  {{7}} percentage  {{8}} grade
  * Notice template variables: {{1}} subject  {{2}} message
+ * Absence template (WHATSAPP_ABSENCE_TEMPLATE, default "absence_alert"):
+ *   {{1}} student name  {{2}} class  {{3}} date  {{4}} when ("today", "in the afternoon", "in periods 5–7")
  */
 
 const baseUrl = () => (process.env.RICHAUTOMATE_BASE_URL || 'https://richautomate.in/api/v1').replace(/\/$/, '');
@@ -72,6 +74,10 @@ async function sendTemplate(phone, template, variables) {
 const sendResultTemplate = (phone, variables) =>
   sendTemplate(phone, process.env.WHATSAPP_TEMPLATE || 'exam_result', variables);
 
+/** Absent today: [student name, class, date, when]. */
+const sendAbsenceTemplate = (phone, variables) =>
+  sendTemplate(phone, process.env.WHATSAPP_ABSENCE_TEMPLATE || 'absence_alert', variables);
+
 /** School notice: [subject, message]. */
 const sendNoticeTemplate = (phone, variables) =>
   sendTemplate(phone, process.env.WHATSAPP_NOTICE_TEMPLATE || 'school_notice', variables);
@@ -84,4 +90,4 @@ async function fetchStatus(providerMessageId) {
   return { status, error: error ? String(error) : null };
 }
 
-module.exports = { isConfigured, normalizePhone, clean, sendResultTemplate, sendNoticeTemplate, fetchStatus, SENT_STATUSES };
+module.exports = { isConfigured, normalizePhone, clean, sendResultTemplate, sendNoticeTemplate, sendAbsenceTemplate, fetchStatus, SENT_STATUSES };

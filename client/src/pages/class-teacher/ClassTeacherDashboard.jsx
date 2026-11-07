@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApi } from '../../hooks/useApi';
 import MyStudentsList from './MyStudentsList';
+import AttendanceToday from '../../components/attendance/AttendanceToday';
+import MyDay from '../../components/timetable/MyDay';
+import SubjectWatch from '../../components/analysis/SubjectWatch';
+import '../../components/analysis/Analysis.css';
 import '../admin/admin.css'; 
 
 export default function ClassTeacherDashboard() {
@@ -36,6 +40,12 @@ export default function ClassTeacherDashboard() {
           <p className="page-sub">Welcome back, {user?.name}. Manage exams for your class.</p>
         </div>
       </div>
+
+      <div className="data-card an-card" style={{ marginBottom: 16 }}>
+        <AttendanceToday compact onOpen={() => navigate('/class-teacher/attendance')} />
+      </div>
+      <MyDay attendancePath="/class-teacher/attendance" />
+      <SubjectWatch profileBase="/class-teacher/students" />
 
       <MyStudentsList />
 

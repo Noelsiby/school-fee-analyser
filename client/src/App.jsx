@@ -16,6 +16,12 @@ import TeachersPage           from './pages/admin/TeachersPage';
 import SubjectsPage           from './pages/admin/SubjectsPage';
 import GradingPage            from './pages/admin/GradingPage';
 import MessagesPage           from './pages/admin/MessagesPage';
+import AssistantPage          from './pages/admin/AssistantPage';
+import AnalyserPage           from './pages/analysis/AnalyserPage';
+import QuickAnswersPage       from './pages/admin/QuickAnswersPage';
+import AtRiskPage             from './pages/admin/AtRiskPage';
+import AttendancePage         from './pages/attendance/AttendancePage';
+import TimetablePage          from './pages/timetable/TimetablePage';
 import StudentsPage           from './pages/admin/StudentsPage';
 import ExamsPage              from './pages/admin/ExamsPage';
 import ExamResultsPage        from './pages/admin/ExamResultsPage';
@@ -79,7 +85,12 @@ function AppRoutes() {
         <Route path="teachers"     element={<TeachersPage />} />
         <Route path="subjects"     element={<SubjectsPage />} />
         <Route path="grading"      element={<GradingPage />} />
+        <Route path="quick-answers" element={<QuickAnswersPage />} />
+        <Route path="attendance"   element={<AttendancePage role="admin" />} />
+        <Route path="timetable"    element={<TimetablePage />} />
+        <Route path="at-risk"      element={<AtRiskPage />} />
         <Route path="messages"     element={<MessagesPage />} />
+        <Route path="assistant"    element={<AssistantPage />} />
         <Route path="students"     element={<StudentsPage />} />
         <Route path="exams"        element={<ExamsPage />} />
         <Route path="exams/:id/results" element={<ExamResultsPage />} />
@@ -98,6 +109,8 @@ function AppRoutes() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<ClassTeacherDashboard />} />
         <Route path="exams/:id/review" element={<ExamReviewPage />} />
+        <Route path="analyser" element={<AnalyserPage role="class-teacher" />} />
+        <Route path="attendance" element={<AttendancePage role="class-teacher" />} />
         <Route path="students/:id" element={<StudentProfilePage />} />
       </Route>
 
@@ -113,6 +126,8 @@ function AppRoutes() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<SubjectTeacherDashboard />} />
         <Route path="exams/:examId/subjects/:subjectId/marks" element={<MarksEntryPage />} />
+        <Route path="analyser" element={<AnalyserPage role="subject-teacher" />} />
+        <Route path="attendance" element={<AttendancePage role="subject-teacher" />} />
       </Route>
 
       {/* ── Root + catch-all ────────────────────────────────────── */}

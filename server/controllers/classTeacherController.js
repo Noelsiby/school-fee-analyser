@@ -1,6 +1,7 @@
 const { PrismaClient, Prisma } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { gradeFor } = require('../lib/grades');
+const { snapshotClass } = require('../lib/snapshots');
 const { partKeys, parseComponentMarks, sameComponentMarks, maxMarksUpdate, reconcileMarkOps } = require('../lib/components');
 
 // Fetch exams for classes the teacher manages
@@ -611,6 +612,10 @@ exports.finalizeExam = async (req, res) => {
         data: { status: 'Closed', isLocked: true }
       });
     }
+
+    // Keep a permanent copy of every student's result for the Performance Analyser
+    await snapshotClass(prisma, Number(id), Number(classId))
+      .catch((e) => console.error('[snapshots] finalize', e));
 
     const admins = await prisma.user.findMany({
       where: { roles: { has: 'Admin' } }

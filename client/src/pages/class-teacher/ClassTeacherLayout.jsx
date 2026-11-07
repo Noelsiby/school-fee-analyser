@@ -6,6 +6,8 @@ import '../admin/AdminLayout.css';
 
 const NAV = [
   { path: '/class-teacher/dashboard', label: 'Dashboard', icon: '📊' },
+  { path: '/class-teacher/attendance', label: 'Attendance', icon: '✅' },
+  { path: '/class-teacher/analyser',  label: 'Analyser',  icon: '📈' },
 ];
 
 export default function ClassTeacherLayout() {

@@ -4,8 +4,8 @@
 
 /** Roll number order: numeric where possible ("2" before "10"), then name. */
 export const byRoll = (a, b) =>
-  String(a.rollNumber).localeCompare(String(b.rollNumber), undefined, { numeric: true })
-  || a.name.localeCompare(b.name);
+  String(a.rollNumber ?? '').localeCompare(String(b.rollNumber ?? ''), undefined, { numeric: true })
+  || String(a.name ?? '').localeCompare(String(b.name ?? ''));
 
 /** Next free roll number for a new student, zero-padded like the rest ("031"). */
 export function nextRoll(students) {

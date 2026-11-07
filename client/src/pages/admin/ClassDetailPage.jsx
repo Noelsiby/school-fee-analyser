@@ -6,6 +6,8 @@ import { ClassPicker, PartsPicker, byClassName } from '../../components/SubjectF
 import ClassReportsTab from './ClassReportsTab';
 import { formatPhone } from '../../utils/whatsappStatus';
 import { byRoll, nextRoll } from '../../utils/rollOrder';
+import ClassAnalyser from '../../components/analysis/ClassAnalyser';
+import TimetableGrid from '../../components/timetable/TimetableGrid';
 import './admin.css';
 import './ClassDetailPage.css';
 
@@ -674,6 +676,8 @@ const TABS = [
   { key: 'subjects',      label: '📚 Subjects' },
   { key: 'assignments',   label: '📋 Teacher Assignments' },
   { key: 'reports',       label: '📄 Reports & WhatsApp' },
+  { key: 'timetable',     label: '🗓️ Timetable' },
+  { key: 'analyser',      label: '📈 Analyser' },
 ];
 
 export default function ClassDetailPage() {
@@ -781,6 +785,8 @@ export default function ClassDetailPage() {
         {activeTab === 'subjects'      && <SubjectsTab         cls={cls} allClasses={allClasses} onRefresh={load} />}
         {activeTab === 'assignments'   && <TeacherAssignmentsTab cls={cls} teachers={teachers} onRefresh={load} />}
         {activeTab === 'reports'       && <ClassReportsTab cls={cls} />}
+        {activeTab === 'timetable'     && <div className="tab-content"><TimetableGrid classId={cls.id} editable /></div>}
+        {activeTab === 'analyser'      && <div className="tab-content"><ClassAnalyser classId={cls.id} profileBase="/admin/students" /></div>}
       </div>
     </div>
   );

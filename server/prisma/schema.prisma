@@ -73,29 +73,29 @@ enum NotificationType {
 // ============================================================
 
 model User {
-  id              Int      @id @default(autoincrement())
-  name            String
-  email           String   @unique
-  passwordHash    String
-  roles           Role[]   // e.g. [ClassTeacher, SubjectTeacher] simultaneously
-  profilePicUrl   String?
-  createdAt       DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  roles         Role[] // e.g. [ClassTeacher, SubjectTeacher] simultaneously
+  profilePicUrl String?
+  createdAt     DateTime @default(now())
 
   // Relations — as ClassTeacher assigned to a class
-  classesManaged        Class[]                  @relation("ClassTeacher")
+  classesManaged Class[] @relation("ClassTeacher")
 
   // Relations — as subject teacher
-  subjectAssignments    TeacherSubjectAssignment[]
+  subjectAssignments TeacherSubjectAssignment[]
 
   // Marks entered/edited by this user
-  marksEntered          Mark[]                   @relation("EnteredBy")
-  marksLastEdited       Mark[]                   @relation("LastEditedBy")
+  marksEntered    Mark[] @relation("EnteredBy")
+  marksLastEdited Mark[] @relation("LastEditedBy")
 
   // Audit trail authored by this user
-  auditLogs             AuditLog[]
+  auditLogs AuditLog[]
 
   // Notifications for this user
-  notifications         Notification[]
+  notifications Notification[]
 
   @@index([email])
   @@map("users")
@@ -106,27 +106,29 @@ model User {
 // ============================================================
 
 model Class {
-  id             Int     @id @default(autoincrement())
-  name           String  @unique  // e.g. "10-A", "9-B"
+  id   Int    @id @default(autoincrement())
+  name String @unique // e.g. "10-A", "9-B"
 
   // Class teacher (optional — assigned after class creation)
   classTeacherId Int?
-  classTeacher   User?   @relation("ClassTeacher", fields: [classTeacherId], references: [id])
+  classTeacher   User? @relation("ClassTeacher", fields: [classTeacherId], references: [id])
 
   // A class has multiple subjects
-  subjects       Subject[]
+  subjects Subject[]
 
   // A class has multiple exams (CLASS_EXAM)
-  exams          Exam[]
+  exams Exam[]
 
   // Internal exam enrollments
-  internalExams  ExamClassEnrollment[]
+  internalExams ExamClassEnrollment[]
 
   // A class has multiple teacher-subject assignments
   teacherAssignments TeacherSubjectAssignment[]
 
   // Students enrolled in this class
-  students       Student[]
+  students Student[]
+
+  timetable TimetableEntry[]
 
   @@index([classTeacherId])
   @@map("classes")
@@ -137,8 +139,8 @@ model Class {
 // ============================================================
 
 model Subject {
-  id      Int    @id @default(autoincrement())
-  name    String // e.g. "Mathematics", "English"
+  id   Int    @id @default(autoincrement())
+  name String // e.g. "Mathematics", "English"
 
   // Extra parts marked on top of the subject's main mark, any of
   // "Reading", "Writing", "Dictation" (see server/lib/components.js).
@@ -147,18 +149,18 @@ model Subject {
 
   // A subject belongs to exactly one class
   classId Int
-  class   Class  @relation(fields: [classId], references: [id])
+  class   Class @relation(fields: [classId], references: [id])
 
   // Teacher-subject assignments
-  teacherAssignments  TeacherSubjectAssignment[]
+  teacherAssignments TeacherSubjectAssignment[]
 
   // Exam subject configurations
-  examConfigs         ExamSubjectConfig[]
+  examConfigs ExamSubjectConfig[]
 
   // Marks for this subject
-  marks               Mark[]
+  marks Mark[]
 
-  @@unique([name, classId])  // Same subject name can exist in different classes
+  @@unique([name, classId]) // Same subject name can exist in different classes
   @@index([classId])
   @@map("subjects")
 }
@@ -172,18 +174,18 @@ model Subject {
 //  must match subject.classId — enforced at the application layer)
 
 model TeacherSubjectAssignment {
-  id        Int  @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   teacherId Int
-  teacher   User    @relation(fields: [teacherId], references: [id])
+  teacher   User @relation(fields: [teacherId], references: [id])
 
   subjectId Int
   subject   Subject @relation(fields: [subjectId], references: [id])
 
-  classId   Int
-  class     Class   @relation(fields: [classId], references: [id])
+  classId Int
+  class   Class @relation(fields: [classId], references: [id])
 
-  @@unique([teacherId, subjectId, classId])  // Prevent duplicate assignments
+  @@unique([teacherId, subjectId, classId]) // Prevent duplicate assignments
   @@index([teacherId])
   @@index([subjectId])
   @@index([classId])
@@ -197,35 +199,40 @@ model TeacherSubjectAssignment {
 // Authentication is only for staff (Users).
 
 model Student {
-  id          Int    @id @default(autoincrement())
-  name        String
-  rollNumber  String // Roll number within the class
+  id         Int    @id @default(autoincrement())
+  name       String
+  rollNumber String // Roll number within the class
 
-  classId     Int
-  class       Class  @relation(fields: [classId], references: [id])
+  classId Int
+  class   Class @relation(fields: [classId], references: [id])
 
   // Profile (Bio Data on the progress report). All optional.
-  fatherName     String?   // Father's / Guardian's name
-  section        String?
-  admissionNo    String?
-  admissionDate  DateTime?
-  dateOfBirth    DateTime?
-  bloodGroup     String?
-  idMark1        String?   // Identification marks ("Moles") 1 and 2
-  idMark2        String?
-  address        String?
-  aadhaarNo      String?
-  apaarNo        String?
-  phoneRes       String?   // Residence phone
-  parentPhone    String?   // Cell — results are sent here on WhatsApp
+  fatherName    String? // Father's / Guardian's name
+  section       String?
+  admissionNo   String?
+  admissionDate DateTime?
+  dateOfBirth   DateTime?
+  bloodGroup    String?
+  idMark1       String? // Identification marks ("Moles") 1 and 2
+  idMark2       String?
+  address       String?
+  aadhaarNo     String?
+  apaarNo       String?
+  phoneRes      String? // Residence phone
+  parentPhone   String? // Cell — results are sent here on WhatsApp
 
   // Marks obtained by this student
-  marks       Mark[]
+  marks Mark[]
 
   photo            StudentPhoto?
   whatsappMessages WhatsAppMessage[]
 
-  @@unique([rollNumber, classId])  // Roll numbers unique per class
+  resultSnapshots  ResultSnapshot[]
+  notes            StudentNote[]
+  attendance       AttendanceRecord[]
+  attendanceAlerts AttendanceAlert[]
+
+  @@unique([rollNumber, classId]) // Roll numbers unique per class
   @@index([classId])
   @@map("students")
 }
@@ -240,45 +247,45 @@ enum ExamType {
 }
 
 model ExamClassEnrollment {
-  examId    Int
-  classId   Int
+  examId  Int
+  classId Int
 
-  exam      Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
-  class     Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+  exam  Exam  @relation(fields: [examId], references: [id], onDelete: Cascade)
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
 
   // Tracks if the Class Teacher has approved this specific class's portion of the Internal Exam
-  isLocked  Boolean @default(false)
-  status    EnrollmentStatus @default(Pending)
+  isLocked Boolean          @default(false)
+  status   EnrollmentStatus @default(Pending)
 
   @@id([examId, classId])
   @@map("exam_class_enrollments")
 }
 
 model Exam {
-  id        Int      @id @default(autoincrement())
-  name      String
-  examType  ExamType @default(CLASS_EXAM)
+  id       Int      @id @default(autoincrement())
+  name     String
+  examType ExamType @default(CLASS_EXAM)
 
   // For CLASS_EXAM: A single class is linked directly
-  classId   Int?
-  class     Class?   @relation(fields: [classId], references: [id])
+  classId Int?
+  class   Class? @relation(fields: [classId], references: [id])
 
   // For INTERNAL_EXAM: Multiple classes can be enrolled
   enrollments ExamClassEnrollment[]
 
-  deadline  DateTime?
-  status    ExamStatus @default(Draft)
-  isLocked  Boolean    @default(false)
+  deadline DateTime?
+  status   ExamStatus @default(Draft)
+  isLocked Boolean    @default(false)
 
-  subjectConfigs ExamSubjectConfig[]
-  marks          Mark[]
+  subjectConfigs   ExamSubjectConfig[]
+  marks            Mark[]
   whatsappMessages WhatsAppMessage[]
 
-  isPublished    Boolean    @default(false)
-  publishedAt    DateTime?
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
 
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@map("exams")
@@ -290,22 +297,22 @@ model Exam {
 // Defines which subjects are part of an exam and their max marks.
 
 model ExamSubjectConfig {
-  id        Int  @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  examId    Int
-  exam      Exam    @relation(fields: [examId], references: [id])
+  examId Int
+  exam   Exam @relation(fields: [examId], references: [id])
 
   subjectId Int
   subject   Subject @relation(fields: [subjectId], references: [id])
 
-  maxMarks  Float   // Allows decimal max marks (e.g. 33.5)
+  maxMarks Float // Allows decimal max marks (e.g. 33.5)
 
   // Main mark + extra parts for this exam, e.g. {"Main":50,"Reading":5,"Writing":5}.
   // Null when the subject has no parts in this exam. When set, maxMarks is the sum.
   // Snapshotted per exam, so changing Subject.components later never breaks an existing exam.
   componentMaxMarks Json?
 
-  @@unique([examId, subjectId])  // One config per exam-subject pair
+  @@unique([examId, subjectId]) // One config per exam-subject pair
   @@index([examId])
   @@index([subjectId])
   @@map("exam_subject_configs")
@@ -317,36 +324,36 @@ model ExamSubjectConfig {
 // The core operational record: one row per student × subject × exam.
 
 model Mark {
-  id             Int        @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  examId         Int
-  exam           Exam       @relation(fields: [examId], references: [id])
+  examId Int
+  exam   Exam @relation(fields: [examId], references: [id])
 
-  subjectId      Int
-  subject        Subject    @relation(fields: [subjectId], references: [id])
+  subjectId Int
+  subject   Subject @relation(fields: [subjectId], references: [id])
 
-  studentId      Int
-  student        Student    @relation(fields: [studentId], references: [id])
+  studentId Int
+  student   Student @relation(fields: [studentId], references: [id])
 
-  marksObtained  Float?     // Null means not yet entered
+  marksObtained Float? // Null means not yet entered
 
   // Main mark + parts, e.g. {"Main":40,"Reading":5,"Writing":4} (same keys as the exam config).
   // marksObtained holds their sum once every key is entered (null until then).
   componentMarks Json?
 
   // Who entered the mark initially
-  enteredById    Int
-  enteredBy      User       @relation("EnteredBy", fields: [enteredById], references: [id])
+  enteredById Int
+  enteredBy   User @relation("EnteredBy", fields: [enteredById], references: [id])
 
-  status         MarkStatus @default(Pending)
-  rejectionReason String?   // Populated when status = Rejected
+  status          MarkStatus @default(Pending)
+  rejectionReason String? // Populated when status = Rejected
 
   // Audit fields for the mark record itself
   lastEditedById Int
-  lastEditedBy   User       @relation("LastEditedBy", fields: [lastEditedById], references: [id])
-  lastEditedAt   DateTime   @updatedAt
+  lastEditedBy   User     @relation("LastEditedBy", fields: [lastEditedById], references: [id])
+  lastEditedAt   DateTime @updatedAt
 
-  @@unique([examId, subjectId, studentId])  // One mark per student per subject per exam
+  @@unique([examId, subjectId, studentId]) // One mark per student per subject per exam
   @@index([examId])
   @@index([subjectId])
   @@index([studentId])
@@ -363,19 +370,19 @@ model Mark {
 // as JSON for schema flexibility.
 
 model AuditLog {
-  id          Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  tableName   String   // e.g. "marks", "exams"
-  recordId    String   // String to accommodate any PK type
-  action      String   // "CREATE" | "UPDATE" | "DELETE"
+  tableName String // e.g. "marks", "exams"
+  recordId  String // String to accommodate any PK type
+  action    String // "CREATE" | "UPDATE" | "DELETE"
 
-  oldValue    Json?    // Snapshot before change
-  newValue    Json?    // Snapshot after change
+  oldValue Json? // Snapshot before change
+  newValue Json? // Snapshot after change
 
   changedById Int
-  changedBy   User     @relation(fields: [changedById], references: [id])
+  changedBy   User @relation(fields: [changedById], references: [id])
 
-  changedAt   DateTime @default(now())
+  changedAt DateTime @default(now())
 
   @@index([tableName, recordId])
   @@index([changedById])
@@ -388,16 +395,16 @@ model AuditLog {
 // ============================================================
 
 model Notification {
-  id        Int              @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  userId    Int
-  user      User             @relation(fields: [userId], references: [id])
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
 
-  message   String
-  type      NotificationType @default(Info)
-  isRead    Boolean          @default(false)
+  message String
+  type    NotificationType @default(Info)
+  isRead  Boolean          @default(false)
 
-  createdAt DateTime         @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([isRead])
@@ -427,22 +434,22 @@ model StudentPhoto {
 // status: queued | sent | delivered | read | failed | skipped
 
 model WhatsAppMessage {
-  id                Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  examId            Int
-  exam              Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  examId Int
+  exam   Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
 
-  studentId         Int
-  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId Int
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   phone             String
-  status            String   @default("queued")
+  status            String  @default("queued")
   providerMessageId String?
   error             String?
   sentById          Int?
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([examId, studentId])
   @@index([status])
@@ -487,7 +494,7 @@ model NoticeMessage {
   noticeId          Int
   notice            Notice   @relation(fields: [noticeId], references: [id], onDelete: Cascade)
   phone             String
-  students          String   // "Arun Kumar (Class 6), Divya (Class 2)" — who this parent is for
+  students          String // "Arun Kumar (Class 6), Divya (Class 2)" — who this parent is for
   status            String   @default("queued") // queued | sent | delivered | read | failed
   providerMessageId String?
   error             String?
@@ -497,4 +504,183 @@ model NoticeMessage {
   @@index([noticeId])
   @@index([status])
   @@map("notice_messages")
+}
+
+// ============================================================
+// AI ASSISTANT USAGE
+// ============================================================
+// One row per question asked to the admin's AI assistant: tokens used and the
+// estimated cost, so a monthly spending limit can be enforced. Answers are not stored.
+
+model AssistantUsage {
+  id               Int      @id @default(autoincrement())
+  userId           Int?
+  question         String
+  model            String
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
+  cacheReadTokens  Int      @default(0)
+  cacheWriteTokens Int      @default(0)
+  costUsd          Float    @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("assistant_usage")
+}
+
+// ============================================================
+// PERFORMANCE ANALYSER
+// ============================================================
+// A permanent copy of each student's result in each exam, taken when the class's
+// marks are finalized (and just before an exam is deleted). examId has no foreign
+// key on purpose: deleting the exam keeps the snapshot.
+
+model ResultSnapshot {
+  id           Int      @id @default(autoincrement())
+  studentId    Int
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  examId       Int // the exam may since have been deleted
+  examName     String
+  examDate     DateTime // when the exam was created, for ordering
+  classId      Int
+  className    String
+  // [{ name, maxMarks, total, grade, points, parts: { Main?, Reading?, ... }, partMax: {...}, classAverage, classHighest }]
+  subjects     Json
+  total        Float?
+  maxTotal     Float?
+  percentage   Float?
+  grade        String?
+  gpa          Float?
+  rank         Int?
+  rankedCount  Int      @default(0) // students with complete marks (the "of N" in the rank)
+  classAverage Float? // class average percentage
+  classHighest Float?
+  complete     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([studentId, examId])
+  @@index([examId])
+  @@index([classId])
+  @@map("result_snapshots")
+}
+
+// A teacher's note on a student, optionally about one subject ("extra practice in tables").
+// The profile shows how that subject changed in the exams after the note.
+model StudentNote {
+  id         Int      @id @default(autoincrement())
+  studentId  Int
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject    String?
+  text       String
+  authorId   Int?
+  authorName String
+  createdAt  DateTime @default(now())
+
+  @@index([studentId])
+  @@map("student_notes")
+}
+
+// A group of students given extra help in one subject; progress is measured from
+// each student's result in that subject when the group was made.
+model RemedialGroup {
+  id          Int      @id @default(autoincrement())
+  name        String
+  classId     Int
+  subject     String
+  studentIds  Int[]
+  baseline    Json // { studentId: percentage in the subject when the group was made }
+  baseExamId  Int?
+  note        String?
+  createdById Int?
+  createdAt   DateTime @default(now())
+
+  @@index([classId])
+  @@map("remedial_groups")
+}
+
+// ============================================================
+// ATTENDANCE
+// ============================================================
+// slot: "DAY" (once a day), "FN" / "AN" (morning / afternoon) or a period key ("P1"...).
+// status: P present, A absent, L leave (parent informed), T late (counts as present).
+
+model AttendanceRecord {
+  id         Int      @id @default(autoincrement())
+  studentId  Int
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId    Int
+  date       DateTime @db.Date
+  slot       String
+  status     String
+  reason     String?
+  markedById Int?
+  updatedAt  DateTime @updatedAt
+
+  @@unique([studentId, date, slot])
+  @@index([classId, date])
+  @@map("attendance_records")
+}
+
+model Holiday {
+  id   Int      @id @default(autoincrement())
+  date DateTime @unique @db.Date
+  name String
+
+  @@map("holidays")
+}
+
+// "Absent today" WhatsApp messages to parents.
+model AttendanceAlert {
+  id                Int      @id @default(autoincrement())
+  studentId         Int
+  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date              DateTime @db.Date
+  phone             String
+  status            String   @default("queued") // queued | sent | delivered | read | failed
+  providerMessageId String?
+  error             String?
+  sentById          Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([studentId, date])
+  @@map("attendance_alerts")
+}
+
+// ============================================================
+// TIMETABLE
+// ============================================================
+// day: 1 = Monday … 6 = Saturday, 0 = Sunday. periodKey matches the periods set in
+// Settings (app_settings "periods"). subjectId / teacherId have no foreign key so a
+// deleted subject or teacher just leaves an empty cell.
+
+model TimetableEntry {
+  id        Int    @id @default(autoincrement())
+  classId   Int
+  class     Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+  day       Int
+  periodKey String
+  subjectId Int?
+  teacherId Int?
+
+  @@unique([classId, day, periodKey])
+  @@index([teacherId, day])
+  @@map("timetable_entries")
+}
+
+// A teacher absent on a day: their period in a class is taken by another teacher.
+model Substitution {
+  id              Int      @id @default(autoincrement())
+  date            DateTime @db.Date
+  classId         Int
+  periodKey       String
+  absentTeacherId Int?
+  substituteId    Int
+  note            String?
+  createdAt       DateTime @default(now())
+
+  @@unique([date, classId, periodKey])
+  @@index([substituteId, date])
+  @@map("substitutions")
 }

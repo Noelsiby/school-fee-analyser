@@ -9,6 +9,17 @@ router.use(authenticate, authorize('Admin'));
 // ── Stats ────────────────────────────────────────────────────
 router.get('/stats', ctrl.getStats);
 
+// Database size for the dashboard storage meter. DB_STORAGE_LIMIT_MB = the plan's storage, if set in Render.
+router.get('/storage', async (req, res) => {
+  try {
+    const s = await require('../lib/dbStatus').storage();
+    const limitMb = Number(process.env.DB_STORAGE_LIMIT_MB) || null;
+    res.json({ ...s, limitBytes: limitMb ? limitMb * 1024 * 1024 : null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Classes ──────────────────────────────────────────────────
 router.get   ('/classes',                          ctrl.getClasses);
 router.post  ('/classes',                          ctrl.createClass);
@@ -83,6 +94,11 @@ const wa = require('../controllers/whatsappController');
 router.get ('/whatsapp/status',  wa.getStatus);
 router.post('/whatsapp/send',    wa.send);
 router.post('/whatsapp/refresh', wa.refresh);
+
+// ── AI assistant (admin questions about results) ─────────────
+const assistant = require('../controllers/assistantController');
+router.get ('/assistant/status', assistant.status);
+router.post('/assistant',        assistant.ask);
 
 // ── School notices to parents (WhatsApp) ─────────────────────
 const notices = require('../controllers/noticeController');

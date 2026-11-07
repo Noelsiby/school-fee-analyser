@@ -4,6 +4,8 @@ import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { downloadReports, printReports } from '../../components/report/downloadReport';
 import { usePaper, PaperPicker } from '../../components/report/PaperPicker';
+import PerformancePanel from '../../components/analysis/PerformancePanel';
+import AttendanceCalendar from '../../components/attendance/AttendanceCalendar';
 import { formatDate, ageFrom } from '../../utils/school';
 import { gradeTone } from '../../utils/grades';
 import { waLabel, waPending, formatPhone } from '../../utils/whatsappStatus';
@@ -289,6 +291,10 @@ export default function StudentProfilePage() {
           </dl>
         )}
       </div>
+
+      {/* ── Performance Analyser ── */}
+      <div style={{ marginTop: 8 }}><PerformancePanel studentId={st.id} /></div>
+      <AttendanceCalendar studentId={st.id} />
 
       {/* ── Exam reports ── */}
       <div className="sp-section-head" style={{ marginTop: 8 }}>

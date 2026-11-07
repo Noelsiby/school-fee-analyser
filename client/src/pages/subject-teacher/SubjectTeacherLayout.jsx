@@ -6,6 +6,8 @@ import '../admin/AdminLayout.css'; // Reuse admin layout styles for consistency
 
 const NAV = [
   { path: '/subject-teacher/dashboard', label: 'Dashboard', icon: '📊' },
+  { path: '/subject-teacher/attendance', label: 'Attendance', icon: '✅' },
+  { path: '/subject-teacher/analyser',  label: 'Analyser',  icon: '📈' },
 ];
 
 export default function SubjectTeacherLayout() {

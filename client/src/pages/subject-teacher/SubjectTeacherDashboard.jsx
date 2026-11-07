@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApi } from '../../hooks/useApi';
 import '../admin/admin.css'; // Use shared admin styles
+import MyDay from '../../components/timetable/MyDay';
 
 export default function SubjectTeacherDashboard() {
   const { user } = useAuth();
@@ -35,6 +36,8 @@ export default function SubjectTeacherDashboard() {
           <p className="page-sub">Welcome back, {user?.name}. Here are your assigned exams.</p>
         </div>
       </div>
+
+      <MyDay attendancePath="/subject-teacher/attendance" />
 
       {loading ? (
         <div className="empty-state"><div className="spinner spinner-dark" /></div>

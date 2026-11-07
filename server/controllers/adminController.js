@@ -13,6 +13,7 @@ const fs               = require('fs');
 const path             = require('path');
 const ExcelJS          = require('exceljs');
 const { gradeFor }     = require('../lib/grades');
+const { snapshotExam } = require('../lib/snapshots');
 const { importStudentsCSV } = require('../lib/studentImport');
 const { renumberPlan } = require('../lib/rollOrder');
 const prisma           = new PrismaClient();
@@ -774,6 +775,9 @@ exports.deleteExam = async (req, res) => {
     const examId = Number(req.params.id);
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
     if (!exam) return res.status(404).json({ error: 'Exam not found' });
+
+    // Keep each student's result in their profile even though the exam goes away
+    await snapshotExam(prisma, examId);
 
     const marks = await prisma.mark.findMany({ where: { examId }, select: { id: true } });
     const markIds = marks.map(m => String(m.id));

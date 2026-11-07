@@ -1,0 +1,66 @@
+/* Attendance + Timetable screens */
+.at-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.at-toolbar .form-select, .at-toolbar .form-input { width: auto; min-width: 160px; }
+.at-slots { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.at-slot { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 0.85rem; cursor: pointer; }
+.at-slot.active { background: #1e3a8a; color: #fff; border-color: #1e3a8a; }
+.at-slot .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #16a34a; margin-left: 6px; vertical-align: middle; }
+
+.at-counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.at-list { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+.at-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; }
+.at-row:last-child { border-bottom: none; }
+.at-row.is-A { background: #fef2f2; }
+.at-row.is-L { background: #eff6ff; }
+.at-row.is-T { background: #fffbeb; }
+.at-roll { color: #64748b; min-width: 34px; font-variant-numeric: tabular-nums; }
+.at-name { flex: 1; min-width: 140px; font-weight: 600; color: #0f172a; }
+.at-buttons { display: flex; gap: 4px; }
+.at-btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; min-width: 40px; height: 34px; font-weight: 700; cursor: pointer; font-size: 0.85rem; }
+.at-btn:disabled { cursor: default; opacity: 0.6; }
+.at-btn.on-P { background: #16a34a; color: #fff; border-color: #16a34a; }
+.at-btn.on-A { background: #dc2626; color: #fff; border-color: #dc2626; }
+.at-btn.on-L { background: #2563eb; color: #fff; border-color: #2563eb; }
+.at-btn.on-T { background: #d97706; color: #fff; border-color: #d97706; }
+.at-reason { flex-basis: 100%; margin-left: 44px; }
+.at-reason input { max-width: 340px; }
+.at-save { position: sticky; bottom: 0; background: #fff; padding: 12px 0 4px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.at-inform { margin-top: 16px; border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: 10px; padding: 12px 14px; }
+.at-legend { font-size: 0.78rem; color: #64748b; margin-bottom: 8px; }
+
+/* Calendar (student profile) */
+.at-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.at-cal-head { font-size: 0.72rem; color: #94a3b8; text-align: center; font-weight: 600; }
+.at-day { border-radius: 8px; min-height: 40px; padding: 4px; font-size: 0.78rem; background: #f8fafc; color: #94a3b8; text-align: center; }
+.at-day.present { background: #dcfce7; color: #166534; }
+.at-day.absent { background: #fee2e2; color: #991b1b; }
+.at-day.partial { background: #fef3c7; color: #92400e; }
+.at-day.leave { background: #dbeafe; color: #1e40af; }
+.at-day.holiday, .at-day.off { background: #f1f5f9; color: #cbd5e1; }
+.at-day small { display: block; font-size: 0.62rem; line-height: 1.1; }
+
+/* Timetable grid */
+.tt-wrap { overflow-x: auto; }
+.tt-grid { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 0.82rem; }
+.tt-grid th, .tt-grid td { border: 1px solid #e2e8f0; padding: 4px; vertical-align: top; }
+.tt-grid th { background: #eef2ff; color: #1e3a8a; font-weight: 600; text-align: center; }
+.tt-grid th small { display: block; font-weight: 400; color: #64748b; font-size: 0.7rem; }
+.tt-grid td.tt-day { font-weight: 700; background: #f8fafc; white-space: nowrap; }
+.tt-grid td.tt-break { background: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 6px, #f1f5f9 6px, #f1f5f9 12px); text-align: center; color: #94a3b8; }
+.tt-cell select { width: 100%; font-size: 0.78rem; padding: 3px 4px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; margin-bottom: 3px; }
+.tt-cell.clash { background: #fef2f2; }
+.tt-ro { min-height: 34px; }
+.tt-ro strong { display: block; color: #0f172a; }
+.tt-ro span { color: #64748b; font-size: 0.75rem; }
+.tt-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+
+@media print {
+  .admin-sidebar, .top-navbar, .no-print, .detail-tabs, .page-header button { display: none !important; }
+  .admin-main, .admin-content { margin: 0 !important; padding: 0 !important; }
+  .tt-grid { font-size: 10px; min-width: 0; }
+  .tt-cell select { border: none; appearance: none; -webkit-appearance: none; background: none; }
+}
+
+/* Timetable edit: clear one period */
+.tt-clear { border: none; background: none; color: #b91c1c; font-size: 0.72rem; cursor: pointer; padding: 0; }
+.tt-clear:hover { text-decoration: underline; }

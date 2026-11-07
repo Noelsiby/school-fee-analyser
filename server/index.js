@@ -24,6 +24,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Clear "database can't be reached" message instead of "Internal server error" when the DB is down
+const dbStatus = require('./lib/dbStatus');
+dbStatus.start();
+app.use('/api', dbStatus.friendlyWhenDown);
+
 // CORS setup
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [process.env.CLIENT_URL || '*'] 
@@ -48,6 +53,9 @@ app.use('/api/subject-teacher', subjectTeacherRouter);
 app.use('/api/class-teacher', classTeacherRouter);
 app.use('/api/public', publicRouter);
 app.use('/api/students', studentsRouter);
+app.use('/api/analysis', require('./routes/analysis'));
+app.use('/api/attendance', require('./routes/attendance'));
+app.use('/api/timetable', require('./routes/timetable'));
 
 // ── Production: serve built React app ──────────────────────────
 // In production, Express serves the Vite build output as static files.
@@ -68,8 +76,12 @@ if (process.env.NODE_ENV === 'production') {
 // Load the admin's grading scale before taking requests (falls back to the default).
 const { PrismaClient } = require('@prisma/client');
 const { loadGradeScale } = require('./lib/grades');
+const { backfillSnapshots } = require('./lib/snapshots');
 const startupPrisma = new PrismaClient();
 loadGradeScale(startupPrisma)
+  // Results of exams finalized before the Performance Analyser existed
+  .then(() => backfillSnapshots(startupPrisma))
+  .catch((e) => console.error('[startup]', e.message))
   .finally(() => startupPrisma.$disconnect())
   .finally(() => {
     app.listen(PORT, '0.0.0.0', () => {

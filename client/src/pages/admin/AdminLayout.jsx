@@ -11,8 +11,13 @@ const NAV = [
   { path: '/admin/subjects',  label: 'Subjects',    icon: '📚' },
   { path: '/admin/students',  label: 'Students',    icon: '👦' },
   { path: '/admin/exams',     label: 'Exams',       icon: '📝' },
+  { path: '/admin/attendance', label: 'Attendance', icon: '✅' },
+  { path: '/admin/timetable', label: 'Timetable',   icon: '🗓️' },
+  { path: '/admin/at-risk',   label: 'At-risk',     icon: '⚠️' },
+  { path: '/admin/quick-answers', label: 'Quick Answers', icon: '🔎' },
   { path: '/admin/grading',   label: 'Grading',     icon: '🏅' },
   { path: '/admin/messages',  label: 'Messages',    icon: '📢' },
+  // AI Assistant (/admin/assistant) is built but switched off: add it back here and set ANTHROPIC_API_KEY to use it.
 ];
 
 export default function AdminLayout() {

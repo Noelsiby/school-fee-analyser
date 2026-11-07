@@ -4,10 +4,12 @@
  * changes a roll number, the student simply moves to that position.
  */
 
+const nameOf = (s) => String(s.name ?? s.studentName ?? '');
+
 /** Roll number order: numeric where possible ("2" before "10", "007" == "7"), then name. */
 const byRoll = (a, b) =>
-  String(a.rollNumber).localeCompare(String(b.rollNumber), undefined, { numeric: true })
-  || a.name.localeCompare(b.name);
+  String(a.rollNumber ?? '').localeCompare(String(b.rollNumber ?? ''), undefined, { numeric: true })
+  || nameOf(a).localeCompare(nameOf(b));
 
 /** Alphabetical order used when (re)numbering: case-insensitive, then by id for stable ties. */
 const byName = (a, b) =>

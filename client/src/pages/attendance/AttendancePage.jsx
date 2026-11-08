@@ -63,6 +63,9 @@ export default function AttendancePage({ role }) {
     ? [['today', '📋 Today, all classes'], ['take', '✅ Take attendance'], ['settings', '⚙️ Settings & holidays']]
     : role === 'class-teacher' ? [['take', '✅ Take attendance'], ['month', '📅 This month']] : [['take', '✅ Take attendance']];
   const [tab, setTab] = useState(role === 'admin' && !params.get('class') ? 'today' : 'take');
+  // "Edit" from the Today list opens that class and date in the register
+  const [open, setOpen] = useState({ classId: params.get('class'), date: params.get('date'), slot: params.get('slot'), n: 0 });
+  const edit = (classId, date) => { setOpen((o) => ({ classId: String(classId), date, slot: null, n: o.n + 1 })); setTab('take'); };
 
   return (
     <div className="admin-page">
@@ -78,8 +81,11 @@ export default function AttendancePage({ role }) {
         </div>
       )}
       <div className="data-card" style={{ padding: 20 }}>
-        {tab === 'take' && <AttendanceRegister initialClassId={params.get('class')} initialDate={params.get('date')} initialSlot={params.get('slot')} canInform={role === 'admin'} />}
-        {tab === 'today' && <AttendanceToday />}
+        {tab === 'take' && (
+          <AttendanceRegister key={open.n} initialClassId={open.classId} initialDate={open.date} initialSlot={open.slot}
+            canInform={role === 'admin'} canDelete={role === 'admin'} />
+        )}
+        {tab === 'today' && <AttendanceToday onEdit={role === 'admin' ? edit : undefined} />}
         {tab === 'settings' && <AttendanceSettings />}
         {tab === 'month' && <MonthSummary />}
       </div>

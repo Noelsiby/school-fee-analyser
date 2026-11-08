@@ -17,7 +17,7 @@ const STATUS = [
  * Everyone starts as Present: tap only the absent students, then Save.
  * After saving, "Inform parents" sends WhatsApp messages to parents of absent students.
  */
-export default function AttendanceRegister({ initialClassId, initialDate, initialSlot, canInform = false }) {
+export default function AttendanceRegister({ initialClassId, initialDate, initialSlot, canInform = false, canDelete = false }) {
   const { apiCall } = useApi();
   const [classes, setClasses] = useState(null);
   const [classId, setClassId] = useState(initialClassId ? String(initialClassId) : '');
@@ -74,6 +74,19 @@ export default function AttendanceRegister({ initialClassId, initialDate, initia
       const records = Object.entries(marks).map(([studentId, v]) => ({ studentId: Number(studentId), status: v.status, reason: v.reason || null }));
       const d = await apiCall(`/api/attendance/classes/${classId}`, { method: 'PUT', body: { date, slot, records } });
       setNotice(`✅ Saved. ${d.absent ? `${d.absent} absent.` : 'Everyone present.'}`);
+      await load();
+    } catch (e) { setError(e.message); } finally { setSaving(false); }
+  };
+
+  // Admin: remove the saved attendance of this class for this date (and slot)
+  const removeRegister = async () => {
+    const what = reg.slots.length > 1 ? `${reg.slots.find((s) => s.key === slot)?.label} on ${reg.dateLabel}` : reg.dateLabel;
+    if (!window.confirm(`Delete the attendance of ${reg.className} for ${what}? It will show as "not marked" again. This can't be undone.`)) return;
+    setSaving(true); setError('');
+    try {
+      const q = new URLSearchParams({ date, ...(reg.slots.length > 1 ? { slot } : {}) });
+      const d = await apiCall(`/api/attendance/classes/${classId}?${q}`, { method: 'DELETE' });
+      setNotice(`🗑️ Deleted (${d.deleted} record${d.deleted === 1 ? '' : 's'}). You can take it again.`);
       await load();
     } catch (e) { setError(e.message); } finally { setSaving(false); }
   };
@@ -174,6 +187,11 @@ export default function AttendanceRegister({ initialClassId, initialDate, initia
                 {saving ? <span className="spinner" /> : reg.marked ? 'Save changes' : 'Save attendance'}
               </button>
               {dirty && <span className="an-muted">Not saved yet</span>}
+              {canDelete && reg.marked && (
+                <button className="btn btn-danger" disabled={saving} onClick={removeRegister}>
+                  🗑️ Delete {reg.slots.length > 1 ? 'this' : "this day's"} attendance
+                </button>
+              )}
             </div>
           )}
 

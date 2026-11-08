@@ -14,6 +14,7 @@ router.delete('/holidays/:id',                admin, ctrl.deleteHoliday);
 router.get   ('/classes',                     ctrl.myClasses);
 router.get   ('/classes/:classId',            ctrl.getRegister);
 router.put   ('/classes/:classId',            ctrl.saveRegister);
+router.delete('/classes/:classId',            authorize('Admin'), ctrl.deleteRegister);
 router.get   ('/classes/:classId/summary',    ctrl.classSummary);
 router.get   ('/today',                       authorize('Admin', 'ClassTeacher'), ctrl.dayOverview);
 router.get   ('/students/:id',                ctrl.studentCalendar);

@@ -11,7 +11,7 @@ const STATUS = { A: { text: 'Absent', badge: 'badge-red' }, L: { text: 'Leave', 
  * "✅ Marked: 38 present, 3 absent" or "⏳ Not marked yet". No time alerts.
  * compact: a short card for dashboards.
  */
-export default function AttendanceToday({ compact = false, onOpen }) {
+export default function AttendanceToday({ compact = false, onOpen, onEdit }) {
   const { apiCall } = useApi();
   const [date, setDate] = useState('');
   const [data, setData] = useState(null);
@@ -20,6 +20,16 @@ export default function AttendanceToday({ compact = false, onOpen }) {
   useEffect(() => {
     apiCall(`/api/attendance/today${date ? `?date=${date}` : ''}`).then((d) => { setData(d); if (!date) setDate(d.date); }).catch((e) => setError(e.message));
   }, [apiCall, date]);
+
+  // Admin: delete one class's attendance for the whole day
+  const removeDay = async (c) => {
+    if (!window.confirm(`Delete all attendance of ${c.name} on ${data.dateLabel}? It will show as "not marked" again. This can't be undone.`)) return;
+    try {
+      await apiCall(`/api/attendance/classes/${c.id}?date=${data.date}`, { method: 'DELETE' });
+      const d = await apiCall(`/api/attendance/today?date=${data.date}`);
+      setData(d);
+    } catch (e) { setError(e.message); }
+  };
 
   if (error) return compact ? null : <div className="alert alert-error">⚠ {error}</div>;
   if (!data) return <div className="spinner spinner-dark" />;
@@ -42,7 +52,15 @@ export default function AttendanceToday({ compact = false, onOpen }) {
             <thead><tr><th>Class</th><th>Status</th><th>Present</th><th>Not present</th>{data.mode !== 'daily' && <th>{data.mode === 'periods' ? 'Periods taken' : 'Sessions taken'}</th>}</tr></thead>
             <tbody>{rows.map((c) => (
               <tr key={c.id}>
-                <td><strong>{c.name}</strong> <span className="an-muted">{c.students} students</span></td>
+                <td>
+                  <strong>{c.name}</strong> <span className="an-muted">{c.students} students</span>
+                  {onEdit && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => onEdit(c.id, data.date)}>{c.marked ? '✏️ Edit' : '✅ Take'}</button>
+                      {c.marked && <button className="btn btn-danger btn-sm" onClick={() => removeDay(c)} aria-label={`Delete ${c.name} attendance`}>🗑️ Delete</button>}
+                    </div>
+                  )}
+                </td>
                 <td>{c.marked ? <span className="badge badge-green">✅ Marked</span> : <span className="badge badge-gray">⏳ Not marked yet</span>}</td>
                 <td>{c.present ?? '—'}</td>
                 <td>{c.absent ? <span className="an-down">{c.absent}</span> : c.absent ?? '—'}</td>

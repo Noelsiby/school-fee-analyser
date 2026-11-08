@@ -210,6 +210,19 @@ exports.saveRegister = async (req, res) => {
   } catch (err) { fail(res, err); }
 };
 
+// ── DELETE /api/attendance/classes/:classId?date=&slot= ── admin: remove a register
+// With slot: only that slot (e.g. one period); without: the class's whole day.
+exports.deleteRegister = async (req, res) => {
+  const classId = Number(req.params.classId);
+  const date = req.query.date;
+  if (!att.isDateStr(date)) return res.status(400).json({ error: 'Choose a date.' });
+  try {
+    const where = { classId, date: att.toDate(date), ...(req.query.slot ? { slot: String(req.query.slot) } : {}) };
+    const { count } = await prisma.attendanceRecord.deleteMany({ where });
+    res.json({ deleted: count });
+  } catch (err) { fail(res, err); }
+};
+
 // ── GET /api/attendance/today?date= ── every class's status for a day (admin dashboard)
 exports.dayOverview = async (req, res) => {
   const date = att.isDateStr(req.query.date) ? req.query.date : att.todayIST();

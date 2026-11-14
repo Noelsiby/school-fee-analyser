@@ -28,6 +28,8 @@ export default function StudentAppPage() {
   const [filter, setFilter] = useState('all');
   const [picked, setPicked] = useState([]);
   const [link, setLink] = useState('');
+  const [apk, setApk] = useState('');
+  const [ver, setVer] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -38,6 +40,8 @@ export default function StudentAppPage() {
     const d = await apiCall(`/api/admin/app/families${classId ? `?classId=${classId}` : ''}`);
     setData(d);
     setLink((l) => l || d.settings.downloadUrl || '');
+    setApk((v) => v || d.settings.apkUrl || '');
+    setVer((v) => v || d.settings.latestVersion || '');
   }, [apiCall, classId]);
   useEffect(() => { setPicked([]); load().catch((e) => setError(e.message)); }, [load]);
 
@@ -55,8 +59,8 @@ export default function StudentAppPage() {
   const saveLink = async () => {
     setError('');
     try {
-      await apiCall('/api/admin/app/settings', { method: 'PUT', body: { downloadUrl: link } });
-      setNotice('✅ Download link saved.'); await load();
+      await apiCall('/api/admin/app/settings', { method: 'PUT', body: { downloadUrl: link.trim(), apkUrl: apk.trim(), latestVersion: ver.trim() } });
+      setNotice('✅ App download settings saved.'); await load();
     } catch (e) { setError(e.message); }
   };
 
@@ -117,14 +121,37 @@ export default function StudentAppPage() {
           </div>
 
           <div className="data-card an-card">
-            <h3 style={{ marginTop: 0 }}>App download link</h3>
-            <p className="an-sub" style={{ marginBottom: 8 }}>The Play Store link of the school's app. It's printed as a QR code on the slips and sent in WhatsApp invites.</p>
-            <div className="at-toolbar" style={{ marginBottom: 0 }}>
-              <input className="form-input" style={{ flex: 1, minWidth: 260 }} placeholder="https://play.google.com/store/apps/details?id=…" value={link}
-                onChange={(e) => setLink(e.target.value)} aria-label="App download link" />
-              <button className="btn btn-primary btn-sm" disabled={link === (data.settings.downloadUrl || '')} onClick={saveLink}>Save link</button>
+            <h3 style={{ marginTop: 0 }}>App download</h3>
+            <p className="an-sub" style={{ marginBottom: 10 }}>
+              The app isn't on the Play Store: parents download it from the school's own page, <strong>{`${window.location.origin}/app`}</strong>,
+              which also shows them how to install it.
+            </p>
+            <div className="sa-settings">
+              <label>
+                <span>Link for parents <small>(printed as a QR code on the slips and sent in WhatsApp invites)</small></span>
+                <div className="at-toolbar" style={{ marginBottom: 0 }}>
+                  <input className="form-input" style={{ flex: 1, minWidth: 240 }} placeholder={`${window.location.origin}/app`} value={link}
+                    onChange={(e) => setLink(e.target.value)} aria-label="Link for parents" />
+                  {link !== `${window.location.origin}/app` && (
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLink(`${window.location.origin}/app`)}>Use the school's download page</button>
+                  )}
+                </div>
+              </label>
+              <label>
+                <span>App file link <small>(the .apk file; the Download button on the page)</small></span>
+                <input className="form-input" placeholder="https://github.com/…/releases/latest/download/Matha-School.apk" value={apk}
+                  onChange={(e) => setApk(e.target.value)} aria-label="App file link" />
+              </label>
+              <label>
+                <span>Latest app version <small>(phones with an older version show “New version available”)</small></span>
+                <input className="form-input" style={{ maxWidth: 140 }} placeholder="1.0.0" value={ver}
+                  onChange={(e) => setVer(e.target.value)} aria-label="Latest app version" />
+              </label>
             </div>
-            {!data.settings.downloadUrl && <p className="an-muted" style={{ marginBottom: 0 }}>Not set yet: slips will be printed without the QR code until the app is on the Play Store.</p>}
+            <button className="btn btn-primary btn-sm" style={{ marginTop: 10 }}
+              disabled={link === (data.settings.downloadUrl || '') && apk === (data.settings.apkUrl || '') && ver === (data.settings.latestVersion || '')}
+              onClick={saveLink}>Save</button>
+            {!data.settings.downloadUrl && <p className="an-muted" style={{ marginBottom: 0 }}>Link for parents not set yet: slips are printed without the QR code.</p>}
           </div>
 
           <div className="data-card an-card">

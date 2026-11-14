@@ -19,7 +19,9 @@ const SEND_GAP_MS = 400;
 
 async function appSettings() {
   const row = await prisma.appSetting.findUnique({ where: { key: SETTING_KEY } });
-  return { downloadUrl: '', ...(row?.value || {}) };
+  // downloadUrl: the page parents open (QR slips, WhatsApp). apkUrl: the app file itself.
+  // latestVersion: newest app version; older apps show "New version available".
+  return { downloadUrl: '', apkUrl: '', latestVersion: '', ...(row?.value || {}) };
 }
 
 const joinNames = (names) => (names.length <= 1 ? names[0] || '' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
@@ -83,14 +85,34 @@ exports.families = async (req, res) => {
   } catch (err) { fail(res, err); }
 };
 
-// ── PUT /api/admin/app/settings  { downloadUrl } ──
+// ── PUT /api/admin/app/settings  { downloadUrl?, apkUrl?, latestVersion? } (only the ones sent change) ──
 exports.saveSettings = async (req, res) => {
-  const downloadUrl = String(req.body?.downloadUrl || '').trim();
-  if (downloadUrl && !/^https:\/\/\S+$/.test(downloadUrl)) return res.status(400).json({ error: 'The download link must start with https://' });
+  const body = req.body || {};
+  const changes = {};
+  for (const key of ['downloadUrl', 'apkUrl']) {
+    if (body[key] === undefined) continue;
+    const v = String(body[key] || '').trim();
+    if (v && !/^https:\/\/\S+$/.test(v)) return res.status(400).json({ error: 'The link must start with https://' });
+    changes[key] = v;
+  }
+  if (body.latestVersion !== undefined) {
+    const v = String(body.latestVersion || '').trim();
+    if (v && !/^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v)) return res.status(400).json({ error: 'The version looks like 1.0.0' });
+    changes.latestVersion = v;
+  }
   try {
-    const value = { ...(await appSettings()), downloadUrl };
+    const value = { ...(await appSettings()), ...changes };
     await prisma.appSetting.upsert({ where: { key: SETTING_KEY }, create: { key: SETTING_KEY, value }, update: { value } });
     res.json({ settings: value });
+  } catch (err) { fail(res, err); }
+};
+
+// ── GET /api/app/version (public) — the download page and the app's "New version available" check ──
+exports.publicVersion = async (req, res) => {
+  try {
+    const { apkUrl, latestVersion } = await appSettings();
+    res.set('Cache-Control', 'no-store');
+    res.json({ apkUrl, latestVersion });
   } catch (err) { fail(res, err); }
 };
 

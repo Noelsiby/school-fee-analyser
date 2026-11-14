@@ -6,6 +6,7 @@ import { api } from '../../lib/api';
 import { useLoad } from '../../lib/useLoad';
 import { C } from '../../lib/theme';
 import { Screen, Card, Title, Muted, GradeBadge, Loading, ErrorBox } from '../../components/ui';
+import UpdateBanner from '../../components/UpdateBanner';
 
 const TODAY = {
   present: { text: 'Present today', fg: '#166534', bg: C.greenBg, icon: '✅' },
@@ -28,6 +29,7 @@ export default function Home() {
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
+      <UpdateBanner />
       {unread > 0 && (
         <Pressable onPress={() => router.push('/notifications')} accessibilityRole="button">
           <Card style={{ backgroundColor: C.navy, borderColor: C.navy, paddingVertical: 12 }}>

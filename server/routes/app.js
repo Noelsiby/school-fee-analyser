@@ -8,6 +8,7 @@ const prisma = new PrismaClient();
 
 router.post('/activate', ctrl.activate);
 router.post('/login',    ctrl.login);
+router.get('/version',   require('../controllers/appAdminController').publicVersion); // public: download page + update check
 
 router.use(authenticateParent(prisma));
 router.get('/me', ctrl.me);

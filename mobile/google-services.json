@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "557332318424",
+    "project_id": "matha-school",
+    "storage_bucket": "matha-school.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:557332318424:android:44f99eda18289b4957efad",
+        "android_client_info": {
+          "package_name": "in.mathaschool.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCi8U3kqjmtPHbg7WOmfKeo3JKr3paas3A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -397,3 +397,9 @@ table.data-table tbody tr:hover { background: var(--gray-50); }
   .print-section + .print-section { page-break-before: always; margin-top: 40px; }
   .data-card { box-shadow: none; border: 1px solid #ccc; }
 }
+
+/* Student App → App download settings */
+.sa-settings { display: grid; gap: 12px; }
+.sa-settings label { display: grid; gap: 4px; }
+.sa-settings label > span { font-weight: 600; font-size: 14px; }
+.sa-settings small { font-weight: 400; color: var(--gray-500, #64748b); }

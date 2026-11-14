@@ -11,6 +11,10 @@ router.post('/login',    ctrl.login);
 
 router.use(authenticateParent(prisma));
 router.get('/me', ctrl.me);
+router.post  ('/push-token',          ctrl.savePushToken);
+router.delete('/push-token',          ctrl.removePushToken);
+router.get   ('/notifications',       ctrl.notifications);
+router.post  ('/notifications/read',  ctrl.readNotifications);
 
 const child = ['/children/:childId', ctrl.ownChild];
 router.get(`${child[0]}/home`,       child[1], ctrl.home);

@@ -14,6 +14,7 @@ const path             = require('path');
 const ExcelJS          = require('exceljs');
 const { gradeFor }     = require('../lib/grades');
 const { snapshotExam } = require('../lib/snapshots');
+const { notifyFamilies } = require('../lib/push');
 const { importStudentsCSV } = require('../lib/studentImport');
 const { renumberPlan } = require('../lib/rollOrder');
 const prisma           = new PrismaClient();
@@ -1711,9 +1712,25 @@ exports.publishPublicResults = async (req, res) => {
       });
     }
 
+    // Release the results to the Student App (they stay there when a later exam is published)
+    await snapshotExam(prisma, examId);
+    const fresh = await prisma.resultSnapshot.findMany({
+      where: { examId, releasedAt: null },
+      include: { student: { select: { name: true, parentPhone: true } } },
+    });
+    await prisma.resultSnapshot.updateMany({ where: { examId, releasedAt: null }, data: { releasedAt: new Date() } });
+
     res.json({ message: 'Results published successfully.' });
+
+    // Tell families using the app (free notification), in the background
+    notifyFamilies(prisma, fresh.filter((sn) => sn.complete).map((sn) => ({
+      phone: sn.student.parentPhone, studentId: sn.studentId, type: 'result',
+      title: `📊 ${exam.name} results are out`,
+      body: `${sn.student.name}: ${sn.percentage}% (${sn.grade}). Tap to see the subjects.`,
+      data: { screen: 'results', examId },
+    }))).catch((e) => console.error('[push] results', e));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 };
 
@@ -1724,6 +1741,8 @@ exports.unpublishPublicResults = async (req, res) => {
       where: { id: examId },
       data: { isPublished: false, publishedAt: null }
     });
+    // Also take the results back out of the Student App
+    await prisma.resultSnapshot.updateMany({ where: { examId }, data: { releasedAt: null } });
     res.json({ message: 'Results unpublished successfully.' });
   } catch (err) {
     res.status(500).json({ error: err.message });

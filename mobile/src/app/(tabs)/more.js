@@ -28,6 +28,7 @@ export default function More() {
   return (
     <Screen>
       <Card style={{ paddingVertical: 4 }}>
+        <Item icon="🔔" label="Notifications" onPress={() => router.push('/notifications')} />
         <Item icon="🗓️" label="Timetable" onPress={() => router.push('/timetable')} />
         <Item icon="📢" label="School notices" onPress={() => router.push('/notices')} />
         <Item icon="👤" label="Profile" onPress={() => router.push('/profile')} />

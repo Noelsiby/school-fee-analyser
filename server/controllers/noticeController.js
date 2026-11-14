@@ -6,6 +6,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const wa = require('../lib/whatsapp');
+const { notifyFamilies } = require('../lib/push');
 const { byRoll } = require('../lib/rollOrder');
 const prisma = new PrismaClient();
 
@@ -127,9 +128,6 @@ exports.create = async (req, res) => {
   const body = wa.clean(req.body?.body);
   const audience = parseAudience(req.body?.audience);
 
-  if (!wa.isConfigured()) {
-    return res.status(503).json({ error: 'WhatsApp is not set up yet. Add RICHAUTOMATE_API_KEY in Render → Environment.' });
-  }
   if (title === '-' || title.length > TITLE_MAX) return res.status(400).json({ error: `Write a subject (up to ${TITLE_MAX} characters).` });
   if (body === '-' || body.length > BODY_MAX) return res.status(400).json({ error: `Write a message (up to ${BODY_MAX} characters).` });
   if (!audience) return res.status(400).json({ error: 'Choose who should get the message.' });
@@ -141,12 +139,24 @@ exports.create = async (req, res) => {
     const notice = await prisma.notice.create({
       data: { title, body, audience, createdById: req.user.userId },
     });
-    await prisma.noticeMessage.createMany({
-      data: recipients.map((r) => ({ noticeId: notice.id, phone: r.phone, students: studentsLabel(r.students), status: 'queued' })),
-    });
+    // Free notification to families using the Student App
+    const { reachedPhones } = await notifyFamilies(prisma, recipients.map((r) => ({
+      phone: r.phone, studentId: r.students[0]?.id ?? null, type: 'notice',
+      title: `📢 ${title}`, body, data: { screen: 'notices', noticeId: notice.id },
+    })));
+    // WhatsApp: everyone, or only families not using the app
+    const viaWhatsApp = req.body?.whatsappOnlyNonApp ? recipients.filter((r) => !reachedPhones.has(r.phone)) : recipients;
+    if (viaWhatsApp.length && !wa.isConfigured()) {
+      return res.status(201).json({ notice, pushed: reachedPhones.size, queued: 0, skipped, whatsappOff: true });
+    }
+    if (viaWhatsApp.length) {
+      await prisma.noticeMessage.createMany({
+        data: viaWhatsApp.map((r) => ({ noticeId: notice.id, phone: r.phone, students: studentsLabel(r.students), status: 'queued' })),
+      });
+    }
     const rows = await prisma.noticeMessage.findMany({ where: { noticeId: notice.id }, orderBy: { id: 'asc' } });
 
-    res.status(201).json({ notice, queued: rows.length, skipped });
+    res.status(201).json({ notice, pushed: reachedPhones.size, queued: rows.length, skipped });
     sendInBackground(notice, rows);
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ error: err.message });

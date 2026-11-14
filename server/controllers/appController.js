@@ -88,14 +88,9 @@ exports.ownChild = async (req, res, next) => {
   } catch (err) { fail(res, err); }
 };
 
-/** The child's saved results for exams the school has published. */
-async function publishedSnapshots(studentId) {
-  const snaps = await prisma.resultSnapshot.findMany({ where: { studentId }, orderBy: { examDate: 'asc' } });
-  if (!snaps.length) return [];
-  const published = new Set((await prisma.exam.findMany({
-    where: { id: { in: snaps.map((s) => s.examId) }, isPublished: true }, select: { id: true },
-  })).map((e) => e.id));
-  return snaps.filter((s) => published.has(s.examId));
+/** The child's results released to families (published once, not taken back with Unpublish). */
+function publishedSnapshots(studentId) {
+  return prisma.resultSnapshot.findMany({ where: { studentId, releasedAt: { not: null } }, orderBy: { examDate: 'asc' } });
 }
 
 /** Notices sent to the whole school, the child's class, or the child. */
@@ -233,5 +228,46 @@ exports.photo = async (req, res) => {
     const p = await prisma.studentPhoto.findUnique({ where: { studentId: req.child.id } });
     if (!p) return res.status(404).json({ error: 'No photo.' });
     res.set('Content-Type', p.mimeType).set('Cache-Control', 'private, max-age=3600').send(Buffer.from(p.data));
+  } catch (err) { fail(res, err); }
+};
+
+// ── POST /api/app/push-token  { token, platform } ── this phone wants notifications
+exports.savePushToken = async (req, res) => {
+  const token = String(req.body?.token || '');
+  if (!/^Expo(nent)?PushToken\[[^\]]+\]$/.test(token)) return res.status(400).json({ error: 'Invalid notification token.' });
+  try {
+    await prisma.pushToken.upsert({
+      where: { token },
+      create: { token, parentId: req.parent.id, platform: String(req.body?.platform || '').slice(0, 20) || null },
+      update: { parentId: req.parent.id, platform: String(req.body?.platform || '').slice(0, 20) || null },
+    });
+    res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+};
+
+// ── DELETE /api/app/push-token  { token } ── signing out on this phone
+exports.removePushToken = async (req, res) => {
+  try {
+    await prisma.pushToken.deleteMany({ where: { token: String(req.body?.token || ''), parentId: req.parent.id } });
+    res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+};
+
+// ── GET /api/app/notifications ── the 🔔 list (newest first) and how many are unread
+exports.notifications = async (req, res) => {
+  try {
+    const list = await prisma.parentNotification.findMany({ where: { parentId: req.parent.id }, orderBy: { createdAt: 'desc' }, take: 100 });
+    res.json({
+      unread: list.filter((n) => !n.readAt).length,
+      notifications: list.map((n) => ({ id: n.id, type: n.type, title: n.title, body: n.body, studentId: n.studentId, data: n.data, date: n.createdAt, read: !!n.readAt })),
+    });
+  } catch (err) { fail(res, err); }
+};
+
+// ── POST /api/app/notifications/read ── mark everything as read
+exports.readNotifications = async (req, res) => {
+  try {
+    await prisma.parentNotification.updateMany({ where: { parentId: req.parent.id, readAt: null }, data: { readAt: new Date() } });
+    res.json({ ok: true });
   } catch (err) { fail(res, err); }
 };

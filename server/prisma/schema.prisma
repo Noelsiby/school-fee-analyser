@@ -556,6 +556,9 @@ model ResultSnapshot {
   classAverage Float? // class average percentage
   classHighest Float?
   complete     Boolean  @default(true)
+  // Set when the exam is published; stays set after another exam is published, so
+  // families keep seeing earlier results in the app. Cleared only by "Unpublish".
+  releasedAt   DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -710,5 +713,38 @@ model ParentAccount {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  pushTokens    PushToken[]
+  notifications ParentNotification[]
+
   @@map("parent_accounts")
+}
+
+// A phone that receives the app's notifications (Expo push token).
+model PushToken {
+  id        Int           @id @default(autoincrement())
+  parentId  Int
+  parent    ParentAccount @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  token     String        @unique
+  platform  String?
+  updatedAt DateTime      @updatedAt
+
+  @@index([parentId])
+  @@map("push_tokens")
+}
+
+// The app's 🔔 Notifications list. type: result | absent | notice
+model ParentNotification {
+  id        Int           @id @default(autoincrement())
+  parentId  Int
+  parent    ParentAccount @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  studentId Int?
+  type      String
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([parentId, createdAt])
+  @@map("parent_notifications")
 }

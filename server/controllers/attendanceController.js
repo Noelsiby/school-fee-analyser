@@ -13,6 +13,7 @@ const { PrismaClient } = require('@prisma/client');
 const att = require('../lib/attendance');
 const periodsLib = require('../lib/periods');
 const wa = require('../lib/whatsapp');
+const { notifyFamilies } = require('../lib/push');
 const { byRoll } = require('../lib/rollOrder');
 
 const prisma = new PrismaClient();
@@ -396,13 +397,14 @@ function whenText(daySlots, mode, slots, isToday) {
   return base;
 }
 
-// ── POST /api/attendance/alerts  { classId, date, studentIds } ── WhatsApp parents of absent students
+// ── POST /api/attendance/alerts  { classId, date, studentIds, alsoWhatsApp? } ── tell parents of absent students
+// Families using the Student App get a free notification; WhatsApp goes to the others
+// (and to app families too when alsoWhatsApp is true).
 exports.sendAlerts = async (req, res) => {
   const classId = Number(req.body?.classId);
   const date = req.body?.date;
   const ids = [...new Set((req.body?.studentIds || []).map(Number).filter(Number.isInteger))];
   if (!att.isDateStr(date) || !ids.length) return res.status(400).json({ error: 'Choose the students to inform.' });
-  if (!wa.isConfigured()) return res.status(503).json({ error: 'WhatsApp is not set up yet. Add RICHAUTOMATE_API_KEY in Render → Environment.' });
   try {
     if (!isAdmin(req.user)) {
       return res.status(403).json({ error: 'Only the admin can inform parents.' });
@@ -414,7 +416,7 @@ exports.sendAlerts = async (req, res) => {
     const records = await prisma.attendanceRecord.findMany({ where: { classId, date: att.toDate(date), studentId: { in: ids } } });
 
     const skipped = [];
-    const queued = [];
+    const absent = [];
     for (const s of students) {
       const phone = wa.normalizePhone(s.parentPhone);
       const daySlots = Object.fromEntries(records.filter((r) => r.studentId === s.id).map((r) => [r.slot, r.status]));
@@ -423,10 +425,31 @@ exports.sendAlerts = async (req, res) => {
         continue;
       }
       if (!phone) { skipped.push({ id: s.id, name: s.name, reason: 'No valid parent number' }); continue; }
-      const row = await prisma.attendanceAlert.create({ data: { studentId: s.id, date: att.toDate(date), phone, sentById: req.user.userId } });
-      queued.push({ row, vars: [s.name, cls.name, att.prettyDate(date), whenText(daySlots, settings.mode, slots, date === att.todayIST())] });
+      absent.push({ s, phone, when: whenText(daySlots, settings.mode, slots, date === att.todayIST()) });
     }
-    res.json({ queued: queued.length, skipped });
+
+    // 1) Free app notification for families using the Student App
+    const { reachedPhones } = await notifyFamilies(prisma, absent.map(({ s, phone, when }) => ({
+      phone, studentId: s.id, type: 'absent',
+      title: `${s.name} was absent`,
+      body: `${s.name} (${cls.name}) was marked absent ${when}, ${att.prettyDate(date)}. If this is unexpected, please contact the class teacher.`,
+      data: { screen: 'attendance', date },
+    })));
+    // 2) WhatsApp for families not using the app (or everyone, if asked)
+    const viaWhatsApp = absent.filter(({ phone }) => req.body?.alsoWhatsApp || !reachedPhones.has(phone));
+    if (viaWhatsApp.length && !wa.isConfigured()) {
+      return res.json({ pushed: reachedPhones.size, queued: 0, skipped: [...skipped, ...viaWhatsApp.map(({ s }) => ({ id: s.id, name: s.name, reason: 'Not on the app, and WhatsApp is not set up' }))] });
+    }
+    const queued = [];
+    for (const { s, phone, when } of viaWhatsApp) {
+      const row = await prisma.attendanceAlert.create({ data: { studentId: s.id, date: att.toDate(date), phone, sentById: req.user.userId } });
+      queued.push({ row, vars: [s.name, cls.name, att.prettyDate(date), when] });
+    }
+    // App-only families still show as informed in the register
+    for (const { s, phone } of absent.filter(({ phone }) => reachedPhones.has(phone) && !viaWhatsApp.some((v) => v.phone === phone))) {
+      await prisma.attendanceAlert.create({ data: { studentId: s.id, date: att.toDate(date), phone, status: 'sent', error: 'Sent as an app notification', sentById: req.user.userId } });
+    }
+    res.json({ pushed: reachedPhones.size, queued: queued.length, skipped });
 
     (async () => {
       for (const { row, vars } of queued) {

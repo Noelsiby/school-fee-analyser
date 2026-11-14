@@ -66,6 +66,7 @@ export default function MessagesPage() {
   const [showSkipped, setShowSkipped] = useState(false);
   const [confirm, setConfirm]   = useState(false);
   const [sending, setSending]   = useState(false);
+  const [whatsappOnlyNonApp, setWhatsappOnlyNonApp] = useState(false);
 
   // History
   const [open, setOpen]     = useState(null);   // notice detail being viewed
@@ -133,14 +134,17 @@ export default function MessagesPage() {
     ? ids.filter(id => !shown.some(s => s.id === id))
     : [...new Set([...ids, ...shown.map(s => s.id)])]));
 
-  const canSend = configured && title.trim() && oneLine(body) && audienceReady && preview?.parents > 0;
+  const canSend = title.trim() && oneLine(body) && audienceReady && preview?.parents > 0;
 
   const send = async () => {
     setSending(true); setError('');
     try {
-      const d = await apiCall('/api/admin/notices', { method: 'POST', body: { title: title.trim(), body: oneLine(body), audience } });
+      const d = await apiCall('/api/admin/notices', { method: 'POST', body: { title: title.trim(), body: oneLine(body), audience, whatsappOnlyNonApp } });
       setConfirm(false);
-      flash(`✅ Sending to ${d.queued} parent${d.queued === 1 ? '' : 's'}.${d.skipped.length ? ` ${d.skipped.length} student(s) skipped (no parent number).` : ''}`);
+      const parts = [];
+      if (d.pushed) parts.push(`📱 ${d.pushed} by app notification (free)`);
+      if (d.queued) parts.push(`💬 ${d.queued} on WhatsApp`);
+      flash(`✅ Sent: ${parts.join(', ') || 'nobody'}.${d.whatsappOff ? ' WhatsApp is not set up, so only app families were told.' : ''}${d.skipped.length ? ` ${d.skipped.length} student(s) skipped (no parent number).` : ''}`);
       setTitle(''); setBody(''); setStudentIds([]); setClassIds([]);
       await loadNotices();
     } catch (e) {
@@ -286,9 +290,13 @@ export default function MessagesPage() {
             </div>
           )}
 
+          <label className="an-pick" style={{ marginTop: 12 }}>
+            <input type="checkbox" checked={whatsappOnlyNonApp} onChange={(e) => setWhatsappOnlyNonApp(e.target.checked)} />
+            <span>Save money: send WhatsApp only to families <strong>not</strong> using the Student App (app families always get a free notification)</span>
+          </label>
           <div className="msg-send">
             <button className="btn btn-whatsapp" disabled={!canSend || sending} onClick={() => setConfirm(true)}>
-              💬 Send on WhatsApp{preview?.parents ? ` (${preview.parents})` : ''}
+              💬 Send{preview?.parents ? ` (${preview.parents})` : ''}
             </button>
           </div>
         </div>

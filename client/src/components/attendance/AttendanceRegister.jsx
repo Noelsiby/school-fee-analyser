@@ -15,7 +15,8 @@ const STATUS = [
 /**
  * Take attendance for one class, date and slot (day / FN / AN / period).
  * Everyone starts as Present: tap only the absent students, then Save.
- * After saving, "Inform parents" sends WhatsApp messages to parents of absent students.
+ * After saving, "Inform parents" tells parents of absent students: a free notification
+ * for families using the Student App, WhatsApp for the others.
  */
 export default function AttendanceRegister({ initialClassId, initialDate, initialSlot, canInform = false, canDelete = false }) {
   const { apiCall } = useApi();
@@ -29,7 +30,8 @@ export default function AttendanceRegister({ initialClassId, initialDate, initia
   const [saving, setSaving]   = useState(false);
   const [notice, setNotice]   = useState('');
   const [error, setError]     = useState('');
-  const [inform, setInform]   = useState([]);    // studentIds ticked for WhatsApp
+  const [inform, setInform]   = useState([]);    // studentIds ticked to inform
+  const [alsoWhatsApp, setAlsoWhatsApp] = useState(false); // WhatsApp even to families using the app
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -92,11 +94,14 @@ export default function AttendanceRegister({ initialClassId, initialDate, initia
   };
 
   const sendInform = async () => {
-    if (!window.confirm(`Send a WhatsApp message to ${inform.length} parent${inform.length === 1 ? '' : 's'}?`)) return;
+    if (!window.confirm(`Inform ${inform.length} parent${inform.length === 1 ? '' : 's'}? Families using the app get a free notification; the others get WhatsApp.`)) return;
     setSending(true);
     try {
-      const d = await apiCall('/api/attendance/alerts', { method: 'POST', body: { classId: Number(classId), date, studentIds: inform } });
-      setNotice(`💬 Sending to ${d.queued} parent${d.queued === 1 ? '' : 's'}.${d.skipped.length ? ` Skipped: ${d.skipped.map((s) => `${s.name} (${s.reason})`).join(', ')}.` : ''}`);
+      const d = await apiCall('/api/attendance/alerts', { method: 'POST', body: { classId: Number(classId), date, studentIds: inform, alsoWhatsApp } });
+      const parts = [];
+      if (d.pushed) parts.push(`📱 ${d.pushed} by app notification (free)`);
+      if (d.queued) parts.push(`💬 ${d.queued} on WhatsApp`);
+      setNotice(`Informing parents: ${parts.join(', ') || 'nobody'}.${d.skipped.length ? ` Skipped: ${d.skipped.map((s) => `${s.name} (${s.reason})`).join(', ')}.` : ''}`);
       await load();
     } catch (e) { setError(e.message); } finally { setSending(false); }
   };
@@ -198,8 +203,11 @@ export default function AttendanceRegister({ initialClassId, initialDate, initia
           {canInform && reg.marked && absentStudents.length > 0 && (
             <div className="at-inform">
               <strong>💬 Inform parents of absent students</strong>
-              <p className="an-muted" style={{ margin: '4px 0 8px' }}>Sends a WhatsApp message only to the parents you tick. Students on leave aren't listed: their parents already know.</p>
-              {!reg.waConfigured && <p className="an-muted">WhatsApp isn't set up yet.</p>}
+              <p className="an-muted" style={{ margin: '4px 0 8px' }}>
+                Only the parents you tick. Families using the Student App get a free notification; the others get WhatsApp.
+                Students on leave aren't listed: their parents already know.
+              </p>
+              {!reg.waConfigured && <p className="an-muted">WhatsApp isn't set up yet, so only families using the app can be told.</p>}
               {absentStudents.map((s) => {
                 const label = waLabel(s.alert?.status);
                 return (
@@ -212,8 +220,14 @@ export default function AttendanceRegister({ initialClassId, initialDate, initia
                   </label>
                 );
               })}
-              <button className="btn btn-whatsapp btn-sm" style={{ marginTop: 8 }} disabled={!inform.length || sending || !reg.waConfigured} onClick={sendInform}>
-                {sending ? <span className="spinner" /> : `💬 Send to ${inform.length} parent${inform.length === 1 ? '' : 's'}`}
+              {reg.waConfigured && (
+                <label className="an-pick" style={{ marginTop: 6 }}>
+                  <input type="checkbox" checked={alsoWhatsApp} onChange={(e) => setAlsoWhatsApp(e.target.checked)} />
+                  <span className="an-muted">Also send WhatsApp to families who use the app</span>
+                </label>
+              )}
+              <button className="btn btn-whatsapp btn-sm" style={{ marginTop: 8 }} disabled={!inform.length || sending} onClick={sendInform}>
+                {sending ? <span className="spinner" /> : `Inform ${inform.length} parent${inform.length === 1 ? '' : 's'}`}
               </button>
             </div>
           )}

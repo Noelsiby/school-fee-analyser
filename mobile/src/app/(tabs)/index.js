@@ -1,6 +1,8 @@
 // Home: today's attendance, latest result and the newest school notices.
+import { useCallback, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { api } from '../../lib/api';
 import { useLoad } from '../../lib/useLoad';
 import { C } from '../../lib/theme';
 import { Screen, Card, Title, Muted, GradeBadge, Loading, ErrorBox } from '../../components/ui';
@@ -15,6 +17,9 @@ const TODAY = {
 export default function Home() {
   const { data, error, refreshing, refresh } = useLoad('/home');
   const router = useRouter();
+  const [unread, setUnread] = useState(0);
+  // Unread notifications, refreshed whenever Home is shown
+  useFocusEffect(useCallback(() => { api('/notifications').then((d) => setUnread(d.unread)).catch(() => {}); }, []));
   const t = data?.today;
   const state = t && (t.holiday ? { text: `Holiday: ${t.holiday}`, fg: C.muted, bg: C.line, icon: '🏖️' }
     : t.weeklyOff ? { text: 'No school today', fg: C.muted, bg: C.line, icon: '🏖️' }
@@ -23,6 +28,13 @@ export default function Home() {
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
+      {unread > 0 && (
+        <Pressable onPress={() => router.push('/notifications')} accessibilityRole="button">
+          <Card style={{ backgroundColor: C.navy, borderColor: C.navy, paddingVertical: 12 }}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>🔔 {unread} new notification{unread === 1 ? '' : 's'} ›</Text>
+          </Card>
+        </Pressable>
+      )}
       {error ? <ErrorBox message={error} onRetry={refresh} /> : !data ? <Loading /> : (
         <>
           <Card style={{ backgroundColor: state.bg, borderColor: state.bg }}>

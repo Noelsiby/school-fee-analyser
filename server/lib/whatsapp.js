@@ -90,4 +90,4 @@ async function fetchStatus(providerMessageId) {
   return { status, error: error ? String(error) : null };
 }
 
-module.exports = { isConfigured, normalizePhone, clean, sendResultTemplate, sendNoticeTemplate, sendAbsenceTemplate, fetchStatus, SENT_STATUSES };
+module.exports = { isConfigured, normalizePhone, clean, sendTemplate, sendResultTemplate, sendNoticeTemplate, sendAbsenceTemplate, fetchStatus, SENT_STATUSES };

@@ -12,6 +12,7 @@
   "dependencies": {
     "@react-pdf/renderer": "^4.9.0",
     "motion": "^14.0.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1"

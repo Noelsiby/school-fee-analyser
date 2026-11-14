@@ -100,6 +100,13 @@ const assistant = require('../controllers/assistantController');
 router.get ('/assistant/status', assistant.status);
 router.post('/assistant',        assistant.ask);
 
+// ── Student App: families, invites, PIN reset ────────────────
+const appAdmin = require('../controllers/appAdminController');
+router.get ('/app/families',              appAdmin.families);
+router.put ('/app/settings',              appAdmin.saveSettings);
+router.post('/app/invites',               appAdmin.invite);
+router.post('/app/families/:phone/reset', appAdmin.reset);
+
 // ── School notices to parents (WhatsApp) ─────────────────────
 const notices = require('../controllers/noticeController');
 router.get ('/notices',             notices.list);

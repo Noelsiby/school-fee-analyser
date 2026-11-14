@@ -22,6 +22,7 @@ import QuickAnswersPage       from './pages/admin/QuickAnswersPage';
 import AtRiskPage             from './pages/admin/AtRiskPage';
 import AttendancePage         from './pages/attendance/AttendancePage';
 import TimetablePage          from './pages/timetable/TimetablePage';
+import StudentAppPage         from './pages/admin/StudentAppPage';
 import StudentsPage           from './pages/admin/StudentsPage';
 import ExamsPage              from './pages/admin/ExamsPage';
 import ExamResultsPage        from './pages/admin/ExamResultsPage';
@@ -89,6 +90,7 @@ function AppRoutes() {
         <Route path="attendance"   element={<AttendancePage role="admin" />} />
         <Route path="timetable"    element={<TimetablePage />} />
         <Route path="at-risk"      element={<AtRiskPage />} />
+        <Route path="student-app"  element={<StudentAppPage />} />
         <Route path="messages"     element={<MessagesPage />} />
         <Route path="assistant"    element={<AssistantPage />} />
         <Route path="students"     element={<StudentsPage />} />

@@ -17,6 +17,7 @@ const NAV = [
   { path: '/admin/quick-answers', label: 'Quick Answers', icon: '🔎' },
   { path: '/admin/grading',   label: 'Grading',     icon: '🏅' },
   { path: '/admin/messages',  label: 'Messages',    icon: '📢' },
+  { path: '/admin/student-app', label: 'Student App', icon: '📱' },
   // AI Assistant (/admin/assistant) is built but switched off: add it back here and set ANTHROPIC_API_KEY to use it.
 ];
 

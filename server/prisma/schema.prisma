@@ -684,3 +684,31 @@ model Substitution {
   @@index([substituteId, date])
   @@map("substitutions")
 }
+
+// ============================================================
+// STUDENT APP (parents)
+// ============================================================
+// One account per parent mobile number. The children are every student whose
+// "Parent Cell" is this number, so brothers and sisters share one login.
+// The admin creates a one-time activation code (printed slip or WhatsApp);
+// the parent enters number + code once and chooses a PIN.
+
+model ParentAccount {
+  id             Int       @id @default(autoincrement())
+  phone          String    @unique // 91XXXXXXXXXX
+  pinHash        String?
+  codeHash       String?             // current activation code (hashed); null once used
+  codeExpires    DateTime?
+  invitedAt      DateTime?
+  inviteStatus   String?             // WhatsApp invite: queued | sent | delivered | read | failed
+  inviteError    String?
+  activatedAt    DateTime?
+  lastLoginAt    DateTime?
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  tokenVersion   Int       @default(0) // bumped on reset: signs the parent out everywhere
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("parent_accounts")
+}

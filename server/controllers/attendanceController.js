@@ -322,50 +322,58 @@ exports.classSummary = async (req, res) => {
 };
 
 // ── GET /api/attendance/students/:id?month=YYYY-MM ── one student's calendar + totals
+/**
+ * A student's attendance for one month (YYYY-MM): each day's state, plus this month's
+ * and this academic year's totals. Shared by the staff profile and the Student App.
+ */
+async function calendarFor(id, monthParam) {
+  const today = att.todayIST();
+  const month = /^\d{4}-\d{2}$/.test(String(monthParam || '')) ? monthParam : today.slice(0, 7);
+  const settings = await att.getSettings(prisma);
+  const first = `${month}-01`;
+  const last = att.ymd(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)));
+  const yearFrom = att.academicYearStart(today);
+
+  const [monthRecs, yearRecs, holidays] = await Promise.all([
+    prisma.attendanceRecord.findMany({ where: { studentId: id, date: { gte: att.toDate(first), lte: att.toDate(last) } } }),
+    prisma.attendanceRecord.findMany({ where: { studentId: id, date: { gte: att.toDate(yearFrom), lte: att.toDate(today) } } }),
+    prisma.holiday.findMany({ where: { date: { gte: att.toDate(first), lte: att.toDate(last) } } }),
+  ]);
+  const days = [];
+  for (let d = att.toDate(first); att.ymd(d) <= last; d = new Date(d.getTime() + 864e5)) {
+    const key = att.ymd(d);
+    const recs = monthRecs.filter((r) => att.ymd(r.date) === key);
+    const h = holidays.find((x) => att.ymd(x.date) === key);
+    const p = att.dayPresence(recs, settings.mode, settings.periodRule);
+    days.push({
+      date: key,
+      weekday: d.getUTCDay(),
+      holiday: h?.name || null,
+      weeklyOff: settings.weeklyOff.includes(d.getUTCDay()),
+      taken: recs.length > 0,
+      // full / half / absent / leave for colouring
+      state: !recs.length ? null : p.present >= p.days ? 'present' : p.present > 0 ? 'partial' : recs.every((r) => r.status === 'L') ? 'leave' : 'absent',
+      slots: Object.fromEntries(recs.map((r) => [r.slot, r.status])),
+      reason: recs.find((r) => r.reason)?.reason || null,
+    });
+  }
+  return {
+    month,
+    mode: settings.mode,
+    days,
+    monthTotal: att.totals(monthRecs, settings.mode, settings.periodRule)[id] || { days: 0, present: 0, percent: null },
+    yearTotal: att.totals(yearRecs, settings.mode, settings.periodRule)[id] || { days: 0, present: 0, percent: null },
+    yearFrom,
+  };
+}
+
 exports.studentCalendar = async (req, res) => {
   const id = Number(req.params.id);
-  const today = att.todayIST();
-  const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? req.query.month : today.slice(0, 7);
   try {
     const student = await prisma.student.findUnique({ where: { id }, select: { classId: true } });
     if (!student) return res.status(404).json({ error: 'Student not found.' });
     if (!(await canView(req.user, student.classId))) return res.status(403).json({ error: 'Not your class.' });
-    const settings = await att.getSettings(prisma);
-    const first = `${month}-01`;
-    const last = att.ymd(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)));
-    const yearFrom = att.academicYearStart(today);
-
-    const [monthRecs, yearRecs, holidays] = await Promise.all([
-      prisma.attendanceRecord.findMany({ where: { studentId: id, date: { gte: att.toDate(first), lte: att.toDate(last) } } }),
-      prisma.attendanceRecord.findMany({ where: { studentId: id, date: { gte: att.toDate(yearFrom), lte: att.toDate(today) } } }),
-      prisma.holiday.findMany({ where: { date: { gte: att.toDate(first), lte: att.toDate(last) } } }),
-    ]);
-    const days = [];
-    for (let d = att.toDate(first); att.ymd(d) <= last; d = new Date(d.getTime() + 864e5)) {
-      const key = att.ymd(d);
-      const recs = monthRecs.filter((r) => att.ymd(r.date) === key);
-      const h = holidays.find((x) => att.ymd(x.date) === key);
-      const p = att.dayPresence(recs, settings.mode, settings.periodRule);
-      days.push({
-        date: key,
-        weekday: d.getUTCDay(),
-        holiday: h?.name || null,
-        weeklyOff: settings.weeklyOff.includes(d.getUTCDay()),
-        taken: recs.length > 0,
-        // full / half / absent / leave for colouring
-        state: !recs.length ? null : p.present >= p.days ? 'present' : p.present > 0 ? 'partial' : recs.every((r) => r.status === 'L') ? 'leave' : 'absent',
-        slots: Object.fromEntries(recs.map((r) => [r.slot, r.status])),
-        reason: recs.find((r) => r.reason)?.reason || null,
-      });
-    }
-    res.json({
-      month,
-      mode: settings.mode,
-      days,
-      monthTotal: att.totals(monthRecs, settings.mode, settings.periodRule)[id] || { days: 0, present: 0, percent: null },
-      yearTotal: att.totals(yearRecs, settings.mode, settings.periodRule)[id] || { days: 0, present: 0, percent: null },
-      yearFrom,
-    });
+    res.json(await calendarFor(id, req.query.month));
   } catch (err) { fail(res, err); }
 };
 
@@ -437,4 +445,5 @@ exports.sendAlerts = async (req, res) => {
 };
 
 exports.canView = canView;
+exports.calendarFor = calendarFor;
 exports.whenText = whenText;

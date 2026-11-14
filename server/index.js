@@ -56,6 +56,7 @@ app.use('/api/students', studentsRouter);
 app.use('/api/analysis', require('./routes/analysis'));
 app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/timetable', require('./routes/timetable'));
+app.use('/api/app', require('./routes/app'));
 
 // ── Production: serve built React app ──────────────────────────
 // In production, Express serves the Vite build output as static files.

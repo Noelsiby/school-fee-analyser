@@ -32,7 +32,7 @@ app.use('/api', dbStatus.friendlyWhenDown);
 // CORS setup
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [process.env.CLIENT_URL || '*'] 
-  : ['http://localhost:5173'];
+  : ['http://localhost:5173', 'http://localhost:8081']; // 8081 = Student App preview (Expo web)
 
 app.use(
   cors({

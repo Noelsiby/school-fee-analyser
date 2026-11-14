@@ -169,6 +169,10 @@ exports.progress = async (req, res) => {
     const snaps = await publishedSnapshots(req.child.id);
     const a = analyse(snaps.map((s) => ({ ...s, studentId: req.child.id })));
     delete a.flags; // "needs attention" warnings are for the school, not shown in the app
+    // Only encouraging positions ("Top 20% of the class"); "Bottom …" isn't shown to families
+    const kind = (p) => (p && p.startsWith('Bottom') ? null : p);
+    a.exams = a.exams.map((e) => ({ ...e, position: kind(e.position) }));
+    if (a.latest) a.latest = { ...a.latest, position: kind(a.latest.position) };
     res.json(a);
   } catch (err) { fail(res, err); }
 };

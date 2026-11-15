@@ -139,12 +139,12 @@ export default function StudentAppPage() {
               </label>
               <label>
                 <span>App file link <small>(the .apk file; the Download button on the page)</small></span>
-                <input className="form-input" placeholder="https://github.com/…/releases/latest/download/matha.apk" value={apk}
+                <input className="form-input" placeholder="Paste the app file link here" value={apk}
                   onChange={(e) => setApk(e.target.value)} aria-label="App file link" />
               </label>
               <label>
                 <span>Latest app version <small>(phones with an older version show “New version available”)</small></span>
-                <input className="form-input" style={{ maxWidth: 140 }} placeholder="1.0.0" value={ver}
+                <input className="form-input" style={{ maxWidth: 140 }} placeholder="e.g. 1.0.0" value={ver}
                   onChange={(e) => setVer(e.target.value)} aria-label="Latest app version" />
               </label>
             </div>

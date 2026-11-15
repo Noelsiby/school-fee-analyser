@@ -1,17 +1,21 @@
 // Sign in with mobile number + PIN, or (first time) mobile number + activation code + new PIN.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../lib/api';
+import { getItem, setItem } from '../lib/storage';
 import { useSession } from '../lib/session';
 import { C } from '../lib/theme';
 import { Button } from '../components/ui';
 
 const logo = require('../../assets/icon.png');
+const USED_KEY = 'signedInBefore'; // set after the first successful activation/sign-in on this phone
 
 export default function Login() {
   const { signIn } = useSession();
   const [mode, setMode] = useState('login'); // login | activate
+  // A phone that has never signed in starts on "First time" (code), not the PIN screen
+  useEffect(() => { getItem(USED_KEY).then((v) => { if (!v) setMode('activate'); }).catch(() => {}); }, []);
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
   const [code, setCode] = useState('');
@@ -31,6 +35,7 @@ export default function Login() {
     setBusy(true);
     try {
       const d = await api(activate ? '/activate' : '/login', { method: 'POST', body: activate ? { phone, code, pin } : { phone, pin } });
+      await setItem(USED_KEY, '1').catch(() => {});
       await signIn(d);
     } catch (e) {
       setError(e.message);
@@ -46,6 +51,15 @@ export default function Login() {
           <Image source={logo} style={st.logo} />
           <Text style={st.school}>Matha English Medium School</Text>
           <Text style={st.sub}>{activate ? 'First time: activate the app' : 'Parent sign in'}</Text>
+
+          <View style={st.tabs} accessibilityRole="tablist">
+            {[['activate', 'First time (code)'], ['login', 'Sign in (PIN)']].map(([m, label]) => (
+              <Pressable key={m} onPress={() => { setMode(m); setError(''); }} style={[st.tab, mode === m && st.tabOn]}
+                accessibilityRole="tab" accessibilityState={{ selected: mode === m }}>
+                <Text style={[st.tabText, mode === m && st.tabTextOn]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
 
           <View style={st.form}>
             <Text style={st.label}>Parent mobile number</Text>
@@ -76,7 +90,7 @@ export default function Login() {
             <Button title={busy ? 'Please wait…' : activate ? 'Activate' : 'Sign in'} onPress={submit} disabled={busy} style={{ marginTop: 8 }} />
 
             <Pressable onPress={() => { setMode(activate ? 'login' : 'activate'); setError(''); }} style={st.switch} accessibilityRole="button">
-              <Text style={st.switchText}>{activate ? 'Already activated? Sign in' : 'First time? Activate'}</Text>
+              <Text style={st.switchText}>{activate ? 'Already activated? Sign in with your PIN' : 'First time? Use the 6-digit code'}</Text>
             </Pressable>
             <Text style={st.help}>Forgot your PIN or lost the code? Please contact the school office.</Text>
           </View>
@@ -92,6 +106,11 @@ const st = StyleSheet.create({
   school: { fontSize: 20, fontWeight: '800', color: C.navy, textAlign: 'center', marginTop: 10 },
   sub: { fontSize: 15, color: C.muted, marginTop: 4, marginBottom: 20 },
   form: { width: '100%', maxWidth: 420 },
+  tabs: { flexDirection: 'row', width: '100%', maxWidth: 420, backgroundColor: C.line, borderRadius: 12, padding: 4, marginBottom: 4 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 9 },
+  tabOn: { backgroundColor: C.navy },
+  tabText: { fontWeight: '700', color: C.muted, fontSize: 14 },
+  tabTextOn: { color: '#fff' },
   label: { fontSize: 13, color: C.muted, marginBottom: 6, marginTop: 12 },
   input: { borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 17, color: C.ink, backgroundColor: '#fff' },
   code: { letterSpacing: 6, fontWeight: '700' },

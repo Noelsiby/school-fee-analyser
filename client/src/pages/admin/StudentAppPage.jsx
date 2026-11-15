@@ -139,7 +139,7 @@ export default function StudentAppPage() {
               </label>
               <label>
                 <span>App file link <small>(the .apk file; the Download button on the page)</small></span>
-                <input className="form-input" placeholder="https://github.com/…/releases/latest/download/Matha-School.apk" value={apk}
+                <input className="form-input" placeholder="https://github.com/…/releases/latest/download/matha.apk" value={apk}
                   onChange={(e) => setApk(e.target.value)} aria-label="App file link" />
               </label>
               <label>

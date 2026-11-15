@@ -8,7 +8,7 @@ import schoolLogo from '../../assets/school-logo.png';
 
 const STEPS = [
   ['Tap “Download the app”.', 'If Chrome says the file might be harmful, tap “Download anyway”. The app comes from the school, not the Play Store, so phones warn about it.'],
-  ['Open the downloaded file.', 'Tap the download in the notification bar, or open Files → Downloads and tap “Matha-School.apk”.'],
+  ['Open the downloaded file.', 'Tap the download in the notification bar, or open Files → Downloads and tap “matha.apk”.'],
   ['Allow the install.', 'If the phone asks, tap “Settings”, turn on “Allow from this source”, go back and tap “Install”.'],
   ['If Play Protect warns you,', 'tap “More details” → “Install anyway”.'],
   ['Open the Matha School app.', 'Enter the parent mobile number and the 6-digit code from the school, then choose a 4-digit PIN.'],

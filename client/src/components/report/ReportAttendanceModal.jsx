@@ -17,7 +17,7 @@ export default function ReportAttendanceModal({ examId, cls, onClose, onSaved })
   const inputs = useRef([]);
 
   useEffect(() => {
-    apiCall(`/api/admin/report-attendance?examId=${examId}&classId=${cls.id}`)
+    apiCall(`/api/students/report-attendance?examId=${examId}&classId=${cls.id}`)
       .then((d) => {
         setData(d);
         setDays(d.workingDays ?? '');
@@ -45,7 +45,7 @@ export default function ReportAttendanceModal({ examId, cls, onClose, onSaved })
     if (clear && !window.confirm(`Remove the report card attendance of ${cls.name} for this exam?`)) return;
     setBusy(true); setError('');
     try {
-      await apiCall('/api/admin/report-attendance', {
+      await apiCall('/api/students/report-attendance', {
         method: 'PUT',
         body: clear ? { examId: Number(examId), classId: cls.id, workingDays: '' } : {
           examId: Number(examId), classId: cls.id, workingDays: days,

@@ -25,6 +25,10 @@ const uploadCSV = multer({
 });
 const csvUpload = (req, res, next) => uploadCSV.single('csv')(req, res, (err) => (err ? res.status(400).json({ error: err.message }) : next()));
 
+// Report-card attendance per exam (admin: any class; class teacher: own class)
+const reportAttendance = require('../controllers/reportAttendanceController');
+router.get('/report-attendance',                          reportAttendance.get);
+router.put('/report-attendance',                          reportAttendance.save);
 router.get('/class/:classId',                             ctrl.getClassStudents);
 router.post('/class/:classId/import', csvUpload,          ctrl.importCSV);
 router.get('/class/:classId/exams',                       ctrl.getClassExams);

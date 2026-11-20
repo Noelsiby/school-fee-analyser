@@ -5,6 +5,7 @@ import { useApi } from '../../hooks/useApi';
 import MyStudentsList from './MyStudentsList';
 import AttendanceToday from '../../components/attendance/AttendanceToday';
 import MyDay from '../../components/timetable/MyDay';
+import ReportAttendanceModal from '../../components/report/ReportAttendanceModal';
 import SubjectWatch from '../../components/analysis/SubjectWatch';
 import '../../components/analysis/Analysis.css';
 import '../admin/admin.css'; 
@@ -17,6 +18,8 @@ export default function ClassTeacherDashboard() {
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [attFor, setAttFor] = useState(null);   // { examId, cls } for Report card attendance
+  const [attNotice, setAttNotice] = useState('');
 
   const loadData = useCallback(async () => {
     setLoading(true); setError('');
@@ -34,6 +37,11 @@ export default function ClassTeacherDashboard() {
 
   return (
     <div className="admin-page">
+      {attFor && (
+        <ReportAttendanceModal examId={attFor.examId} cls={attFor.cls} onClose={() => setAttFor(null)}
+          onSaved={(msg) => { setAttFor(null); setAttNotice(msg); setTimeout(() => setAttNotice(''), 6000); }} />
+      )}
+      {attNotice && <div className="alert alert-success" style={{ marginBottom: 12 }}>{attNotice}</div>}
       <div className="page-header">
         <div>
           <h1 className="page-title">Class Teacher Dashboard</h1>
@@ -120,6 +128,13 @@ export default function ClassTeacherDashboard() {
                   onClick={() => navigate(`/class-teacher/exams/${exam.id}/review?classId=${exam.targetClassId}`)}
                 >
                   Review Marks →
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
+                  onClick={() => setAttFor({ examId: exam.id, cls: { id: exam.targetClassId, name: exam.class?.name || 'Class' } })}
+                >
+                  📅 Report card attendance
                 </button>
               </div>
             </div>

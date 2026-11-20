@@ -11,6 +11,7 @@ import { gradeTone } from '../../utils/grades';
 import { waLabel, waPending, formatPhone } from '../../utils/whatsappStatus';
 import { resizePhoto, uploadStudentPhoto } from '../../utils/photo';
 import CameraCapture from '../../components/students/CameraCapture';
+import StudentAttendanceModal from '../../components/report/StudentAttendanceModal';
 import '../admin/admin.css';
 import './StudentProfile.css';
 
@@ -51,6 +52,7 @@ export default function StudentProfilePage() {
   const [notice, setNotice]   = useState('');
   const [photoBusy, setPhotoBusy] = useState(false);
   const [camera, setCamera] = useState(false);   // 📷 Take photo
+  const [attExam, setAttExam] = useState(null);  // exam whose report-card attendance is being edited
   const [busy, setBusy]       = useState({});   // `pdf-${examId}` / `wa-${examId}`
   const [wa, setWa]           = useState({});   // examId → message status for this student
   const [paper, setPaper]     = usePaper();
@@ -196,6 +198,11 @@ export default function StudentProfilePage() {
         </div>
       )}
 
+      {attExam && (
+        <StudentAttendanceModal exam={attExam} student={st} onClose={() => setAttExam(null)}
+          onSaved={(msg) => { setAttExam(null); flash(msg); load(); }} />
+      )}
+
       {/* ── Header ── */}
       <div className="data-card sp-header">
         <div className="sp-photo">
@@ -318,6 +325,14 @@ export default function StudentProfilePage() {
                 <h3>{exam.name}</h3>
                 <div className="sp-chips">
                   <span className={`badge ${exam.status === 'Closed' ? 'badge-green' : 'badge-blue'}`}>{exam.status === 'Closed' ? 'Finalized' : 'In progress'}</span>
+                  {(() => {
+                    const a = result.examAttendance;
+                    const text = a && a.present !== null ? `📅 Attendance ${a.present}/${a.workingDays} days (${a.percent}%)` : '📅 Attendance not entered';
+                    return (
+                      <button className={`badge ${a && a.present !== null ? 'badge-blue' : 'badge-gray'} sp-att-btn`} onClick={() => setAttExam(exam)}
+                        title="Report card attendance for this exam">{text} · Edit</button>
+                    );
+                  })()}
                   {!result.complete && <span className="badge badge-amber">Marks incomplete</span>}
                   {label && <span className={`badge badge-${label.tone}`} title={msg.error || ''}>{label.icon} WhatsApp: {label.text}</span>}
                 </div>

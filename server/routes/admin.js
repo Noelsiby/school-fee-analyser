@@ -79,11 +79,6 @@ router.put('/exams/:id/unlock', ctrl.unlockExam);
 // Export exam results as CSV
 router.get('/exams/:id/export', ctrl.exportExamResults);
 
-// Report-card attendance typed in per exam (working days + days present)
-const reportAttendance = require('../controllers/reportAttendanceController');
-router.get('/report-attendance', reportAttendance.get);
-router.put('/report-attendance', reportAttendance.save);
-
 // Export exam results as Excel
 router.get('/exams/:id/export/excel', ctrl.exportExamResultsExcel);
 

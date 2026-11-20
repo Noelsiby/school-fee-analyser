@@ -1,15 +1,17 @@
 /**
- * reportAttendanceController.js — Admin → Classes → Reports → "Report card attendance".
+ * reportAttendanceController.js — "Report card attendance" (Admin → Classes → Reports, the class
+ * teacher's dashboard, and each exam on a student's profile). Admin: any class; class teacher: own class.
  * For one exam and one class the admin types the working days once and each student's
  * days present. The report card then shows "Working days / Days present / %".
  *
- * GET /api/admin/report-attendance?examId=&classId=
- * PUT /api/admin/report-attendance { examId, classId, workingDays, records: [{ studentId, present }] }
+ * GET /api/students/report-attendance?examId=&classId=
+ * PUT /api/students/report-attendance { examId, classId, workingDays, records: [{ studentId, present }] }
  *     workingDays empty → clears this exam's attendance for the class; present empty → clears that student.
  */
 
 const { PrismaClient } = require('@prisma/client');
 const { byRoll } = require('../lib/rollOrder');
+const { canAccessClass } = require('./studentController');
 
 const prisma = new PrismaClient();
 const fail = (res, err) => { console.error('[report-attendance]', err); res.status(500).json({ error: err.message }); };
@@ -31,6 +33,7 @@ exports.get = async (req, res) => {
   const { examId, classId } = ids(req.query);
   if (!examId || !classId) return res.status(400).json({ error: 'Choose an exam and a class.' });
   try {
+    if (!(await canAccessClass(req.user, classId))) return res.status(403).json({ error: 'Not your class.' });
     const exam = await examForClass(examId, classId);
     if (!exam) return res.status(404).json({ error: 'This class is not part of that exam.' });
     const [days, students] = await Promise.all([
@@ -52,6 +55,7 @@ exports.save = async (req, res) => {
   if (!examId || !classId) return res.status(400).json({ error: 'Choose an exam and a class.' });
   const records = Array.isArray(req.body.records) ? req.body.records : [];
   try {
+    if (!(await canAccessClass(req.user, classId))) return res.status(403).json({ error: 'Not your class.' });
     const exam = await examForClass(examId, classId);
     if (!exam) return res.status(404).json({ error: 'This class is not part of that exam.' });
     const classIds = new Set((await prisma.student.findMany({ where: { classId }, select: { id: true } })).map((s) => s.id));

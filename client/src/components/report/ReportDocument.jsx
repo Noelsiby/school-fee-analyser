@@ -1,7 +1,7 @@
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import schoolLogo from '../../assets/school-logo-report.jpg'; // small JPEG copy so multi-page PDFs stay light
 import watermarkLogo from '../../assets/school-logo-watermark.jpg'; // pale black-and-white logo for the page centre
-import { SCHOOL, formatDate } from '../../utils/school';
+import { SCHOOL } from '../../utils/school';
 
 /*
  * Progress report PDF: one page per student, on any paper size in PAPER_SIZES.
@@ -235,8 +235,6 @@ function StudentPage({ report, result, generatedOn, paper }) {
           <Field s={s} label="Class" value={report.class.name} />
           <Field s={s} label="Section" value={st.section} />
           <Field s={s} label="Roll No." value={st.rollNumber} />
-          <Field s={s} label="Admission No." value={st.admissionNo} />
-          <Field s={s} label="Admission Date" value={formatDate(st.admissionDate)} />
           <Field s={s} label="Cell" value={st.parentPhone} />
           <Field s={s} label="Address" value={st.address} wide />
         </View>

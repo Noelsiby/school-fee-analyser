@@ -128,7 +128,8 @@ model Class {
   // Students enrolled in this class
   students Student[]
 
-  timetable TimetableEntry[]
+  timetable          TimetableEntry[]
+  examAttendanceDays ExamAttendanceDays[]
 
   @@index([classTeacherId])
   @@map("classes")
@@ -231,6 +232,7 @@ model Student {
   notes            StudentNote[]
   attendance       AttendanceRecord[]
   attendanceAlerts AttendanceAlert[]
+  examAttendance   ExamAttendance[]
 
   @@unique([rollNumber, classId]) // Roll numbers unique per class
   @@index([classId])
@@ -280,6 +282,8 @@ model Exam {
   subjectConfigs   ExamSubjectConfig[]
   marks            Mark[]
   whatsappMessages WhatsAppMessage[]
+  attendanceDays   ExamAttendanceDays[]
+  attendance       ExamAttendance[]
 
   isPublished Boolean   @default(false)
   publishedAt DateTime?
@@ -536,9 +540,9 @@ model AssistantUsage {
 // key on purpose: deleting the exam keeps the snapshot.
 
 model ResultSnapshot {
-  id           Int      @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   studentId    Int
-  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   examId       Int // the exam may since have been deleted
   examName     String
   examDate     DateTime // when the exam was created, for ordering
@@ -552,15 +556,15 @@ model ResultSnapshot {
   grade        String?
   gpa          Float?
   rank         Int?
-  rankedCount  Int      @default(0) // students with complete marks (the "of N" in the rank)
+  rankedCount  Int       @default(0) // students with complete marks (the "of N" in the rank)
   classAverage Float? // class average percentage
   classHighest Float?
-  complete     Boolean  @default(true)
+  complete     Boolean   @default(true)
   // Set when the exam is published; stays set after another exam is published, so
   // families keep seeing earlier results in the app. Cleared only by "Unpublish".
   releasedAt   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([studentId, examId])
   @@index([examId])
@@ -700,10 +704,10 @@ model ParentAccount {
   id             Int       @id @default(autoincrement())
   phone          String    @unique // 91XXXXXXXXXX
   pinHash        String?
-  codeHash       String?             // current activation code (hashed); null once used
+  codeHash       String? // current activation code (hashed); null once used
   codeExpires    DateTime?
   invitedAt      DateTime?
-  inviteStatus   String?             // WhatsApp invite: queued | sent | delivered | read | failed
+  inviteStatus   String? // WhatsApp invite: queued | sent | delivered | read | failed
   inviteError    String?
   activatedAt    DateTime?
   lastLoginAt    DateTime?
@@ -747,4 +751,31 @@ model ParentNotification {
 
   @@index([parentId, createdAt])
   @@map("parent_notifications")
+}
+
+// Report-card attendance typed in by the admin for an exam: working days per class,
+// days present per student. Used on the report card instead of the daily attendance.
+model ExamAttendanceDays {
+  examId      Int
+  classId     Int
+  workingDays Int
+  updatedAt   DateTime @updatedAt
+  exam        Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  class       Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@id([examId, classId])
+  @@map("exam_attendance_days")
+}
+
+model ExamAttendance {
+  examId    Int
+  studentId Int
+  present   Int
+  updatedAt DateTime @updatedAt
+  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([examId, studentId])
+  @@index([studentId])
+  @@map("exam_attendance")
 }

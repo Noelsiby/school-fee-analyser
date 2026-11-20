@@ -10,6 +10,7 @@ const NAV = [
   { path: '/admin/teachers',  label: 'Teachers',    icon: '👩‍🏫' },
   { path: '/admin/subjects',  label: 'Subjects',    icon: '📚' },
   { path: '/admin/students',  label: 'Students',    icon: '👦' },
+  { path: '/admin/photo-day', label: 'Photo day',   icon: '📷' },
   { path: '/admin/exams',     label: 'Exams',       icon: '📝' },
   { path: '/admin/attendance', label: 'Attendance', icon: '✅' },
   { path: '/admin/timetable', label: 'Timetable',   icon: '🗓️' },

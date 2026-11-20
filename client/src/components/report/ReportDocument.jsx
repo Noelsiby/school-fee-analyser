@@ -1,8 +1,7 @@
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import schoolLogo from '../../assets/school-logo-report.jpg'; // small JPEG copy so multi-page PDFs stay light
 import watermarkLogo from '../../assets/school-logo-watermark.jpg'; // pale black-and-white logo for the page centre
-import { SCHOOL, formatDate, ageFrom } from '../../utils/school';
-import { DEFAULT_BANDS, rangeLabel } from '../../utils/grades';
+import { SCHOOL, formatDate } from '../../utils/school';
 
 /*
  * Progress report PDF: one page per student, on any paper size in PAPER_SIZES.
@@ -26,6 +25,7 @@ const INK = '#0f172a';
 const MUTED = '#64748b';
 const LINE = '#cbd5e1';
 const SOFT = '#f1f5f9';
+const GRID = '#94a3b8'; // table lines: dark enough to show when printed
 
 const PARTS = ['Reading', 'Writing', 'Dictation'];
 
@@ -58,47 +58,46 @@ const BASE = {
   studentName: { fontFamily: 'Helvetica-Bold', fontSize: 12.5, color: NAVY, marginTop: 1 },
 
   // Marks table
-  table: { borderWidth: 1, borderColor: LINE, borderRadius: 4, marginBottom: 8 },
-  tr: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: LINE, minHeight: 15.5, alignItems: 'center' },
-  th: { backgroundColor: NAVY, color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 7.5, textAlign: 'center', paddingVertical: 4 },
-  td: { textAlign: 'center', paddingVertical: 2.5, fontSize: 8.5 },
+  table: { borderWidth: 1, borderColor: GRID, borderRadius: 3, marginBottom: 10 },
+  tr: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: GRID, minHeight: 22, alignItems: 'stretch' },
+  th: { backgroundColor: NAVY, color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 8.5, textAlign: 'center', paddingVertical: 5 },
+  td: { textAlign: 'center', paddingVertical: 5, fontSize: 10 },
+  vline: { borderRightWidth: 1, borderRightColor: GRID },
+  thLine: { borderRightWidth: 1, borderRightColor: '#3b5bb5' },
   colSubject: { width: '19%', textAlign: 'left', paddingLeft: 6 },
+  subjectName: { fontFamily: 'Helvetica-Bold', fontSize: 11 },
   colPart: { width: '9.5%' },
   colTotal: { width: '11%' },
   colGrade: { width: '7%' },
   colPoints: { width: '8%' },
-  colRemark: { width: '17%', textAlign: 'left', paddingLeft: 5, fontSize: 7.5 },
-  totalRow: { backgroundColor: '#e0e7ff', fontFamily: 'Helvetica-Bold' },
+  colRemark: { width: '17%', textAlign: 'left', paddingLeft: 5, fontSize: 8 },
+  totalRow: { backgroundColor: '#e0e7ff', fontFamily: 'Helvetica-Bold', minHeight: 26 },
+  totalText: { fontFamily: 'Helvetica-Bold', fontSize: 12.5, paddingVertical: 6 },
   dash: { color: '#94a3b8' },
-  of: { color: MUTED, fontSize: 7 },
+  of: { color: MUTED, fontSize: 7.5 },
 
   // Summary
   summary: { flexDirection: 'row', marginBottom: 8 },
   card: { flex: 1, borderWidth: 1, borderColor: LINE, borderRadius: 4, paddingVertical: 6, alignItems: 'center', marginRight: 6 },
   cardLast: { marginRight: 0 },
-  cardValue: { fontFamily: 'Helvetica-Bold', fontSize: 13, color: NAVY },
+  cardValue: { fontFamily: 'Helvetica-Bold', fontSize: 15, color: NAVY },
   cardLabel: { fontSize: 6.5, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
 
   // Attendance + remarks
   twoCol: { flexDirection: 'row', marginBottom: 8 },
   attendance: { flex: 1.15, marginRight: 8 },
   remarks: { flex: 1 },
-  blankRow: { minHeight: 15.5 },
-  remarkLine: { borderBottomWidth: 1, borderBottomColor: LINE, height: 17.5 },
-
-  // Grade scale
-  scale: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8, borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 5, backgroundColor: SOFT },
-  scaleItem: { width: '25%', fontSize: 7, color: MUTED, paddingVertical: 1 },
-  scaleGrade: { fontFamily: 'Helvetica-Bold', color: INK },
+  blankRow: { minHeight: 20 },
+  remarkLine: { borderBottomWidth: 1, borderBottomColor: GRID, height: 20 },
 
   // Signatures
-  signatures: { flexDirection: 'row', marginTop: 'auto', paddingTop: 12 },
+  signatures: { flexDirection: 'row', marginTop: 34 },
   sign: { flex: 1, alignItems: 'center', marginHorizontal: 10 },
   signLine: { borderTopWidth: 1, borderTopColor: INK, width: '100%', marginBottom: 3 },
   signLabel: { fontFamily: 'Helvetica-Bold', fontSize: 8 },
   signName: { fontSize: 7, color: MUTED, marginTop: 1 },
 
-  footer: { position: 'absolute', bottom: 12, left: 26, right: 26, flexDirection: 'row', justifyContent: 'space-between', fontSize: 6.5, color: '#94a3b8' },
+  footer: { marginTop: 14, flexDirection: 'row', justifyContent: 'space-between', fontSize: 6.5, color: '#94a3b8' },
   photoHint: { color: MUTED, fontSize: 7 },
   progress: { fontSize: 8, color: INK, marginTop: -3, marginBottom: 7 },
   progressLabel: { fontFamily: 'Helvetica-Bold', color: NAVY, fontSize: 7.5, letterSpacing: 0.6 },
@@ -147,9 +146,61 @@ function Cell({ s, value, of, style }) {
   );
 }
 
+const cellW = (w, last) => ({ width: w, ...(last ? {} : { borderRightWidth: 1, borderRightColor: GRID }) });
+
+/**
+ * Attendance on the report card:
+ *  1. typed in by the admin for this exam -> Working days / Days present / %
+ *  2. else daily attendance taken in the app -> the last 3 months + this year
+ *  3. else one blank row to fill in by hand
+ */
+function Attendance({ s, result }) {
+  const ex = result.examAttendance;
+  const months = !ex && result.attendance?.months;
+  if (months) {
+    const a = result.attendance;
+    return (
+      <View style={s.table}>
+        <View style={[s.tr, { borderBottomWidth: 0 }]}>
+          <Text style={[s.th, s.thLine, { width: '34%' }]}>Month</Text>
+          <Text style={[s.th, s.thLine, { width: '33%' }]}>Working Days</Text>
+          <Text style={[s.th, { width: '33%' }]}>Days Present</Text>
+        </View>
+        {months.slice(0, 3).map((m) => (
+          <View key={m.label} style={[s.tr, s.blankRow]}>
+            <Text style={[s.td, cellW('34%')]}>{m.label}</Text>
+            <Text style={[s.td, cellW('33%')]}>{m.days}</Text>
+            <Text style={[s.td, cellW('33%', true)]}>{m.present}</Text>
+          </View>
+        ))}
+        <View style={[s.tr, s.blankRow, s.totalRow, { borderBottomWidth: 0 }]}>
+          <Text style={[s.td, cellW('34%'), { fontFamily: 'Helvetica-Bold' }]}>THIS YEAR</Text>
+          <Text style={[s.td, cellW('33%'), { fontFamily: 'Helvetica-Bold' }]}>{a.total.days}</Text>
+          <Text style={[s.td, cellW('33%', true), { fontFamily: 'Helvetica-Bold' }]}>
+            {a.total.present}{a.total.percent !== null ? ` (${a.total.percent}%)` : ''}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View style={s.table}>
+      <View style={[s.tr, { borderBottomWidth: 0 }]}>
+        <Text style={[s.th, s.thLine, { width: '34%' }]}>Working Days</Text>
+        <Text style={[s.th, s.thLine, { width: '33%' }]}>Days Present</Text>
+        <Text style={[s.th, { width: '33%' }]}>Attendance %</Text>
+      </View>
+      <View style={[s.tr, s.totalRow, { borderBottomWidth: 0 }]}>
+        <Text style={[s.td, s.totalText, cellW('34%')]}>{ex ? ex.workingDays : ''}</Text>
+        <Text style={[s.td, s.totalText, cellW('33%')]}>{ex && ex.present !== null ? ex.present : ''}</Text>
+        <Text style={[s.td, s.totalText, cellW('33%', true)]}>{ex && ex.percent !== null ? `${ex.percent}%` : ''}</Text>
+      </View>
+    </View>
+  );
+}
+
 function StudentPage({ report, result, generatedOn, paper }) {
   const { s, size } = stylesFor(paper);
-  const bands = report.gradeScale || DEFAULT_BANDS;
   const st = result.student;
   return (
     <Page size={size} style={s.page}>
@@ -186,14 +237,6 @@ function StudentPage({ report, result, generatedOn, paper }) {
           <Field s={s} label="Roll No." value={st.rollNumber} />
           <Field s={s} label="Admission No." value={st.admissionNo} />
           <Field s={s} label="Admission Date" value={formatDate(st.admissionDate)} />
-          <Field s={s} label="Date of Birth" value={formatDate(st.dateOfBirth)} />
-          <Field s={s} label="Age" value={ageFrom(st.dateOfBirth)} />
-          <Field s={s} label="Blood Group" value={st.bloodGroup} />
-          <Field s={s} label="Identification Mark 1" value={st.idMark1} />
-          <Field s={s} label="Identification Mark 2" value={st.idMark2} />
-          <Field s={s} label="Aadhaar No." value={st.aadhaarNo} />
-          <Field s={s} label="APAAR No." value={st.apaarNo} />
-          <Field s={s} label="Phone (Res.)" value={st.phoneRes} />
           <Field s={s} label="Cell" value={st.parentPhone} />
           <Field s={s} label="Address" value={st.address} wide />
         </View>
@@ -206,12 +249,12 @@ function StudentPage({ report, result, generatedOn, paper }) {
       <Text style={s.sectionTitle}>Academic Performance — {report.exam.name}</Text>
       <View style={s.table}>
         <View style={[s.tr, { borderBottomWidth: 0 }]}>
-          <Text style={[s.th, s.colSubject, { textAlign: 'left' }]}>Subject</Text>
-          <Text style={[s.th, s.colPart]}>Marks</Text>
-          {PARTS.map((p) => <Text key={p} style={[s.th, s.colPart]}>{p}</Text>)}
-          <Text style={[s.th, s.colTotal]}>Total</Text>
-          <Text style={[s.th, s.colGrade]}>Grade</Text>
-          <Text style={[s.th, s.colPoints]}>Points</Text>
+          <Text style={[s.th, s.colSubject, s.thLine, { textAlign: 'left' }]}>Subject</Text>
+          <Text style={[s.th, s.colPart, s.thLine]}>Marks</Text>
+          {PARTS.map((p) => <Text key={p} style={[s.th, s.colPart, s.thLine]}>{p}</Text>)}
+          <Text style={[s.th, s.colTotal, s.thLine]}>Total</Text>
+          <Text style={[s.th, s.colGrade, s.thLine]}>Grade</Text>
+          <Text style={[s.th, s.colPoints, s.thLine]}>Points</Text>
           {/* Remarks: left blank for the teacher to write */}
           <Text style={[s.th, s.colRemark, { fontSize: s.th.fontSize, textAlign: 'left' }]}>Remarks</Text>
         </View>
@@ -220,24 +263,24 @@ function StudentPage({ report, result, generatedOn, paper }) {
           const cmm = sub.componentMaxMarks;
           return (
             <View key={sub.id} style={s.tr}>
-              <Text style={[s.td, s.colSubject, { fontFamily: 'Helvetica-Bold' }]}>{sub.name}</Text>
-              <Cell s={s} value={r.main} of={cmm ? cmm.Main : sub.maxMarks} style={s.colPart} />
+              <Text style={[s.td, s.colSubject, s.subjectName, s.vline]}>{sub.name}</Text>
+              <Cell s={s} value={r.main} of={cmm ? cmm.Main : sub.maxMarks} style={[s.colPart, s.vline]} />
               {PARTS.map((p) => (
-                <Cell s={s} key={p} value={cmm && p in cmm ? r.parts[p] : null} of={cmm && p in cmm ? cmm[p] : undefined} style={s.colPart} />
+                <Cell s={s} key={p} value={cmm && p in cmm ? r.parts[p] : null} of={cmm && p in cmm ? cmm[p] : undefined} style={[s.colPart, s.vline]} />
               ))}
-              <Cell s={s} value={r.total} of={sub.maxMarks} style={[s.colTotal, { fontFamily: 'Helvetica-Bold' }]} />
-              <Cell s={s} value={r.grade} style={[s.colGrade, { fontFamily: 'Helvetica-Bold' }]} />
-              <Cell s={s} value={r.points} style={s.colPoints} />
+              <Cell s={s} value={r.total} of={sub.maxMarks} style={[s.colTotal, s.vline, { fontFamily: 'Helvetica-Bold' }]} />
+              <Cell s={s} value={r.grade} style={[s.colGrade, s.vline, { fontFamily: 'Helvetica-Bold' }]} />
+              <Cell s={s} value={r.points} style={[s.colPoints, s.vline]} />
               <Text style={[s.td, s.colRemark]} />
             </View>
           );
         })}
         <View style={[s.tr, s.totalRow, { borderBottomWidth: 0 }]}>
-          <Text style={[s.td, s.colSubject, { fontFamily: 'Helvetica-Bold' }]}>TOTAL</Text>
-          <Text style={[s.td, { width: '38%' }]} />
-          <Cell s={s} value={result.total} of={result.maxTotal} style={[s.colTotal, { fontFamily: 'Helvetica-Bold' }]} />
-          <Cell s={s} value={result.grade} style={[s.colGrade, { fontFamily: 'Helvetica-Bold' }]} />
-          <Cell s={s} value={result.gpa} style={[s.colPoints, { fontFamily: 'Helvetica-Bold' }]} />
+          <Text style={[s.td, s.colSubject, s.totalText, s.vline]}>TOTAL</Text>
+          <Text style={[s.td, s.vline, { width: '38%' }]} />
+          <Cell s={s} value={result.total} of={result.maxTotal} style={[s.colTotal, s.totalText, s.vline]} />
+          <Cell s={s} value={result.grade} style={[s.colGrade, s.totalText, s.vline]} />
+          <Cell s={s} value={result.gpa} style={[s.colPoints, s.totalText, s.vline]} />
           <Text style={[s.td, s.colRemark]} />
         </View>
       </View>
@@ -263,45 +306,12 @@ function StudentPage({ report, result, generatedOn, paper }) {
       <View style={s.twoCol}>
         <View style={s.attendance}>
           <Text style={s.sectionTitle}>Attendance</Text>
-          <View style={s.table}>
-            <View style={[s.tr, { borderBottomWidth: 0 }]}>
-              <Text style={[s.th, { width: '34%' }]}>Month</Text>
-              <Text style={[s.th, { width: '33%' }]}>Working Days</Text>
-              <Text style={[s.th, { width: '33%' }]}>Days Present</Text>
-            </View>
-            {/* From the attendance taken in the app (last 3 months); blank lines to fill in by hand when there is none */}
-            {[0, 1, 2].map((k) => {
-              const m = result.attendance?.months[k];
-              return (
-                <View key={k} style={[s.tr, s.blankRow]}>
-                  <Text style={[s.td, { width: '34%', borderRightWidth: 1, borderRightColor: LINE, height: '100%' }]}>{m?.label || ''}</Text>
-                  <Text style={[s.td, { width: '33%', borderRightWidth: 1, borderRightColor: LINE, height: '100%' }]}>{m ? m.days : ''}</Text>
-                  <Text style={[s.td, { width: '33%' }]}>{m ? m.present : ''}</Text>
-                </View>
-              );
-            })}
-            <View style={[s.tr, s.blankRow, s.totalRow, { borderBottomWidth: 0 }]}>
-              <Text style={[s.td, { width: '34%', borderRightWidth: 1, borderRightColor: LINE }]}>{result.attendance ? 'THIS YEAR' : 'TOTAL'}</Text>
-              <Text style={[s.td, { width: '33%', borderRightWidth: 1, borderRightColor: LINE, height: '100%' }]}>{result.attendance ? result.attendance.total.days : ''}</Text>
-              <Text style={[s.td, { width: '33%' }]}>
-                {result.attendance ? `${result.attendance.total.present}${result.attendance.total.percent !== null ? ` (${result.attendance.total.percent}%)` : ''}` : ''}
-              </Text>
-            </View>
-          </View>
+          <Attendance s={s} result={result} />
         </View>
         <View style={s.remarks}>
           <Text style={s.sectionTitle}>Remarks</Text>
           {[0, 1, 2, 3].map((k) => <View key={k} style={s.remarkLine} />)}
         </View>
-      </View>
-
-      {/* Grade scale */}
-      <View style={s.scale}>
-        {bands.map((b, i) => (
-          <Text key={b.grade} style={s.scaleItem}>
-            <Text style={s.scaleGrade}>{b.grade}</Text>  {rangeLabel(bands, i)}%  ·  {b.points} pts
-          </Text>
-        ))}
       </View>
 
       {/* Signatures */}
@@ -321,7 +331,7 @@ function StudentPage({ report, result, generatedOn, paper }) {
         </View>
       </View>
 
-      <View style={s.footer} fixed>
+      <View style={s.footer}>
         <Text>{SCHOOL.name} · {report.class.name} · Roll {st.rollNumber}</Text>
         <Text>Generated on {generatedOn}</Text>
       </View>

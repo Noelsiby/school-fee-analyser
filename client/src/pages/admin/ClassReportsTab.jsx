@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { downloadReports, printReports } from '../../components/report/downloadReport';
 import { usePaper, PaperPicker } from '../../components/report/PaperPicker';
+import ReportAttendanceModal from '../../components/report/ReportAttendanceModal';
 import { gradeTone } from '../../utils/grades';
 import { SCHOOL } from '../../utils/school';
 import { waLabel, waPending, formatPhone } from '../../utils/whatsappStatus';
@@ -41,6 +42,8 @@ export default function ClassReportsTab({ cls }) {
   const [confirm, setConfirm]   = useState(false);   // whole-class send dialog
   const [resend, setResend]     = useState(false);
   const [paper, setPaper]       = usePaper();
+  const [attOpen, setAttOpen]   = useState(false);   // report card attendance editor
+  const [reload, setReload]     = useState(0);
 
   const flash = (msg) => { setNotice(msg); setTimeout(() => setNotice(''), 6000); };
 
@@ -64,7 +67,7 @@ export default function ClassReportsTab({ cls }) {
       .then(([rep]) => setReport(rep))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [apiCall, examId, cls.id, loadStatus]);
+  }, [apiCall, examId, cls.id, loadStatus, reload]);
 
   // Keep checking while messages are still sending.
   useEffect(() => {
@@ -149,6 +152,10 @@ export default function ClassReportsTab({ cls }) {
 
   return (
     <div className="tab-content">
+      {attOpen && (
+        <ReportAttendanceModal examId={examId} cls={cls} onClose={() => setAttOpen(false)}
+          onSaved={(msg) => { setAttOpen(false); flash(msg); setReload((n) => n + 1); }} />
+      )}
       <div className="tab-section-header">
         <div>
           <h3>Progress Reports &amp; WhatsApp</h3>
@@ -177,6 +184,10 @@ export default function ClassReportsTab({ cls }) {
               <span className="badge badge-blue">{sentCount} sent on WhatsApp</span>
             </div>
             <div className="cr-actions">
+              <button className="btn btn-ghost btn-sm" onClick={() => setAttOpen(true)}
+                title="Working days and days present for this exam, printed on the report cards">
+                📅 Report card attendance{results[0]?.examAttendance ? ` (${results[0].examAttendance.workingDays} days)` : ''}
+              </button>
               <PaperPicker paper={paper} onChange={setPaper} />
               <button className="btn btn-primary btn-sm" disabled={busy.all || !results.length} onClick={downloadAll}>
                 {busy.all ? <><span className="spinner" /> Preparing…</> : `⬇ Download all reports (${results.length})`}

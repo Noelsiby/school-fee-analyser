@@ -9,6 +9,8 @@ import AttendanceCalendar from '../../components/attendance/AttendanceCalendar';
 import { formatDate, ageFrom } from '../../utils/school';
 import { gradeTone } from '../../utils/grades';
 import { waLabel, waPending, formatPhone } from '../../utils/whatsappStatus';
+import { resizePhoto, uploadStudentPhoto } from '../../utils/photo';
+import CameraCapture from '../../components/students/CameraCapture';
 import '../admin/admin.css';
 import './StudentProfile.css';
 
@@ -33,24 +35,6 @@ const FIELDS = [
 
 const toInputDate = (v) => (v ? String(v).slice(0, 10) : '');
 
-/** Shrink a photo in the browser (max 480 px, JPEG) before uploading. */
-function resizePhoto(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, 480 / Math.max(img.width, img.height));
-      const canvas = Object.assign(document.createElement('canvas'), {
-        width: Math.round(img.width * scale), height: Math.round(img.height * scale),
-      });
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Could not read the photo.'))), 'image/jpeg', 0.85);
-      URL.revokeObjectURL(img.src);
-    };
-    img.onerror = () => reject(new Error('That file is not a photo.'));
-    img.src = URL.createObjectURL(file);
-  });
-}
-
 export default function StudentProfilePage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -66,6 +50,7 @@ export default function StudentProfilePage() {
   const [formError, setFormError] = useState('');
   const [notice, setNotice]   = useState('');
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [camera, setCamera] = useState(false);   // 📷 Take photo
   const [busy, setBusy]       = useState({});   // `pdf-${examId}` / `wa-${examId}`
   const [wa, setWa]           = useState({});   // examId → message status for this student
   const [paper, setPaper]     = usePaper();
@@ -147,9 +132,7 @@ export default function StudentProfilePage() {
     setPhotoBusy(true);
     try {
       const blob = await resizePhoto(file);
-      const fd = new FormData();
-      fd.append('photo', blob, 'photo.jpg');
-      await apiUpload(`/api/students/${st.id}/photo`, fd, 'PUT');
+      await uploadStudentPhoto(apiUpload, st.id, blob);
       flash('✅ Photo saved.'); load();
     } catch (err) { flash(`⚠ ${err.message}`); }
     finally { setPhotoBusy(false); }
@@ -200,11 +183,25 @@ export default function StudentProfilePage() {
 
       {notice && <div className={`alert ${notice.startsWith('⚠') ? 'alert-error' : 'alert-success'}`} style={{ marginBottom: 12 }}>{notice}</div>}
 
+      {camera && (
+        <div className="modal-overlay" onClick={() => setCamera(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">📷 Photo of {st.name}</h2>
+              <button className="modal-close" onClick={() => setCamera(false)} aria-label="Close">✕</button>
+            </div>
+            <CameraCapture onCancel={() => setCamera(false)} useLabel="Save photo"
+              onUse={async (blob) => { await uploadStudentPhoto(apiUpload, st.id, blob); setCamera(false); flash('✅ Photo saved.'); load(); }} />
+          </div>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="data-card sp-header">
         <div className="sp-photo">
           {photoUrl ? <img src={photoUrl} alt={`Photo of ${st.name}`} /> : <span className="sp-initial">{st.name.charAt(0)}</span>}
           <div className="sp-photo-actions">
+            <button className="btn btn-ghost btn-xs" disabled={photoBusy} onClick={() => setCamera(true)}>📷 Take photo</button>
             <button className="btn btn-ghost btn-xs" disabled={photoBusy} onClick={() => fileRef.current?.click()}>
               {photoBusy ? <span className="spinner spinner-dark" /> : st.hasPhoto ? 'Change photo' : '＋ Add photo'}
             </button>

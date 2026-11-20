@@ -163,9 +163,18 @@ async function buildClassReport(prisma, examId, classId, opts = {}) {
     orderBy: { examDate: 'asc' },
     select: { studentId: true, examName: true, percentage: true },
   }).catch(() => []);
+  // Attendance the admin typed in for this exam (used on the report card instead of the above)
+  const examDays = await prisma.examAttendanceDays.findUnique({ where: { examId_classId: { examId, classId } } }).catch(() => null);
+  const examPresent = examDays
+    ? new Map((await prisma.examAttendance.findMany({ where: { examId, studentId: { in: ids } } })).map((a) => [a.studentId, a.present]))
+    : new Map();
   selected = selected.map((r) => ({
     ...r,
     attendance: attendance[r.student.id] || null,
+    examAttendance: examDays ? (() => {
+      const present = examPresent.has(r.student.id) ? examPresent.get(r.student.id) : null;
+      return { workingDays: examDays.workingDays, present, percent: present === null ? null : Math.round((present / examDays.workingDays) * 1000) / 10 };
+    })() : null,
     history: [
       ...earlier.filter((e) => e.studentId === r.student.id).slice(-4).map((e) => ({ examName: e.examName, percentage: e.percentage })),
       ...(r.percentage !== null && r.complete ? [{ examName: exam.name, percentage: r.percentage, current: true }] : []),

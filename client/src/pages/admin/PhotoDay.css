@@ -1,0 +1,19 @@
+.pd-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.pd-camera { padding: 16px; }
+.pd-skip { text-align: center; margin-top: 6px; }
+.pd-list { padding: 8px; max-height: 70vh; overflow-y: auto; }
+.pd-list ul { list-style: none; margin: 0; padding: 0; }
+.pd-row {
+  width: 100%; display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 0; border-radius: 8px;
+  background: none; text-align: left; cursor: pointer; font: inherit; color: inherit;
+}
+.pd-row:hover { background: #f1f5f9; }
+.pd-on { background: #e0e7ff; }
+.pd-thumb { width: 34px; height: 44px; border-radius: 6px; object-fit: cover; flex: none; }
+.pd-none { display: flex; align-items: center; justify-content: center; background: #e2e8f0; color: #64748b; font-weight: 700; }
+.pd-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-tick { color: #16a34a; font-weight: 800; }
+@media (max-width: 800px) {
+  .pd-layout { grid-template-columns: 1fr; }
+  .pd-list { max-height: 40vh; }
+}

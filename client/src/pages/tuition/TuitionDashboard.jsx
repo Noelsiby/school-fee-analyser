@@ -39,6 +39,8 @@ export default function TuitionDashboard() {
           <div className="tu-stat"><strong>{s.teachers}</strong><span>Teachers</span></div>
           <div className="tu-stat tu-good"><strong>{rupees(s.collected)}</strong><span>Collected in {monthLabel(s.month)}</span></div>
           <div className={`tu-stat ${s.unpaid ? 'tu-warn' : 'tu-good'}`}><strong>{s.unpaid}</strong><span>Not paid yet (of {rupees(s.expected)} due)</span></div>
+          <div className="tu-stat"><strong>{rupees(s.salaryPaid)}</strong><span>Salaries paid (of {rupees(s.salaryDue)})</span></div>
+          <div className={`tu-stat ${s.collected - s.salaryPaid >= 0 ? 'tu-good' : 'tu-warn'}`}><strong>{rupees(s.collected - s.salaryPaid)}</strong><span>Balance this month</span></div>
         </div>
       )}
 

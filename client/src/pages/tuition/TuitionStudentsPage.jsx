@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { rupees } from './tuition';
 import '../admin/admin.css';
@@ -10,6 +11,7 @@ import './Tuition.css';
  */
 export default function TuitionStudentsPage() {
   const { apiCall } = useApi();
+  const navigate = useNavigate();
   const [students, setStudents] = useState(null);
   const [classes, setClasses] = useState([]);
   const [filterClass, setFilterClass] = useState(() => new URLSearchParams(window.location.search).get('class') || '');
@@ -72,7 +74,8 @@ export default function TuitionStudentsPage() {
             {list.map((s) => (
               <div key={s.id} className="tu-scard">
                 <span className="tu-avatar">{s.name.charAt(0)}</span>
-                <div className="tu-who">
+                <div className="tu-who" role="button" tabIndex={0} style={{ cursor: 'pointer' }} title="Open report"
+                  onClick={() => navigate(`/tuition/students/${s.id}`)} onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/tuition/students/${s.id}`); }}>
                   <strong>{s.name}</strong>
                   <small>School: {s.schoolClass} · {rupees(s.fee)}/month{s.feeOverride !== null ? ' (special)' : ''}</small>
                 </div>

@@ -803,12 +803,15 @@ model TuitionClass {
 
 // Tuition teachers (a list kept by the head of tuition; they don't log in).
 model TuitionTeacher {
-  id        Int               @id @default(autoincrement())
-  name      String
-  phone     String?
-  subjects  String?
-  createdAt DateTime          @default(now())
-  classes   TuitionTeaching[]
+  id            Int               @id @default(autoincrement())
+  name          String
+  phone         String?
+  subjects      String?
+  monthlySalary Float             @default(0)
+  schoolUserId  Int?              @unique // picked from the school's teachers (null = outside teacher)
+  createdAt     DateTime          @default(now())
+  classes       TuitionTeaching[]
+  salaries      TuitionSalary[]
 
   @@map("tuition_teachers")
 }
@@ -854,4 +857,20 @@ model TuitionPayment {
   @@unique([tuitionStudentId, month])
   @@index([month])
   @@map("tuition_payments")
+}
+
+// Salary paid by the head of tuition to a tuition teacher for a month ("2026-11").
+model TuitionSalary {
+  id        Int            @id @default(autoincrement())
+  teacherId Int
+  teacher   TuitionTeacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  month     String
+  amount    Float
+  paidOn    DateTime
+  mode      String?
+  note      String?
+  createdAt DateTime       @default(now())
+
+  @@unique([teacherId, month])
+  @@map("tuition_salaries")
 }

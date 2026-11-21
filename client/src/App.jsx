@@ -48,6 +48,9 @@ import TuitionClassesPage     from './pages/tuition/TuitionClassesPage';
 import TuitionTeachersPage    from './pages/tuition/TuitionTeachersPage';
 import TuitionFeesPage        from './pages/tuition/TuitionFeesPage';
 import TuitionMessagesPage    from './pages/tuition/TuitionMessagesPage';
+import TuitionResultsPage     from './pages/tuition/TuitionResultsPage';
+import TuitionStudentReport   from './pages/tuition/TuitionStudentReport';
+import TuitionFeeReportPage   from './pages/tuition/TuitionFeeReportPage';
 
 // Root redirect: if logged in → go to active role's dashboard; else → /login
 // Exception: if accessed via results.mathaschool.in, serve PublicResults directly
@@ -168,6 +171,9 @@ function AppRoutes() {
         <Route path="teachers"  element={<TuitionTeachersPage />} />
         <Route path="fees"      element={<TuitionFeesPage />} />
         <Route path="messages"  element={<TuitionMessagesPage />} />
+        <Route path="results"   element={<TuitionResultsPage />} />
+        <Route path="fee-report" element={<TuitionFeeReportPage />} />
+        <Route path="students/:id" element={<TuitionStudentReport />} />
       </Route>
 
       {/* ── Root + catch-all ────────────────────────────────────── */}

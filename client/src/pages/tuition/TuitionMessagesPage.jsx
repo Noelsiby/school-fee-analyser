@@ -11,20 +11,27 @@ import './Tuition.css';
  */
 export default function TuitionMessagesPage() {
   const { apiCall } = useApi();
-  const unpaidFrom = new URLSearchParams(window.location.search).get('unpaid');
-  const [type, setType] = useState(unpaidFrom ? 'unpaid' : 'all');   // all | classes | unpaid
+  const qs = new URLSearchParams(window.location.search);
+  const unpaidFrom = qs.get('unpaid');
+  const chosen = (qs.get('students') || '').split(',').map(Number).filter(Boolean);   // from the fees report
+  const owingAll = qs.get('owing') === '1';
+  const [type, setType] = useState(chosen.length ? 'students' : owingAll ? 'owing' : unpaidFrom ? 'unpaid' : 'all');   // all | classes | unpaid | owing | students
   const [month] = useState(unpaidFrom || thisMonth());
   const [classIds, setClassIds] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [title, setTitle] = useState(unpaidFrom ? 'Tuition fee reminder' : '');
-  const [body, setBody] = useState(unpaidFrom ? `Dear parent, the tuition fee for ${monthLabel(unpaidFrom)} is still pending. Please pay at the earliest. Thank you.` : '');
+  const reminder = unpaidFrom || owingAll || chosen.length;
+  const [title, setTitle] = useState(reminder ? 'Tuition fee reminder' : '');
+  const [body, setBody] = useState(unpaidFrom
+    ? `Dear parent, the tuition fee for ${monthLabel(unpaidFrom)} is still pending. Please pay at the earliest. Thank you.`
+    : reminder ? 'Dear parent, some tuition fees are still pending. Please pay at the earliest (GPay / UPI or cash). Thank you.' : '');
   const [preview, setPreview] = useState(null);
   const [history, setHistory] = useState(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
-  const audience = type === 'classes' ? { type, classIds } : type === 'unpaid' ? { type, month } : { type: 'all' };
+  const audience = type === 'classes' ? { type, classIds } : type === 'unpaid' ? { type, month }
+    : type === 'owing' ? { type: 'owing' } : type === 'students' ? { type: 'students', studentIds: chosen } : { type: 'all' };
   const ready = type !== 'classes' || classIds.length > 0;
 
   const loadHistory = useCallback(() => apiCall('/api/tuition/messages').then(setHistory).catch(() => {}), [apiCall]);
@@ -65,7 +72,8 @@ export default function TuitionMessagesPage() {
       <div className="data-card" style={{ padding: 18, marginBottom: 16 }}>
         <label className="form-label">Send to</label>
         <div className="ex-tabs" style={{ marginBottom: 10 }}>
-          {[['all', 'All tuition parents'], ['classes', 'Some tuition classes'], ['unpaid', `Not paid · ${monthLabel(month)}`]].map(([k, l]) => (
+          {[['all', 'All tuition parents'], ['classes', 'Some tuition classes'], ['unpaid', `Not paid · ${monthLabel(month)}`], ['owing', 'Everyone who owes'],
+            ...(chosen.length ? [['students', `The ${chosen.length} chosen`]] : [])].map(([k, l]) => (
             <button key={k} className={`ex-tab${type === k ? ' ex-tab-on' : ''}`} onClick={() => setType(k)}>{l}</button>
           ))}
         </div>

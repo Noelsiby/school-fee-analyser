@@ -7,6 +7,8 @@ const SECTIONS = [
       { path: '/tuition/dashboard', label: 'Dashboard', icon: '📊' },
       { path: '/tuition/students',  label: 'Students', icon: '👦' },
       { path: '/tuition/fees',      label: 'Fees', icon: '💰' },
+      { path: '/tuition/fee-report', label: 'Fees report', icon: '📊' },
+      { path: '/tuition/results',   label: 'Exam results', icon: '📈' },
       { path: '/tuition/messages',  label: 'Messages to parents', icon: '📢' },
     ],
   },
@@ -14,7 +16,7 @@ const SECTIONS = [
     title: 'Setup',
     items: [
       { path: '/tuition/classes',  label: 'Tuition classes', icon: '🏫' },
-      { path: '/tuition/teachers', label: 'Teachers', icon: '👩‍🏫' },
+      { path: '/tuition/teachers', label: 'Teachers & salaries', icon: '👩‍🏫' },
     ],
   },
 ];

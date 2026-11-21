@@ -13,7 +13,7 @@ function Subject({ sub, passMark }) {
     <View style={{ paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={{ flex: 1, fontWeight: '700', color: C.ink }}>{sub.name}</Text>
-        <Text style={{ fontWeight: '700', color: low ? C.red : C.ink }}>{sub.total ?? '—'}<Text style={{ color: C.faint, fontWeight: '400' }}> / {sub.maxMarks}</Text></Text>
+        <Text style={{ fontWeight: '700', color: low ? C.red : C.ink }}>{sub.absent ? 'AB' : (sub.total ?? '—')}{!sub.absent && <Text style={{ color: C.faint, fontWeight: '400' }}> / {sub.maxMarks}</Text>}</Text>
         <GradeBadge grade={sub.grade} />
       </View>
       {parts.length > 0 && (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import MaxMarksField from '../../components/MaxMarksField';
@@ -22,6 +22,7 @@ export default function MarksEntryPage() {
   const [savingStatus, setSavingStatus] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const tableRef = useRef(null);
 
   // Max marks editing
   const [editingMaxMarks, setEditingMaxMarks] = useState(false);
@@ -120,6 +121,40 @@ export default function MarksEntryPage() {
     }
   };
 
+  /** Mark a student absent ("AB") or bring them back (boxes empty again). */
+  const toggleAbsent = async (student) => {
+    const nowAbsent = !student.markRecord?.isAbsent;
+    setSavingStatus(prev => ({ ...prev, [student.id]: 'saving' }));
+    try {
+      await apiCall('/api/subject-teacher/marks', {
+        method: 'POST',
+        body: { examId, subjectId, marksData: [nowAbsent ? { studentId: student.id, absent: true } : { studentId: student.id, marksObtained: '' }] },
+      });
+      setInputValues(prev => ({ ...prev, [student.id]: isSplit ? Object.fromEntries(keys.map(k => [k, ''])) : '' }));
+      setData(prev => ({
+        ...prev,
+        students: prev.students.map(s => (s.id !== student.id ? s : {
+          ...s,
+          markRecord: { ...s.markRecord, isAbsent: nowAbsent, marksObtained: null, componentMarks: null,
+            status: ['SubmittedToClassTeacher', 'Approved', 'Rejected'].includes(s.markRecord?.status) ? 'Pending' : (s.markRecord?.status || 'Pending') },
+        })),
+      }));
+      setSavingStatus(prev => ({ ...prev, [student.id]: 'saved' }));
+      setTimeout(() => setSavingStatus(prev => ({ ...prev, [student.id]: null })), 2000);
+    } catch (e) {
+      setSavingStatus(prev => ({ ...prev, [student.id]: 'error' }));
+    }
+  };
+
+  /** Enter jumps to the next mark box (like a register). */
+  const nextOnEnter = (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const boxes = [...(tableRef.current?.querySelectorAll('input.mark-input:not(:disabled)') || [])];
+    const next = boxes[boxes.indexOf(e.target) + 1];
+    if (next) { next.focus(); next.select(); } else e.target.blur();
+  };
+
   const handleSaveMaxMarks = async () => {
     const { body, error: invalid } = maxMarksBody(editSubject, maxMarksInput);
     if (invalid) { setMaxMarksError(invalid); return; }
@@ -168,10 +203,16 @@ export default function MarksEntryPage() {
   const anyPreviouslySubmitted = anyCurrentlySubmitted;
   const anyRejected = data.students.some(s => s.markRecord?.status === 'Rejected');
 
-  const allFilled = data.students.every(s => {
+  const isDone = (s) => {
+    if (s.markRecord?.isAbsent) return true;
     const v = inputValues[s.id];
     return isSplit ? keys.every(k => !isBlank(v?.[k])) : !isBlank(v);
-  });
+  };
+  const missing = data.students.filter(s => !isDone(s));
+  const allFilled = missing.length === 0;
+  const doneCount = data.students.length - missing.length;
+  const savingNow = Object.values(savingStatus).includes('saving');
+  const saveError = Object.values(savingStatus).includes('error');
 
   // Show resubmit warning if some marks were already submitted AND some have been reset to Pending (edited)
   const someResetToPending = data.students.some(s => s.markRecord?.status === 'Pending' && s.markRecord?.marksObtained !== null);
@@ -257,16 +298,30 @@ export default function MarksEntryPage() {
           </div>
         </div>
 
+      </div>
+
+      {/* Progress, saving and submit: always visible while scrolling */}
+      <div className="me-bar">
+        <div className="me-progress">
+          <div className="me-progress-top">
+            <strong>{doneCount} of {data.students.length} entered</strong>
+            <span className={`me-save ${saveError ? 'me-save-error' : savingNow ? 'me-save-busy' : ''}`}>
+              {saveError ? '⚠ Some marks were not saved: check the red boxes' : savingNow ? 'Saving…' : '✓ All changes saved'}
+            </span>
+          </div>
+          <div className="me-track"><div style={{ width: `${data.students.length ? (doneCount / data.students.length) * 100 : 0}%` }} /></div>
+          {!isLocked && !allFilled && (
+            <span className="me-missing">
+              To submit, enter marks or tap <strong>AB</strong> for: {missing.slice(0, 5).map(s => s.name).join(', ')}{missing.length > 5 ? ` and ${missing.length - 5} more` : ''}
+            </span>
+          )}
+        </div>
         {!isLocked && (
-          <button
-            className="btn btn-primary"
-            disabled={submitting || !allFilled}
-            onClick={handleSubmitAll}
-            title={!allFilled ? `All students must have ${isSplit ? 'every part' : 'marks'} entered before submitting` : ''}
-          >
-            {submitting ? <span className="spinner" /> : submitButtonLabel}
+          <button className="btn btn-primary" disabled={submitting || !allFilled || savingNow} onClick={handleSubmitAll}>
+            {submitting ? <span className="spinner" /> : `✓ ${submitButtonLabel}`}
           </button>
         )}
+        {isLocked && <span className="badge badge-blue">🔒 Finalized: marks can't be changed</span>}
       </div>
 
       {/* Resubmit warning banner */}
@@ -298,9 +353,11 @@ export default function MarksEntryPage() {
 
       {submitError && <div className="alert alert-error" style={{ marginBottom: 16 }}>⚠ {submitError}</div>}
 
-      <div className="data-card marks-entry-card">
+      <p className="me-hint">Marks save by themselves. Press <strong>Enter</strong> to go to the next student. Tap <strong>AB</strong> if a student was absent.</p>
+
+      <div className="data-card marks-entry-card" ref={tableRef}>
         <div className="data-table-wrap">
-          <table className="data-table">
+          <table className="data-table me-table">
             <thead>
               <tr>
                 <th style={{ width: '90px' }}>Roll No.</th>
@@ -315,6 +372,7 @@ export default function MarksEntryPage() {
                 ) : (
                   <th style={{ width: '200px' }}>Marks (/ {data.maxMarks})</th>
                 )}
+                <th>Absent</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -324,12 +382,13 @@ export default function MarksEntryPage() {
                 const stat = savingStatus[student.id];
                 const markRecord = student.markRecord;
                 const isRejected = markRecord?.status === 'Rejected';
-                const statusText = stat === 'saving' ? 'Saving...' : stat === 'saved' ? 'Saved ✓' : stat === 'error' ? 'Error ⚠' : '';
+                const statusText = stat === 'saving' ? 'Saving...' : stat === 'saved' ? 'Saved ✓' : stat === 'error' ? 'Not saved ⚠' : '';
+                const absent = !!markRecord?.isAbsent;
 
                 return (
-                  <tr key={student.id} className={isRejected ? 'row-rejected' : ''}>
-                    <td><code className="roll-number">{student.rollNumber}</code></td>
-                    <td>
+                  <tr key={student.id} className={`${isRejected ? 'row-rejected' : ''}${absent ? ' row-absent' : ''}${!isDone(student) ? ' row-todo' : ''}`}>
+                    <td className="me-roll"><code className="roll-number">{student.rollNumber}</code></td>
+                    <td className="me-name">
                       <div style={{ fontWeight: 500 }}>{student.name}</div>
                       {isRejected && (
                         <div className="rejection-reason">
@@ -340,15 +399,17 @@ export default function MarksEntryPage() {
                     {isSplit ? (
                       <>
                         {keys.map(k => (
-                          <td key={k} className="part-col">
+                          <td key={k} className="part-col" data-label={`${keyLabel(k, subjectName)} / ${data.componentMaxMarks[k]}`}>
                             <input
                               type="number"
+                              inputMode="decimal"
                               className={`form-input mark-input part-input ${outOfRange(val?.[k], data.componentMaxMarks[k]) ? 'input-error' : ''}`}
-                              value={val?.[k] ?? ''}
+                              value={absent ? '' : (val?.[k] ?? '')}
                               onChange={e => handleInputChange(student.id, e.target.value, k)}
                               onBlur={() => handleBlur(student.id)}
-                              disabled={isLocked}
-                              placeholder="—"
+                              onKeyDown={nextOnEnter}
+                              disabled={isLocked || absent}
+                              placeholder={absent ? 'AB' : '—'}
                               min="0"
                               max={data.componentMaxMarks[k]}
                               step="0.1"
@@ -356,24 +417,26 @@ export default function MarksEntryPage() {
                             />
                           </td>
                         ))}
-                        <td className="part-col">
+                        <td className="part-col" data-label={`Total / ${data.maxMarks}`}>
                           <div className="part-total">
-                            {keys.every(k => !isBlank(val?.[k])) ? totalOf(val) : '—'}
+                            {absent ? 'AB' : keys.every(k => !isBlank(val?.[k])) ? totalOf(val) : '—'}
                           </div>
                           <span className="save-status-indicator" data-status={stat}>{statusText}</span>
                         </td>
                       </>
                     ) : (
-                      <td>
+                      <td data-label={`Marks / ${data.maxMarks}`}>
                         <div className="mark-input-wrapper">
                           <input
                             type="number"
+                            inputMode="decimal"
                             className={`form-input mark-input ${stat === 'error' ? 'input-error' : ''}`}
-                            value={val}
+                            value={absent ? '' : val}
                             onChange={e => handleInputChange(student.id, e.target.value)}
                             onBlur={() => handleBlur(student.id)}
-                            disabled={isLocked}
-                            placeholder="—"
+                            onKeyDown={nextOnEnter}
+                            disabled={isLocked || absent}
+                            placeholder={absent ? 'AB' : '—'}
                             min="0"
                             max={data.maxMarks}
                             step="0.1"
@@ -382,7 +445,14 @@ export default function MarksEntryPage() {
                         </div>
                       </td>
                     )}
-                    <td>{statusBadge(markRecord)}</td>
+                    <td className="me-ab">
+                      <button type="button" className={`me-ab-btn${absent ? ' me-ab-on' : ''}`} disabled={isLocked}
+                        onClick={() => toggleAbsent(student)} aria-pressed={absent}
+                        title={absent ? 'Absent. Tap again to enter marks' : 'Mark this student absent'}>
+                        AB
+                      </button>
+                    </td>
+                    <td className="me-status">{statusBadge(markRecord)}</td>
                   </tr>
                 );
               })}

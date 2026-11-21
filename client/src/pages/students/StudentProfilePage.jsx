@@ -372,9 +372,9 @@ export default function StudentProfilePage() {
                     return (
                       <tr key={sub.id}>
                         <td className="sp-subject">{sub.name}</td>
-                        <td>{cell(r.main, cmm ? cmm.Main : sub.maxMarks)}</td>
+                        <td>{r.absent ? <strong>AB</strong> : cell(r.main, cmm ? cmm.Main : sub.maxMarks)}</td>
                         {PARTS.map(p => <td key={p}>{cmm && p in cmm ? cell(r.parts[p], cmm[p]) : <span className="sp-dash">—</span>}</td>)}
-                        <td className="sp-strong">{cell(r.total, sub.maxMarks)}</td>
+                        <td className="sp-strong">{r.absent ? 'AB' : cell(r.total, sub.maxMarks)}</td>
                         <td>{r.grade ? <span className={`badge badge-${gradeTone(r.grade)}`}>{r.grade}</span> : <span className="sp-dash">—</span>}</td>
                         <td>{r.points ?? <span className="sp-dash">—</span>}</td>
                       </tr>

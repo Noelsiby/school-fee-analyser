@@ -118,7 +118,7 @@ const resultOf = (s) => ({
   classAverage: s.classAverage,
   complete: s.complete,
   subjects: (s.subjects || []).map((x) => ({
-    name: x.name, total: x.total, maxMarks: x.maxMarks, grade: x.grade, points: x.points,
+    name: x.name, total: x.total, absent: !!x.absent, maxMarks: x.maxMarks, grade: x.grade, points: x.points,
     parts: x.parts ? Object.fromEntries(Object.entries(x.parts).filter(([k]) => k !== 'Main' && x.partMax?.[k] !== undefined)) : null,
     main: x.parts?.Main ?? null,
     partMax: x.partMax || null,

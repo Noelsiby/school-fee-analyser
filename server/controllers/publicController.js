@@ -39,6 +39,7 @@ exports.getPublicClasses = async (req, res) => {
       classes = [publishedExam.class];
     }
 
+    classes.sort(require('../lib/classOrder').byClassName);
     res.json({
       publishedExam: {
         id: publishedExam.id,

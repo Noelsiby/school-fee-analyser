@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { partsLabel } from '../../utils/subjectParts';
 import { ClassPicker, PartsPicker, byClassName } from '../../components/SubjectFields';
@@ -675,7 +675,7 @@ const TABS = [
   { key: 'class-teacher', label: '👩‍🏫 Class Teacher' },
   { key: 'subjects',      label: '📚 Subjects' },
   { key: 'assignments',   label: '📋 Teacher Assignments' },
-  { key: 'reports',       label: '📄 Reports & WhatsApp' },
+  { key: 'reports',       label: '📄 Report cards & WhatsApp' },
   { key: 'timetable',     label: '🗓️ Timetable' },
   { key: 'analyser',      label: '📈 Analyser' },
 ];
@@ -690,7 +690,9 @@ export default function ClassDetailPage() {
   const [allClasses, setAllClasses] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
-  const [activeTab, setActiveTab] = useState('students');
+  const [searchParams] = useSearchParams();
+  // ?tab=reports&exam=12 opens a tab directly (e.g. from an exam's results page)
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'students');
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -784,7 +786,7 @@ export default function ClassDetailPage() {
         {activeTab === 'class-teacher' && <ClassTeacherTab     cls={cls} teachers={teachers} onRefresh={load} />}
         {activeTab === 'subjects'      && <SubjectsTab         cls={cls} allClasses={allClasses} onRefresh={load} />}
         {activeTab === 'assignments'   && <TeacherAssignmentsTab cls={cls} teachers={teachers} onRefresh={load} />}
-        {activeTab === 'reports'       && <ClassReportsTab cls={cls} />}
+        {activeTab === 'reports'       && <ClassReportsTab cls={cls} initialExamId={searchParams.get('exam')} />}
         {activeTab === 'timetable'     && <div className="tab-content"><TimetableGrid classId={cls.id} editable /></div>}
         {activeTab === 'analyser'      && <div className="tab-content"><ClassAnalyser classId={cls.id} profileBase="/admin/students" /></div>}
       </div>

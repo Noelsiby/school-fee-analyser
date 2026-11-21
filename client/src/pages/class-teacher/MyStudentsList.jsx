@@ -5,18 +5,20 @@ import { formatPhone } from '../../utils/whatsappStatus';
 import { byRoll } from '../../utils/rollOrder';
 import '../students/StudentProfile.css';
 
-export default function MyStudentsList() {
+/** The class teacher's students. classId: show that class (e.g. the exam being reviewed). */
+export default function MyStudentsList({ classId: fixedClassId } = {}) {
   const { apiCall } = useApi();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [chosen, setChosen] = useState(fixedClassId || '');
 
   useEffect(() => {
     const loadStudents = async () => {
       try {
-        const res = await apiCall('/api/class-teacher/my-students');
+        const res = await apiCall(`/api/class-teacher/my-students${chosen ? `?classId=${chosen}` : ''}`);
         setData(res);
       } catch (err) {
         setError(err.message || 'Failed to load students');
@@ -25,7 +27,7 @@ export default function MyStudentsList() {
       }
     };
     loadStudents();
-  }, [apiCall]);
+  }, [apiCall, chosen]);
 
   if (loading) return <div className="spinner spinner-dark" style={{ margin: '20px 0' }} />;
   if (error) return null; // If they don't have a class, just hide it
@@ -44,7 +46,15 @@ export default function MyStudentsList() {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a' }}>My Class: {data.className}</h2>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {fixedClassId ? 'Students' : 'My Class'}:{' '}
+            {!fixedClassId && data.classes?.length > 1 ? (
+              <select className="form-select" style={{ width: 'auto', fontSize: '1rem', fontWeight: 700 }} value={data.classId}
+                onClick={(e) => e.stopPropagation()} onChange={(e) => setChosen(e.target.value)} aria-label="Class">
+                {data.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            ) : data.className}
+          </h2>
           <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.85rem' }}>
             {data.totalStudents} Students · click a name for the profile and progress reports
           </p>

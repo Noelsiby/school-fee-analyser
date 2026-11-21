@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
+import { byClassName } from '../../utils/classOrder';
+import { byRoll } from '../../utils/rollOrder';
 import Modal from '../../components/Modal';
 import './admin.css';
 
@@ -23,6 +26,8 @@ export default function StudentsPage() {
   const [formErr,   setFormErr]   = useState('');
   const [submitting,setSubmitting]= useState(false);
   const [filterClass, setFilterClass] = useState('');
+  const [search, setSearch] = useState('');
+  const navigate = useNavigate();
   const [notification, setNotification] = useState(null);
 
   // CSV import state
@@ -148,6 +153,12 @@ export default function StudentsPage() {
     </form>
   );
 
+  // Search by name or roll; school class order, then roll number
+  const q = search.trim().toLowerCase();
+  const shown = students
+    .filter(s => !q || s.name.toLowerCase().includes(q) || String(s.rollNumber).toLowerCase() === q)
+    .sort((a, b) => byClassName(a.class?.name || '', b.class?.name || '') || byRoll(a, b));
+
   return (
     <div className="admin-page">
       {notification && (
@@ -169,16 +180,23 @@ export default function StudentsPage() {
 
       {/* Filter bar */}
       <div className="filter-bar">
-        <label style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600 }}>Filter by class:</label>
-        <select className="filter-select" value={filterClass} onChange={e => setFilterClass(e.target.value)}>
-          <option value="">All Classes</option>
-          {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        <input className="form-input" style={{ maxWidth: 280 }} placeholder="🔎 Search name or roll number…" value={search}
+          onChange={e => setSearch(e.target.value)} aria-label="Search students" />
+        <select className="filter-select" value={filterClass} onChange={e => setFilterClass(e.target.value)} aria-label="Class">
+          <option value="">All classes</option>
+          {[...classes].sort(byClassName).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+        {search && <span className="page-sub" style={{ margin: 0 }}>{shown.length} found</span>}
       </div>
 
       <div className="data-card">
         {loading ? (
           <div className="empty-state"><div className="spinner spinner-dark" /></div>
+        ) : shown.length === 0 && students.length > 0 ? (
+          <div className="empty-state">
+            <p className="empty-state-icon">🔎</p>
+            <p className="empty-state-text">No student matches "{search}".</p>
+          </div>
         ) : students.length === 0 ? (
           <div className="empty-state">
             <p className="empty-state-icon">👦</p>
@@ -196,10 +214,12 @@ export default function StudentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {students.map(s => (
+                {shown.map(s => (
                   <tr key={s.id}>
                     <td><span className="badge badge-gray">{s.rollNumber}</span></td>
-                    <td style={{ fontWeight: 600, color: '#0f172a' }}>{s.name}</td>
+                    <td>
+                      <button className="link-btn" onClick={() => navigate(`/admin/students/${s.id}`)} title="Open profile">{s.name}</button>
+                    </td>
                     <td><span className="badge badge-blue">{s.class?.name}</span></td>
                     <td>
                       <div className="table-actions">

@@ -124,7 +124,7 @@ export default function FullMarksheetReview({ examId, classId, isLocked }) {
                       />
                     ) : (
                       <>
-                        {markRecord?.marksObtained ?? '—'}
+                        {markRecord?.isAbsent ? 'AB' : (markRecord?.marksObtained ?? '—')}
                         {sub.componentMaxMarks && markRecord?.componentMarks && (
                           <div style={{ fontSize: '0.68rem', color: '#64748b', whiteSpace: 'nowrap' }}>
                             {partsSummary(markRecord.componentMarks)}

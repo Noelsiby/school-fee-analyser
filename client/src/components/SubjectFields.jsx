@@ -6,7 +6,8 @@ import './SubjectFields.css';
 // ─────────────────────────────────────────────
 // Class picker: tick one or many classes, with "Select all"
 // ─────────────────────────────────────────────
-export const byClassName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }); // Class 2 before Class 10
+export { byClassName } from '../utils/classOrder'; // school order: LKG, UKG, Class 1 … 10
+import { byClassName } from '../utils/classOrder';
 
 export function ClassPicker({ classes: unsorted, selected, onChange, lockedId }) {
   const classes = [...unsorted].sort(byClassName);

@@ -26,7 +26,7 @@ function skipReason(r, msg, resend) {
   return null;
 }
 
-export default function ClassReportsTab({ cls }) {
+export default function ClassReportsTab({ cls, initialExamId }) {
   const { apiCall } = useApi();
   const navigate = useNavigate();
 
@@ -49,7 +49,11 @@ export default function ClassReportsTab({ cls }) {
 
   useEffect(() => {
     apiCall(`/api/students/class/${cls.id}/exams`)
-      .then(res => { setExams(res.exams); if (res.exams[0]) setExamId(String(res.exams[0].id)); })
+      .then(res => {
+        setExams(res.exams);
+        const wanted = initialExamId && res.exams.find(e => String(e.id) === String(initialExamId));
+        if (wanted) setExamId(String(wanted.id)); else if (res.exams[0]) setExamId(String(res.exams[0].id));
+      })
       .catch(e => setError(e.message));
   }, [apiCall, cls.id]);
 

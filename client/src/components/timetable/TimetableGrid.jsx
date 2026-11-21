@@ -122,7 +122,7 @@ export default function TimetableGrid({ classId, editable = false, onSaved }) {
           {!editing ? (
             <>
               <button className="btn btn-primary" onClick={() => { setEditing(true); setNotice(''); }}>✏️ Edit timetable</button>
-              {filled > 0 && <button className="btn btn-danger" disabled={saving} onClick={deleteAll}>🗑️ Delete timetable</button>}
+              {filled > 0 && <button className="btn btn-ghost" style={{ marginLeft: 'auto', color: '#dc2626' }} disabled={saving} onClick={deleteAll}>🗑️ Delete timetable</button>}
               {filled === 0 && <span className="an-muted">This class has no timetable yet. Click Edit to fill it in.</span>}
             </>
           ) : (

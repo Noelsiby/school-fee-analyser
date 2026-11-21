@@ -266,11 +266,11 @@ function StudentPage({ report, result, generatedOn, paper }) {
           return (
             <View key={sub.id} style={s.tr}>
               <Text style={[s.td, s.colSubject, s.subjectName, s.vline]}>{sub.name}</Text>
-              <Cell s={s} value={r.main} of={cmm ? cmm.Main : sub.maxMarks} style={[s.colPart, s.vline]} />
+              <Cell s={s} value={r.absent ? 'AB' : r.main} of={r.absent ? undefined : (cmm ? cmm.Main : sub.maxMarks)} style={[s.colPart, s.vline]} />
               {PARTS.map((p) => (
                 <Cell s={s} key={p} value={cmm && p in cmm ? r.parts[p] : null} of={cmm && p in cmm ? cmm[p] : undefined} style={[s.colPart, s.vline]} />
               ))}
-              <Cell s={s} value={r.total} of={sub.maxMarks} style={[s.colTotal, s.vline, { fontFamily: 'Helvetica-Bold' }]} />
+              <Cell s={s} value={r.absent ? 'AB' : r.total} of={r.absent ? undefined : sub.maxMarks} style={[s.colTotal, s.vline, { fontFamily: 'Helvetica-Bold' }]} />
               <Cell s={s} value={r.grade} style={[s.colGrade, s.vline, { fontFamily: 'Helvetica-Bold' }]} />
               <Cell s={s} value={r.points} style={[s.colPoints, s.vline]} />
               <Text style={[s.td, s.colRemark]} />

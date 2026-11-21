@@ -36,10 +36,10 @@
 /* Tabs */
 .detail-tabs {
   display: flex;
-  gap: 2px;
+  flex-wrap: wrap;            /* every tab stays visible: wraps instead of hiding off-screen */
+  gap: 2px 4px;
   border-bottom: 2px solid #e2e8f0;
   margin-bottom: 20px;
-  overflow-x: auto;
 }
 .detail-tab-btn {
   padding: 10px 18px;

@@ -147,10 +147,15 @@ exports.saveMarks = async (req, res) => {
     // componentMarks and their total is computed here, never trusted from the client.
     const rows = [];
     for (const item of marksData) {
+      // Absent ("AB"): no marks, counts as entered
+      if (item.absent === true || String(item.marksObtained ?? '').trim().toUpperCase() === 'AB') {
+        rows.push({ studentId: Number(item.studentId), val: null, parts: null, absent: true });
+        continue;
+      }
       if (componentMaxMarks) {
         try {
           const { componentMarks, marksObtained } = parseComponentMarks(item.componentMarks, componentMaxMarks);
-          rows.push({ studentId: Number(item.studentId), val: marksObtained, parts: componentMarks });
+          rows.push({ studentId: Number(item.studentId), val: marksObtained, parts: componentMarks, absent: false });
         } catch (e) {
           return res.status(400).json({ error: e.message });
         }
@@ -163,7 +168,7 @@ exports.saveMarks = async (req, res) => {
           return res.status(400).json({ error: `Marks must be between 0 and ${maxMarks}` });
         }
       }
-      rows.push({ studentId: Number(item.studentId), val, parts: null });
+      rows.push({ studentId: Number(item.studentId), val, parts: null, absent: false });
     }
 
     const existingMarks = await prisma.mark.findMany({
@@ -177,10 +182,12 @@ exports.saveMarks = async (req, res) => {
     const auditLogs = [];
     const upserts = [];
 
-    for (const { studentId, val, parts } of rows) {
+    for (const { studentId, val, parts, absent } of rows) {
       const existing = existingMarks.find(m => m.studentId === studentId);
-      const hasChanged = !existing || existing.marksObtained !== val ||
+      const hasChanged = !existing || existing.marksObtained !== val || existing.isAbsent !== absent ||
         (parts && !sameComponentMarks(existing.componentMarks, parts));
+      // Absent clears any parts typed before
+      const partsData = absent ? Prisma.DbNull : (parts ?? undefined);
 
       if (hasChanged) {
         if (existing) {
@@ -192,15 +199,15 @@ exports.saveMarks = async (req, res) => {
 
           upserts.push(prisma.mark.update({
             where: { id: existing.id },
-            data: { marksObtained: val, componentMarks: parts ?? undefined, lastEditedById: teacherId, status: newStatus }
+            data: { marksObtained: val, isAbsent: absent, componentMarks: partsData, lastEditedById: teacherId, status: newStatus }
           }));
 
           auditLogs.push({
             tableName: 'marks',
             recordId: String(existing.id),
             action: 'UPDATE',
-            oldValue: { marksObtained: existing.marksObtained, componentMarks: existing.componentMarks, oldStatus: existing.status },
-            newValue: { marksObtained: val, componentMarks: parts, newStatus: newStatus },
+            oldValue: { marksObtained: existing.marksObtained, isAbsent: existing.isAbsent, componentMarks: existing.componentMarks, oldStatus: existing.status },
+            newValue: { marksObtained: val, isAbsent: absent, componentMarks: parts, newStatus: newStatus },
             changedById: teacherId
           });
         } else {
@@ -210,7 +217,8 @@ exports.saveMarks = async (req, res) => {
               subjectId: Number(subjectId),
               studentId,
               marksObtained: val,
-              componentMarks: parts ?? undefined,
+              isAbsent: absent,
+              componentMarks: absent ? undefined : (parts ?? undefined),
               enteredById: teacherId,
               lastEditedById: teacherId,
               status: 'Pending'
@@ -255,7 +263,7 @@ exports.submitMarks = async (req, res) => {
     });
 
     const students = subject.class.students;
-    if (marks.length < students.length || marks.some(m => m.marksObtained === null)) {
+    if (marks.length < students.length || marks.some(m => m.marksObtained === null && !m.isAbsent)) {
       return res.status(400).json({ error: 'Cannot submit until all students have marks entered.' });
     }
 
@@ -306,7 +314,7 @@ exports.resubmitMarks = async (req, res) => {
     });
 
     const students = subject.class.students;
-    if (marks.length < students.length || marks.some(m => m.marksObtained === null)) {
+    if (marks.length < students.length || marks.some(m => m.marksObtained === null && !m.isAbsent)) {
       return res.status(400).json({ error: 'Cannot submit until all students have marks entered.' });
     }
 

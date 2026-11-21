@@ -107,7 +107,8 @@ async function buildClassReport(prisma, examId, classId, opts = {}) {
   const results = [...cls.students].sort(byRoll).map((student) => {
     const rows = subjects.map((sub) => {
       const m = markOf.get(`${student.id}:${sub.id}`);
-      const obtained = m && m.marksObtained !== null ? m.marksObtained : null;
+      const absent = !!m?.isAbsent;
+      const obtained = !absent && m && m.marksObtained !== null ? m.marksObtained : null;
       const percentage = obtained !== null && sub.maxMarks > 0 ? (obtained / sub.maxMarks) * 100 : null;
       // Main mark: the main part for subjects with parts, else the single mark.
       const main = sub.componentMaxMarks
@@ -119,14 +120,16 @@ async function buildClassReport(prisma, examId, classId, opts = {}) {
         main,
         parts,
         total: obtained,
+        absent,
         maxMarks: sub.maxMarks,
-        grade: percentage === null ? null : gradeFor(percentage, bands),
-        points: percentage === null ? null : pointsFor(percentage, bands),
+        grade: absent ? 'AB' : percentage === null ? null : gradeFor(percentage, bands),
+        points: absent ? 0 : percentage === null ? null : pointsFor(percentage, bands),
       };
     });
 
-    const entered = rows.filter((r) => r.total !== null);
-    const total = entered.reduce((s, r) => s + r.total, 0);
+    // Absent counts as entered and as 0 in the student's own total
+    const entered = rows.filter((r) => r.total !== null || r.absent);
+    const total = entered.reduce((s, r) => s + (r.total || 0), 0);
     const maxTotal = entered.reduce((s, r) => s + r.maxMarks, 0);
     const percentage = maxTotal > 0 ? round2((total / maxTotal) * 100) : null;
     const gpa = entered.length ? round2(entered.reduce((s, r) => s + r.points, 0) / entered.length) : null;

@@ -4,6 +4,7 @@
  * All routes are Admin-only (enforced by the router middleware).
  */
 
+const { byClassName } = require('../lib/classOrder');
 const { addMissingExamSubjects } = require('../lib/examSubjects');
 const { PrismaClient, Prisma } = require('@prisma/client');
 const {
@@ -49,9 +50,11 @@ const subjectHeaders = (s) => s.componentMaxMarks
   : [`${s.name} (/${s.maxMarks})`];
 
 /** Export cells matching subjectHeaders(). */
-const subjectCells = (s, markRecord, obtained) => s.componentMaxMarks
-  ? [...partKeys(s.componentMaxMarks).map(k => markRecord?.componentMarks?.[k] ?? 0), obtained]
-  : [obtained];
+const subjectCells = (s, markRecord, obtained) => (markRecord?.isAbsent
+  ? (s.componentMaxMarks ? [...partKeys(s.componentMaxMarks).map(() => 'AB'), 'AB'] : ['AB'])
+  : s.componentMaxMarks
+    ? [...partKeys(s.componentMaxMarks).map(k => markRecord?.componentMarks?.[k] ?? 0), obtained]
+    : [obtained]);
 
 /** Short Word-export labels for each key. */
 const PART_SHORT = { Main: 'Main', Reading: 'R', Writing: 'W', Dictation: 'D' };
@@ -89,8 +92,8 @@ exports.getClasses = async (req, res) => {
         classTeacher: { select: { id: true, name: true, email: true } },
         _count: { select: { students: true, subjects: true } },
       },
-      orderBy: { name: 'asc' },
     });
+    classes.sort(byClassName); // school order: LKG, UKG, Class 1, 2 … 10
     res.json({ classes });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1225,7 +1228,7 @@ exports.getExamResults = async (req, res) => {
         classSubjects.forEach(sub => {
           const markRecord = studentMarks.find(m => m.subjectId === sub.id);
           const obtained = markRecord && markRecord.marksObtained !== null ? markRecord.marksObtained : 0;
-          subjectsMap[sub.id] = obtained;
+          subjectsMap[sub.id] = markRecord?.isAbsent ? 'AB' : obtained;
           if (sub.componentMaxMarks) componentsMap[sub.id] = markRecord?.componentMarks || null;
           
           totalMarks += obtained;

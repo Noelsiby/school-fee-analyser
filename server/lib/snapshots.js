@@ -58,6 +58,7 @@ async function buildRows(prisma, examId, classId) {
           name: sub.name,
           maxMarks: sub.maxMarks,
           total: row.total,
+          absent: !!row.absent,
           grade: row.grade,
           points: row.points,
           parts: sub.componentMaxMarks ? { Main: row.main, ...row.parts } : null,

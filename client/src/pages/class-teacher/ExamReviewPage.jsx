@@ -168,21 +168,35 @@ export default function ExamReviewPage() {
       <div className="page-header" style={{ marginBottom: 24 }}>
         <div>
           <h1 className="page-title">{data.exam.name}</h1>
-          <p className="page-sub">{data.class.name} · Master Review</p>
+          <p className="page-sub">{data.class.name} · check each subject's marks, approve them, then finalize</p>
         </div>
         {!isLocked && (
-          <button
-            className="btn btn-primary"
-            disabled={!allApproved || actioning}
-            onClick={handleFinalize}
-            title={!allApproved ? "All subjects must be approved before finalizing" : "Finalize and lock exam"}
-          >
-            {actioning ? <span className="spinner" /> : 'Finalize Exam'}
-          </button>
+          <div style={{ display: 'grid', justifyItems: 'end', gap: 6, maxWidth: 420 }}>
+            <button
+              className="btn btn-primary"
+              disabled={!allApproved || actioning}
+              onClick={handleFinalize}
+              title={!allApproved ? 'All subjects must be approved before finalizing' : 'Finalize and lock exam'}
+            >
+              {actioning ? <span className="spinner" /> : '✅ Finalize exam'}
+            </button>
+            {!allApproved && (() => {
+              const toApprove = data.subjectReviews.filter((r) => r.status === 'SubmittedToClassTeacher').map((r) => r.subject.name);
+              const waiting = data.subjectReviews.filter((r) => ['Pending', 'Rejected'].includes(r.status)).map((r) => r.subject.name);
+              return (
+                <span style={{ fontSize: '0.82rem', color: '#92400e', textAlign: 'right' }}>
+                  To finalize: {toApprove.length > 0 && <>approve <strong>{toApprove.join(', ')}</strong></>}
+                  {toApprove.length > 0 && waiting.length > 0 && ' · '}
+                  {waiting.length > 0 && <>waiting for the teacher to submit <strong>{waiting.join(', ')}</strong></>}
+                </span>
+              );
+            })()}
+          </div>
         )}
+        {isLocked && <span className="badge badge-blue">🔒 Finalized</span>}
       </div>
 
-      <MyStudentsList />
+      <MyStudentsList classId={classId} />
 
       {isLocked && (
         <div className="alert alert-info" style={{ marginBottom: 24 }}>

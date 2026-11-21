@@ -414,6 +414,21 @@ exports.editMark = async (req, res) => {
       return res.status(400).json({ error: 'Cannot edit marks that are not yet submitted to you.' });
     }
 
+    // Mark as absent ("AB"): no marks
+    if (req.body.absent === true || String(newMarks ?? '').trim().toUpperCase() === 'AB') {
+      if (!existingMark.isAbsent) {
+        await prisma.$transaction([
+          prisma.mark.update({ where: { id: Number(markId) }, data: { marksObtained: null, isAbsent: true, componentMarks: Prisma.DbNull } }),
+          prisma.auditLog.create({ data: {
+            tableName: 'marks', recordId: String(markId), action: 'UPDATE',
+            oldValue: { marksObtained: existingMark.marksObtained, componentMarks: existingMark.componentMarks },
+            newValue: { isAbsent: true }, changedById: teacherId,
+          } }),
+        ]);
+      }
+      return res.json({ message: 'Marked absent' });
+    }
+
     const config = await prisma.examSubjectConfig.findUnique({
       where: { examId_subjectId: { examId: existingMark.examId, subjectId: existingMark.subjectId } }
     });
@@ -439,11 +454,11 @@ exports.editMark = async (req, res) => {
     const oldVal = existingMark.marksObtained;
     const partsChanged = parts && !sameComponentMarks(parts, existingMark.componentMarks);
 
-    if (oldVal !== newMarks || partsChanged) {
+    if (oldVal !== newMarks || partsChanged || existingMark.isAbsent) {
       await prisma.$transaction([
         prisma.mark.update({
           where: { id: Number(markId) },
-          data: { marksObtained: newMarks, ...(parts ? { componentMarks: parts } : {}) }
+          data: { marksObtained: newMarks, isAbsent: false, ...(parts ? { componentMarks: parts } : {}) }
         }),
         prisma.auditLog.create({
           data: {
@@ -641,19 +656,20 @@ exports.finalizeExam = async (req, res) => {
 exports.getMyStudents = async (req, res) => {
   const teacherId = req.user.userId;
   try {
-    const classData = await prisma.class.findFirst({
-      where: { classTeacherId: teacherId },
-      include: { students: { orderBy: { rollNumber: 'asc' } } }
-    });
-
-    if (!classData) {
-      return res.status(404).json({ error: 'No class assigned to this teacher.' });
-    }
+    // ?classId= picks one of the teacher's classes (e.g. the class of the exam being reviewed)
+    const classes = await prisma.class.findMany({ where: { classTeacherId: teacherId }, select: { id: true, name: true } });
+    if (!classes.length) return res.status(404).json({ error: 'No class assigned to this teacher.' });
+    const wanted = Number(req.query.classId);
+    const pick = classes.find((c) => c.id === wanted) || classes[0];
+    const classData = await prisma.class.findUnique({ where: { id: pick.id }, include: { students: true } });
+    const { byRoll } = require('../lib/rollOrder');
 
     res.json({
+      classId: classData.id,
       className: classData.name,
       totalStudents: classData.students.length,
-      students: classData.students
+      students: classData.students.sort(byRoll),
+      classes: classes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import schoolLogo from '../assets/school-logo.png';
 
 // ─────────────────────────────────────────────────────────────
 // AuthContext
@@ -148,7 +149,12 @@ export function AuthProvider({ children }) {
 
   if (!isInitialized) {
     // Show nothing (or a loader) until the initial /api/auth/me call completes
-    return <div className="flex h-screen items-center justify-center text-gray-500">Loading...</div>;
+    return (
+      <div className="app-splash" role="status" aria-label="Loading">
+        <img src={schoolLogo} alt="" className="app-splash-logo" />
+        <span className="spinner spinner-dark" />
+      </div>
+    );
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

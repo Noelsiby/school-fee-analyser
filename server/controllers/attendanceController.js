@@ -9,6 +9,7 @@
  *                                  if the class has no timetable yet, any teacher of the class
  */
 
+const { byClassName } = require('../lib/classOrder');
 const { PrismaClient } = require('@prisma/client');
 const att = require('../lib/attendance');
 const periodsLib = require('../lib/periods');
@@ -114,7 +115,7 @@ exports.myClasses = async (req, res) => {
       where = { OR: or };
     }
     const classes = await prisma.class.findMany({ where, select: { id: true, name: true, classTeacherId: true, _count: { select: { students: true } } } });
-    classes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    classes.sort(byClassName);
     res.json({
       mode: settings.mode,
       classes: classes.map((c) => ({ id: c.id, name: c.name, students: c._count.students, isClassTeacher: c.classTeacherId === req.user.userId })),

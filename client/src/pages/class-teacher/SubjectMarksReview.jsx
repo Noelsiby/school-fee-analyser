@@ -118,7 +118,7 @@ export default function SubjectMarksReview({ examId, classId, subjectId, onClose
                                 <td key={k} {...cellProps}>{row.markRecord?.componentMarks?.[k] ?? '—'}</td>
                               ))}
                               <td {...cellProps}>
-                                <span style={{ fontWeight: 600 }}>{row.marksObtained ?? '—'}</span>
+                                <span style={{ fontWeight: 600 }}>{row.markRecord?.isAbsent ? 'AB' : (row.marksObtained ?? '—')}</span>
                                 {edited && editedBadge}
                               </td>
                             </>

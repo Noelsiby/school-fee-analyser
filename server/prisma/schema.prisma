@@ -339,7 +339,11 @@ model Mark {
   studentId Int
   student   Student @relation(fields: [studentId], references: [id])
 
-  marksObtained Float? // Null means not yet entered
+  marksObtained Float? // Null means not yet entered (or absent)
+
+  // The student was absent for this exam: shown as "AB", counts as entered, 0 in their own total,
+  // left out of class averages / highest / lowest.
+  isAbsent Boolean @default(false)
 
   // Main mark + parts, e.g. {"Main":40,"Reading":5,"Writing":4} (same keys as the exam config).
   // marksObtained holds their sum once every key is entered (null until then).

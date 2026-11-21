@@ -190,13 +190,10 @@ export default function ExamResultsPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }} className="export-buttons">
-          {exam.isLocked && (
-            <button 
-              className="btn btn-ghost unlock-btn" 
-              style={{ color: '#dc2626', borderColor: '#fecaca' }}
-              onClick={() => setUnlockModal(true)}
-            >
-              🔓 Unlock Exam
+          {classResults.length === 1 && (
+            <button className="btn btn-primary" onClick={() => navigate(`/admin/classes/${classResults[0].classId}?tab=reports&exam=${exam.id}`)}
+              title="Download / print report cards and send results on WhatsApp">
+              📄 Report cards
             </button>
           )}
           <button
@@ -216,6 +213,16 @@ export default function ExamResultsPage() {
           <button className="btn btn-ghost" onClick={() => window.print()}>
             🖨️ Print
           </button>
+          {exam.isLocked && (
+            <button
+              className="btn btn-ghost unlock-btn"
+              style={{ color: '#dc2626', borderColor: '#fecaca', marginLeft: 'auto' }}
+              onClick={() => setUnlockModal(true)}
+              title="Let teachers change marks again"
+            >
+              🔓 Unlock
+            </button>
+          )}
         </div>
       </div>
 
@@ -258,8 +265,9 @@ export default function ExamResultsPage() {
         <div key={cls.classId} className="print-section" style={{ pageBreakBefore: idx > 0 ? 'always' : 'auto', marginBottom: 40 }}>
           {exam.examType === 'INTERNAL_EXAM' && (
             <h2 style={{ color: '#1e293b', marginBottom: 12, fontSize: '1.25rem', borderBottom: '2px solid #e2e8f0', paddingBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                {cls.className} <span style={{ color: '#64748b', fontSize: '1rem', fontWeight: 400 }}>— {cls.studentCount} Students</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span>{cls.className} <span style={{ color: '#64748b', fontSize: '1rem', fontWeight: 400 }}>— {cls.studentCount} Students</span></span>
+                <button className="btn btn-ghost btn-sm no-print" onClick={() => navigate(`/admin/classes/${cls.classId}?tab=reports&exam=${exam.id}`)}>📄 Report cards</button>
               </div>
               <div>
                 {cls.status === 'Finalized' ? (

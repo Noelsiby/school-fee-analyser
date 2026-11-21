@@ -6,6 +6,7 @@
  * and breaks. Each class's week is a grid of day × period → subject + teacher.
  */
 
+const { byClassName } = require('../lib/classOrder');
 const { PrismaClient } = require('@prisma/client');
 const att = require('../lib/attendance');
 const periodsLib = require('../lib/periods');
@@ -175,7 +176,7 @@ exports.copyTimetable = async (req, res) => {
 // ── GET /api/timetable/overview ── every class's week, plus all clashes (admin)
 exports.overview = async (req, res) => {
   try {
-    const classes = (await prisma.class.findMany({ select: { id: true, name: true } })).sort(byName);
+    const classes = (await prisma.class.findMany({ select: { id: true, name: true } })).sort(byClassName);
     const entries = await prisma.timetableEntry.findMany();
     const subjects = new Map((await prisma.subject.findMany({ select: { id: true, name: true } })).map((s) => [s.id, s.name]));
     const teachers = new Map((await teachersList()).map((t) => [t.id, t.name]));

@@ -188,7 +188,7 @@ export default function TeachersPage() {
   const [formErr,   setFormErr]   = useState('');
   const [submitting,setSubmitting]= useState(false);
   const [notification, setNotification] = useState(null);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('q') || ''); // ?q= from the search box
   const [unassigned, setUnassigned] = useState([]);   // subjects nobody teaches → nobody can enter their marks
 
   const notify = (msg, type = 'success') => {

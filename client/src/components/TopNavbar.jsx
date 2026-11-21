@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
 import './TopNavbar.css';
 
-export default function TopNavbar() {
+/** onMenu: open the phone menu (☰). onSearch: open the search window. */
+export default function TopNavbar({ onMenu, onSearch, searchHint = 'Search…' } = {}) {
   const { apiCall } = useApi();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -37,6 +38,12 @@ export default function TopNavbar() {
 
   return (
     <div className="top-navbar">
+      {onMenu && <button className="sh-menu-btn" onClick={onMenu} aria-label="Open menu">☰</button>}
+      {onSearch ? (
+        <button className="sh-search-btn" onClick={onSearch} aria-label="Search">
+          <span aria-hidden="true">🔎</span><span>{searchHint}</span><kbd>Ctrl K</kbd>
+        </button>
+      ) : <div className="topbar-spacer" />}
       <div className="topbar-spacer" />
       <div className="notification-wrapper">
         <button className="bell-btn" onClick={() => setIsOpen(!isOpen)}>

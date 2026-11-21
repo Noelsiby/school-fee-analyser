@@ -1,6 +1,7 @@
 .top-navbar {
   display: flex;
   justify-content: space-between;
+  gap: 12px;
   align-items: center;
   padding: 12px 24px;
   background: white;

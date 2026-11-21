@@ -97,31 +97,42 @@ export default function TuitionStudentsPage() {
   );
 }
 
+/**
+ * Add students to tuition, the same way the admin sees them: school classes as cards →
+ * tap a class → tick its students (or search by name). Ticks are kept while moving between
+ * classes, so students from several classes can be added at once.
+ */
 function AddStudents({ classes, defaultClass, onClose, onAdded }) {
   const { apiCall } = useApi();
   const [tuitionClass, setTuitionClass] = useState(defaultClass || String(classes[0]?.id || ''));
-  const [schoolClasses, setSchoolClasses] = useState([]);
-  const [schoolClass, setSchoolClass] = useState('');
+  const [schoolClasses, setSchoolClasses] = useState(null);
+  const [openClass, setOpenClass] = useState(null);   // school class being ticked
   const [q, setQ] = useState('');
-  const [found, setFound] = useState([]);
-  const [picked, setPicked] = useState({});   // id → { id, name, className }
+  const [found, setFound] = useState(null);
+  const [picked, setPicked] = useState({});   // id → { id, name, class }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => { apiCall('/api/tuition/school-classes').then((d) => setSchoolClasses(d.classes)).catch(() => {}); }, [apiCall]);
+  useEffect(() => { apiCall('/api/tuition/school-classes').then((d) => setSchoolClasses(d.classes)).catch((e) => setError(e.message)); }, [apiCall]);
+  const term = openClass ? '' : q.trim();
   useEffect(() => {
-    if (!schoolClass && q.trim().length < 2) { setFound([]); return undefined; }
+    if (!openClass && term.length < 2) { setFound(null); return undefined; }
+    setFound(null);
     const t = setTimeout(() => {
-      apiCall(`/api/tuition/school-students?${schoolClass ? `classId=${schoolClass}` : ''}${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''}`)
-        .then((d) => setFound(d.students)).catch((e) => setError(e.message));
-    }, 200);
+      const url = openClass ? `classId=${openClass.id}` : `q=${encodeURIComponent(term)}`;
+      apiCall(`/api/tuition/school-students?${url}`).then((d) => setFound(d.students)).catch((e) => setError(e.message));
+    }, openClass ? 0 : 250);
     return () => clearTimeout(t);
-  }, [apiCall, q, schoolClass]);
+  }, [apiCall, term, openClass]);
 
+  const shown = (found || []).filter((s) => !openClass || !q.trim() || s.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const free = shown.filter((s) => !s.inTuition);
   const toggle = (s) => setPicked((p) => { const n = { ...p }; if (n[s.id]) delete n[s.id]; else n[s.id] = s; return n; });
-  const allShownPicked = found.length > 0 && found.every((s) => picked[s.id]);
-  const pickAll = () => setPicked((p) => { const n = { ...p }; found.forEach((s) => { if (allShownPicked) delete n[s.id]; else n[s.id] = s; }); return n; });
+  const allShownPicked = free.length > 0 && free.every((s) => picked[s.id]);
+  const pickAll = () => setPicked((p) => { const n = { ...p }; free.forEach((s) => { if (allShownPicked) delete n[s.id]; else n[s.id] = s; }); return n; });
   const count = Object.keys(picked).length;
+  const pickedIn = (classId) => Object.values(picked).filter((s) => s.class.id === classId).length;
+  const back = () => { setOpenClass(null); setQ(''); };
 
   const add = async () => {
     setBusy(true); setError('');
@@ -135,43 +146,62 @@ function AddStudents({ classes, defaultClass, onClose, onAdded }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+      <div className="modal tu-add-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title">Add students to tuition</h2>
+          <h2 className="modal-title">
+            {openClass ? <><button className="link-btn" onClick={back}>← All classes</button> · {openClass.name}</> : 'Add students to tuition'}
+          </h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">✕</button>
         </div>
         {error && <div className="alert alert-error" style={{ marginBottom: 10 }}>⚠ {error}</div>}
-        <div className="form-group">
-          <label className="form-label">Into tuition class</label>
-          <select className="form-select" value={tuitionClass} onChange={(e) => setTuitionClass(e.target.value)}>
-            {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <label className="form-label">Find school students</label>
-        <div className="tu-toolbar" style={{ marginBottom: 0 }}>
-          <input className="form-input" style={{ flex: 1, minWidth: 180 }} placeholder="Type a name…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
-          <select className="form-select" style={{ maxWidth: 180 }} value={schoolClass} onChange={(e) => setSchoolClass(e.target.value)} aria-label="School class">
-            <option value="">or pick a school class…</option>
-            {schoolClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        {found.length > 0 && (
-          <div className="tu-pick">
-            <label style={{ fontWeight: 700 }}><input type="checkbox" checked={allShownPicked} onChange={pickAll} /> Tick all {found.length}</label>
-            {found.map((s) => (
+
+        <input className="form-input" style={{ marginBottom: 10 }} value={q} onChange={(e) => setQ(e.target.value)}
+          placeholder={openClass ? `🔎 Find in ${openClass.name}…` : '🔎 Search any student by name…'} aria-label="Search students" />
+
+        {!openClass && term.length < 2 ? (
+          !schoolClasses ? <div className="spinner spinner-dark" /> : (
+            <>
+              <p className="tu-muted" style={{ marginBottom: 8 }}>Tap a class to tick its students.</p>
+              <div className="tu-class-pick">
+                {schoolClasses.map((c) => (
+                  <button key={c.id} type="button" className={`tu-class-card${pickedIn(c.id) ? ' tu-class-card-on' : ''}`} onClick={() => { setOpenClass(c); setQ(''); }}>
+                    <strong>{c.name}</strong>
+                    <small>{c.students} student{c.students === 1 ? '' : 's'}{c.inTuition ? ` · ${c.inTuition} in tuition` : ''}</small>
+                    {pickedIn(c.id) > 0 && <span className="tu-class-ticked">✓ {pickedIn(c.id)} ticked</span>}
+                  </button>
+                ))}
+              </div>
+            </>
+          )
+        ) : found === null ? <div className="spinner spinner-dark" /> : shown.length === 0 ? (
+          <p className="tu-muted">No students found.</p>
+        ) : (
+          <div className="tu-pick" style={{ marginTop: 0 }}>
+            {free.length > 0 && <label style={{ fontWeight: 700 }}><input type="checkbox" checked={allShownPicked} onChange={pickAll} /> Tick all {free.length}</label>}
+            {shown.map((s) => (s.inTuition ? (
+              <label key={s.id} className="tu-pick-done">
+                <input type="checkbox" checked disabled />
+                {s.name}<small>Already in tuition · {s.inTuition}</small>
+              </label>
+            ) : (
               <label key={s.id}>
                 <input type="checkbox" checked={!!picked[s.id]} onChange={() => toggle(s)} />
-                {s.name}<small>{s.class.name} · Roll {s.rollNumber}</small>
+                {s.name}<small>{openClass ? `Roll ${s.rollNumber}` : `${s.class.name} · Roll ${s.rollNumber}`}</small>
               </label>
-            ))}
+            )))}
           </div>
         )}
-        {(q.trim().length >= 2 || schoolClass) && found.length === 0 && <p className="tu-muted" style={{ marginTop: 8 }}>No school students found (students already in tuition are not shown).</p>}
-        <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <span className="tu-muted">{count} chosen</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary" disabled={busy || !count || !tuitionClass} onClick={add}>{busy ? <span className="spinner" /> : `Add ${count || ''}`}</button>
+
+        <div className="tu-add-foot">
+          <div className="form-group" style={{ margin: 0, flex: 1, minWidth: 180 }}>
+            <label className="form-label">Put the {count || ''} ticked into tuition class</label>
+            <select className="form-select" value={tuitionClass} onChange={(e) => setTuitionClass(e.target.value)}>
+              {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            {(openClass || term.length >= 2) && <button className="btn btn-ghost" onClick={back}>← Classes</button>}
+            <button className="btn btn-primary" disabled={busy || !count || !tuitionClass} onClick={add}>{busy ? <span className="spinner" /> : `✓ Add ${count || ''} student${count === 1 ? '' : 's'}`}</button>
           </div>
         </div>
       </div>

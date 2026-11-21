@@ -315,7 +315,9 @@ export default function TeachersPage() {
               .map((t) => {
                 const subjects = t.subjectAssignments || [];
                 return (
-                  <div key={t.id} className="tc-card">
+                  <div key={t.id} className="tc-card tc-clickable" role="button" tabIndex={0} title="Open to edit name, email, password and roles"
+                    onClick={(e) => { if (!e.target.closest('button')) openEdit(t); }}
+                    onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openEdit(t); } }}>
                     <div className="tc-top">
                       {t.profilePicUrl
                         ? <img src={t.profilePicUrl} alt={t.name} className="tc-avatar" />
@@ -345,7 +347,7 @@ export default function TeachersPage() {
 
                     <div className="tc-actions">
                       <button className="btn btn-primary btn-sm" onClick={() => { setSelected(t); setModal('assign'); }}>📋 Subjects</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => openEdit(t)}>✏️ Edit</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openEdit(t)}>✏️ Edit & roles</button>
                       <div style={{ flex: 1 }} />
                       <button className="btn btn-ghost btn-sm tc-delete" onClick={() => { setSelected(t); setModal('delete'); }} title="Delete teacher">🗑</button>
                     </div>

@@ -174,23 +174,36 @@ router.get('/students', async (req, res) => {
     });
   } catch (err) { fail(res, err); }
 });
-// School students to choose from (not in tuition yet): ?q=name or ?classId=school class
+// School students to choose from: ?q=name or ?classId=school class.
+// Students already in tuition are included with their tuition class (shown greyed out).
 router.get('/school-students', async (req, res) => {
   try {
     const q = cleanText(req.query.q, 60);
     const classId = Number(req.query.classId) || undefined;
     if (!q && !classId) return res.json({ students: [] });
     const list = await prisma.student.findMany({
-      where: { tuition: null, ...(classId ? { classId } : {}), ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { rollNumber: q }] } : {}) },
-      select: { id: true, name: true, rollNumber: true, class: { select: { id: true, name: true } } },
-      take: 200,
+      where: { ...(classId ? { classId } : {}), ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { rollNumber: q }] } : {}) },
+      select: { id: true, name: true, rollNumber: true, class: { select: { id: true, name: true } }, tuition: { select: { class: { select: { name: true } } } } },
+      take: 300,
     });
-    res.json({ students: list.sort((a, b) => byClassName(a.class, b.class) || byRoll(a, b)) });
+    res.json({
+      students: list
+        .map(({ tuition, ...s }) => ({ ...s, inTuition: tuition?.class.name || null }))
+        .sort((a, b) => byClassName(a.class, b.class) || byRoll(a, b)),
+    });
   } catch (err) { fail(res, err); }
 });
+// School classes as cards: how many students, how many already in tuition
 router.get('/school-classes', async (req, res) => {
-  try { res.json({ classes: (await prisma.class.findMany({ select: { id: true, name: true } })).sort(byClassName) }); }
-  catch (err) { fail(res, err); }
+  try {
+    const [classes, inTuition] = await Promise.all([
+      prisma.class.findMany({ select: { id: true, name: true, _count: { select: { students: true } } } }),
+      prisma.tuitionStudent.findMany({ select: { student: { select: { classId: true } } } }),
+    ]);
+    const tu = new Map();
+    inTuition.forEach((t) => tu.set(t.student.classId, (tu.get(t.student.classId) || 0) + 1));
+    res.json({ classes: classes.map((c) => ({ id: c.id, name: c.name, students: c._count.students, inTuition: tu.get(c.id) || 0 })).sort(byClassName) });
+  } catch (err) { fail(res, err); }
 });
 router.post('/students', async (req, res) => {
   const ids = [...new Set((req.body?.studentIds || []).map(Number).filter(Boolean))];

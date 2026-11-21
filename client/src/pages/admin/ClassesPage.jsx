@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import './admin.css';
+import './Classes.css';
+import { byClassName } from '../../utils/classOrder';
 
 const EMPTY_FORM = { name: '' };
 
@@ -37,6 +39,10 @@ export default function ClassesPage() {
   useEffect(() => { load(); }, [load]);
 
   const openCreate = () => { setForm(EMPTY_FORM); setFormError(''); setModal('create'); };
+  // Opened from the top bar's "+ New" (…?new=1)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') === '1') { openCreate(); window.history.replaceState({}, '', window.location.pathname); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const openEdit   = (cls) => { setSelected(cls); setForm({ name: cls.name }); setFormError(''); setModal('edit'); };
   const openDelete = (cls) => { setSelected(cls); setModal('delete'); };
 
@@ -74,7 +80,7 @@ export default function ClassesPage() {
     load();
   };
 
-  const filtered = classes.filter(c =>
+  const filtered = [...classes].sort(byClassName).filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -117,43 +123,28 @@ export default function ClassesPage() {
           {!search && <button className="btn btn-primary" onClick={openCreate}>Create Class</button>}
         </div>
       ) : (
-        <div className="classes-grid">
-          {filtered.map(cls => (
-            <div key={cls.id} className="class-card">
-              <div className="class-card-header">
-                <div className="class-icon">🏛️</div>
-                <div className="table-actions">
-                  <button className="btn btn-ghost btn-icon" onClick={() => openEdit(cls)}>✏️</button>
-                  <button className="btn btn-danger btn-icon" onClick={() => openDelete(cls)}>🗑️</button>
+        <div className="data-card cl-list">
+          {filtered.map(cls => {
+            const go = (tab) => navigate(`/admin/classes/${cls.id}${tab ? `?tab=${tab}` : ''}`);
+            return (
+              <div key={cls.id} className="cl-row">
+                <button className="cl-name" onClick={() => go()} title="Open this class">🏛️ {cls.name}</button>
+                <div className="cl-info">
+                  <span className={cls.classTeacher ? '' : 'cl-warn'}>👩‍🏫 {cls.classTeacher?.name || 'No class teacher'}</span>
+                  <span>👦 {cls._count?.students ?? 0} students</span>
+                  <span className={cls._count?.subjects ? '' : 'cl-warn'}>📚 {cls._count?.subjects ?? 0} subjects</span>
+                </div>
+                <div className="cl-actions">
+                  <button className="btn btn-ghost btn-sm" onClick={() => go('students')}>Students</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => go('reports')}>📄 Report cards</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => go('timetable')}>🗓️ Timetable</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => go('analyser')}>📈 Analyser</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => openEdit(cls)} title="Rename class" aria-label={`Rename ${cls.name}`}>✏️</button>
+                  <button className="btn btn-ghost btn-sm cl-del" onClick={() => openDelete(cls)} title="Delete class" aria-label={`Delete ${cls.name}`}>🗑️</button>
                 </div>
               </div>
-
-              <h3 className="class-card-name">{cls.name}</h3>
-
-              <div className="class-card-meta">
-                <span>👩‍🏫 {cls.classTeacher?.name || <em>No Class Teacher</em>}</span>
-              </div>
-
-              <div className="class-card-stats">
-                <div className="stat-item">
-                  <span className="stat-number">{cls._count?.students ?? 0}</span>
-                  <span className="stat-label">Students</span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-number">{cls._count?.subjects ?? 0}</span>
-                  <span className="stat-label">Subjects</span>
-                </div>
-              </div>
-
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center' }}
-                onClick={() => navigate(`/admin/classes/${cls.id}`)}
-              >
-                Open Class Hub →
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

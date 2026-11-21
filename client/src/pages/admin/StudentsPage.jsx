@@ -59,6 +59,10 @@ export default function StudentsPage() {
   useEffect(() => { load(); }, [filterClass]);
 
   const openAdd = () => { setForm(EMPTY_FORM); setFormErr(''); setModal('add'); };
+  // Opened from the top bar's "+ New" (…?new=1)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') === '1') { openAdd(); window.history.replaceState({}, '', window.location.pathname); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const openEdit = (s) => { setSelected(s); setForm({ name: s.name, rollNumber: s.rollNumber, classId: s.classId }); setFormErr(''); setModal('edit'); };
   const closeModal = () => { setModal(null); setSelected(null); setFormErr(''); setCsvFile(null); setCsvResult(null); setCsvErr(''); };
 

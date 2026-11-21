@@ -18,6 +18,7 @@ export default function ExamResultsPage() {
   
   const [unlockModal, setUnlockModal] = useState(false);
   const [actioning, setActioning] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // Export modal state
   const [showExportModal, setShowExportModal] = useState(false);
@@ -213,6 +214,19 @@ export default function ExamResultsPage() {
           <button className="btn btn-ghost" onClick={() => window.print()}>
             🖨️ Print
           </button>
+          {exam.status !== 'Draft' && !exam.isPublished && (
+            <button className="btn btn-primary" style={{ background: '#16a34a', borderColor: '#16a34a' }} disabled={publishing}
+              onClick={async () => {
+                if (!window.confirm(`Publish "${exam.name}" results to parents? They will see them on the results website and in the Student App.`)) return;
+                setPublishing(true);
+                try { await apiCall(`/api/admin/exams/${exam.id}/publish-results`, { method: 'PUT' }); await loadData(); }
+                catch (e) { window.alert(e.message); }
+                finally { setPublishing(false); }
+              }}>
+              {publishing ? <span className="spinner" /> : '🌐 Publish results'}
+            </button>
+          )}
+          {exam.isPublished && <span className="badge badge-green" style={{ alignSelf: 'center' }}>🌐 Published to parents</span>}
           {exam.isLocked && (
             <button
               className="btn btn-ghost unlock-btn"
@@ -284,6 +298,21 @@ export default function ExamResultsPage() {
               ⏳ Waiting for Class Teacher to finalize marks for {cls.className}.
             </div>
           ) : (
+            <>
+            {(() => {
+              // Who is below the pass mark in each subject (absent "AB" is not counted)
+              const below = cls.subjects.map(sub => ({
+                name: sub.name,
+                n: cls.results.filter(r => typeof r.subjects[sub.id] === 'number' && Math.round((r.subjects[sub.id] / sub.maxMarks) * 100) < passMark).length,
+              })).filter(x => x.n > 0);
+              return (
+                <div className={`alert ${below.length ? 'alert-info' : 'alert-success'} no-print`} style={{ marginBottom: 10 }}><div>
+                  {below.length
+                    ? <>Below the pass mark ({passMark}%): {below.map(b => <strong key={b.name} style={{ marginRight: 10 }}>{b.name} {b.n}</strong>)} <span style={{ color: '#64748b' }}>· red marks in the table</span></>
+                    : <>✅ Every student is at or above the pass mark ({passMark}%) in every subject.</>}
+                </div></div>
+              );
+            })()}
             <div className="data-card" style={{ overflowX: 'auto', margin: 0 }}>
             <table className="data-table" style={{ whiteSpace: 'nowrap' }}>
               <thead>
@@ -346,6 +375,7 @@ export default function ExamResultsPage() {
               </tbody>
             </table>
           </div>
+            </>
           )}
         </div>
       ))}

@@ -7,6 +7,7 @@ import ApplyAllBar from '../../components/ApplyAllBar';
 import { hasParts, partsLabel, initialMaxMarks, savedMaxMarks, toConfigPayload, totalOf } from '../../utils/subjectParts';
 import './admin.css';
 import './Exams.css';
+import NewExamWizard from '../../components/exams/NewExamWizard';
 
 const EMPTY_FORM = { name: '', examType: 'CLASS_EXAM', classId: '', classIds: [], deadline: '' };
 
@@ -63,7 +64,11 @@ export default function ExamsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const openCreate = () => { setForm(EMPTY_FORM); setFormError(''); setModal('create'); };
+  // "+ New exam" opens the step-by-step guide (also from the top bar: /admin/exams?new=1)
+  const openCreate = () => { setForm(EMPTY_FORM); setFormError(''); setModal('wizard'); };
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') === '1') { setModal('wizard'); window.history.replaceState({}, '', '/admin/exams'); }
+  }, []);
   
   const openConfig = async (exam) => {
     setSelectedExam(exam);
@@ -373,7 +378,7 @@ export default function ExamsPage() {
           <h1 className="page-title">📝 Exams</h1>
           <p className="page-sub">Create an exam → set max marks → send to teachers → publish results to parents.</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>+ Create Exam</button>
+        <button className="btn btn-primary" onClick={openCreate}>+ New exam</button>
       </div>
 
       {configSuccess.length > 0 && (
@@ -724,6 +729,11 @@ export default function ExamsPage() {
       )}
 
       {/* Create Modal */}
+      {modal === 'wizard' && (
+        <NewExamWizard classes={classes} onClose={() => setModal(null)}
+          onDone={(msg) => { setModal(null); setConfigSuccess([msg]); setTimeout(() => setConfigSuccess([]), 8000); loadData(); }} />
+      )}
+
       {modal === 'create' && (
         <div className="modal-overlay" onClick={() => setModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>

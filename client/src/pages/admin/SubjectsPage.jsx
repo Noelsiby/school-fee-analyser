@@ -53,6 +53,8 @@ export default function SubjectsPage() {
   const [error, setError]       = useState('');
   const [search, setSearch]     = useState('');
   const [notice, setNotice]     = useState('');
+  const [teachers, setTeachers] = useState([]);
+  const [assigning, setAssigning] = useState(null); // subject row id being saved
 
   const [modal, setModal]       = useState(null); // 'add' | 'edit' | 'delete'
   const [group, setGroup]       = useState(null); // the subject being edited / deleted
@@ -63,8 +65,9 @@ export default function SubjectsPage() {
   const load = useCallback(async () => {
     setError('');
     try {
-      const [s, c] = await Promise.all([apiCall('/api/admin/subjects'), apiCall('/api/admin/classes')]);
+      const [s, c, t] = await Promise.all([apiCall('/api/admin/subjects'), apiCall('/api/admin/classes'), apiCall('/api/admin/teachers').catch(() => ({ teachers: [] }))]);
       setSubjects(s.subjects);
+      setTeachers(t.teachers);
       setClasses(c.classes);
     } catch (e) {
       setError(e.message || 'Failed to load subjects.');
@@ -148,6 +151,26 @@ export default function SubjectsPage() {
 
   const groupUsed = group ? group.rows.some(isUsed) : false;
 
+  // Give a subject in one class to a teacher (or take it away) right from this page
+  const assign = async (row, teacherId) => {
+    if (!teacherId) return;
+    setAssigning(row.id);
+    try {
+      await apiCall('/api/admin/teacher-assignments', { method: 'POST', body: { teacherId: Number(teacherId), subjectId: row.id, classId: row.classId } });
+      const t = teachers.find((x) => x.id === Number(teacherId));
+      showNotice(`✅ ${t?.name || 'Teacher'} now teaches ${row.class.name} ${row.name}.`);
+      await load();
+    } catch (e) { setError(e.message); }
+    finally { setAssigning(null); }
+  };
+  const unassign = async (row, a) => {
+    if (!window.confirm(`Stop ${a.teacher.name} teaching ${row.class.name} ${row.name}?`)) return;
+    setAssigning(row.id);
+    try { await apiCall(`/api/admin/teacher-assignments/${a.id}`, { method: 'DELETE' }); await load(); }
+    catch (e) { setError(e.message); }
+    finally { setAssigning(null); }
+  };
+
   return (
     <div className="admin-page">
       <div className="page-header">
@@ -210,11 +233,25 @@ export default function SubjectsPage() {
                       )}
                     </td>
                     <td>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {g.classes.map(c => <span key={c.id} className="badge badge-blue">{c.name}</span>)}
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 4 }}>
-                        {g.classes.length} class{g.classes.length === 1 ? '' : 'es'} · {g.teachers} teacher assignment{g.teachers === 1 ? '' : 's'}
+                      <div className="sj-classes">
+                        {[...g.rows].sort((a, b) => byClassName(a.class, b.class)).map(r => (
+                          <div key={r.id} className="sj-class">
+                            <span className="badge badge-blue">{r.class.name}</span>
+                            {(r.teacherAssignments || []).map(a => (
+                              <span key={a.id} className="sj-teacher">
+                                👩‍🏫 {a.teacher.name}
+                                <button onClick={() => unassign(r, a)} disabled={assigning === r.id} aria-label={`Remove ${a.teacher.name}`} title="Remove this teacher">✕</button>
+                              </span>
+                            ))}
+                            {!(r.teacherAssignments || []).length && (
+                              <select className="form-select sj-assign" value="" disabled={assigning === r.id}
+                                onChange={e => assign(r, e.target.value)} aria-label={`Teacher for ${r.class.name} ${r.name}`}>
+                                <option value="">⚠ + Assign teacher…</option>
+                                {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              </select>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </td>
                     <td>

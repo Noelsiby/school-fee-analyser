@@ -71,3 +71,17 @@
 .sh-menu-btn, .top-navbar .notification-wrapper { flex-shrink: 0; }
 .sh-search-btn { min-width: 0; }
 @media (max-width: 900px) { .top-navbar { padding: 10px 12px !important; } .top-navbar .topbar-spacer { display: none; } }
+
+/* "+ New" menu (admin) */
+.qn-wrap { position: relative; flex-shrink: 0; }
+.qn-btn { height: 40px; }
+.qn-backdrop { position: fixed; inset: 0; z-index: 1000; }
+.qn-menu {
+  position: absolute; right: 0; top: 46px; z-index: 1001; min-width: 220px; background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 12px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15); padding: 6px;
+}
+.qn-menu button {
+  width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 0; background: none; border-radius: 8px;
+  cursor: pointer; font: inherit; font-size: 0.9rem; color: #0f172a; text-align: left;
+}
+.qn-menu button:hover { background: #eff6ff; }

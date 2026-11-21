@@ -39,6 +39,15 @@ const SECTIONS = [
   },
 ];
 
+// "+ New" in the top bar: the things the office starts most often
+const QUICK_NEW = [
+  { icon: '📝', label: 'New exam', to: '/admin/exams?new=1' },
+  { icon: '👦', label: 'New student', to: '/admin/students?new=1' },
+  { icon: '📢', label: 'Message to parents', to: '/admin/messages' },
+  { icon: '✅', label: 'Take attendance', to: '/admin/attendance' },
+  { icon: '🏛️', label: 'New class', to: '/admin/classes?new=1' },
+];
+
 export default function AdminLayout() {
-  return <AppShell role="Admin" roleLabel="Administrator" sections={SECTIONS} />;
+  return <AppShell role="Admin" roleLabel="Administrator" sections={SECTIONS} quickNew={QUICK_NEW} />;
 }

@@ -242,6 +242,8 @@ exports.getSubjects = async (req, res) => {
         class: { select: { id: true, name: true } },
         // How much each subject is used: the Subjects page warns before removing a used one.
         _count: { select: { examConfigs: true, marks: true, teacherAssignments: true } },
+        // Who teaches it (the Subjects page assigns teachers right there)
+        teacherAssignments: { select: { id: true, teacher: { select: { id: true, name: true } } } },
       },
       orderBy: [{ class: { name: 'asc' } }, { name: 'asc' }],
     });

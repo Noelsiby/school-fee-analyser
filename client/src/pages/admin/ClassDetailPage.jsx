@@ -670,12 +670,13 @@ function TeacherAssignmentsTab({ cls, teachers, onRefresh }) {
 // ─────────────────────────────────────────────
 // Main: ClassDetailPage
 // ─────────────────────────────────────────────
+// Most-used first
 const TABS = [
   { key: 'students',      label: '👦 Students' },
-  { key: 'class-teacher', label: '👩‍🏫 Class Teacher' },
-  { key: 'subjects',      label: '📚 Subjects' },
-  { key: 'assignments',   label: '📋 Teacher Assignments' },
   { key: 'reports',       label: '📄 Report cards & WhatsApp' },
+  { key: 'subjects',      label: '📚 Subjects' },
+  { key: 'assignments',   label: '📋 Who teaches what' },
+  { key: 'class-teacher', label: '👩‍🏫 Class teacher' },
   { key: 'timetable',     label: '🗓️ Timetable' },
   { key: 'analyser',      label: '📈 Analyser' },
 ];

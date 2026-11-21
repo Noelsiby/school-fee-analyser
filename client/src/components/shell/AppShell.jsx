@@ -20,7 +20,7 @@ const SWITCH_LABEL = { Admin: '🛡️ Admin', ClassTeacher: '📋 Class Teacher
  * @param sections   [{ title?, items: [{ path, label, icon }] }]
  * @param theme      { sidebar, accent, avatar } colours
  */
-export default function AppShell({ role, roleLabel, sections, theme = {} }) {
+export default function AppShell({ role, roleLabel, sections, theme = {}, quickNew }) {
   const { user, logout, switchRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -93,7 +93,7 @@ export default function AppShell({ role, roleLabel, sections, theme = {} }) {
       </aside>
 
       <main className="admin-main">
-        <TopNavbar onMenu={() => setMenuOpen(true)} onSearch={() => setSearchOpen(true)} searchHint={role === 'SubjectTeacher' ? 'Search exams or subjects' : role === 'ClassTeacher' ? 'Search students or exams' : 'Search students, classes, exams…'} />
+        <TopNavbar onMenu={() => setMenuOpen(true)} onSearch={() => setSearchOpen(true)} quickNew={quickNew} searchHint={role === 'SubjectTeacher' ? 'Search exams or subjects' : role === 'ClassTeacher' ? 'Search students or exams' : 'Search students, classes, exams…'} />
         <Outlet />
       </main>
 

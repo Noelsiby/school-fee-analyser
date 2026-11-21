@@ -1,0 +1,26 @@
+.nw-modal { max-width: 720px !important; }
+.nw-steps { list-style: none; display: flex; gap: 6px; padding: 0; margin: 4px 0 16px; flex-wrap: wrap; }
+.nw-steps li {
+  display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #f1f5f9;
+  color: #64748b; font-size: 0.84rem; font-weight: 600;
+}
+.nw-steps li span {
+  width: 20px; height: 20px; border-radius: 50%; background: #cbd5e1; color: #fff; font-size: 0.75rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.nw-steps li.nw-on { background: #1e3a8a; color: #fff; }
+.nw-steps li.nw-on span { background: #fff; color: #1e3a8a; }
+.nw-steps li.nw-done { background: #dcfce7; color: #166534; }
+.nw-steps li.nw-done span { background: #16a34a; }
+.nw-body { min-height: 180px; }
+.nw-help { color: #475569; margin: 0 0 10px; font-size: 0.9rem; }
+.nw-groups { display: grid; gap: 12px; margin-top: 12px; max-height: 48vh; overflow-y: auto; }
+.nw-group { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+.nw-group-title { margin: 0 0 6px; font-weight: 700; }
+.nw-subject { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid #f1f5f9; flex-wrap: wrap; }
+.nw-subject:first-of-type { border-top: 0; }
+.nw-review p { display: flex; gap: 12px; margin: 6px 0; }
+.nw-review p span { width: 110px; color: #64748b; flex: none; }
+.nw-warn { color: #b45309; font-size: 0.85rem; margin: 10px 0 0; }
+.nw-footer { display: flex; justify-content: space-between; align-items: center; }
+.nw-note { margin-top: 14px; padding: 10px 12px; background: #eff6ff; border-radius: 8px; }

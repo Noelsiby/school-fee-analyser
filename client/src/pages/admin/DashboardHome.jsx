@@ -132,38 +132,6 @@ export default function DashboardHome() {
         ))}
       </div>
 
-      {/* Exams that need attention */}
-      <div className="data-card an-card" style={{ marginBottom: 20 }}>
-        <div className="an-head">
-          <div>
-            <h3>📝 Exams in progress</h3>
-            <p className="an-sub">Marks being entered, or finalized and waiting to be published to parents.</p>
-          </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/exams')}>All exams →</button>
-        </div>
-        {exams === null ? <div className="spinner spinner-dark" /> : running.length === 0 ? (
-          <p className="an-muted" style={{ margin: 0 }}>No exams running right now. <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/exams')}>＋ Create an exam</button></p>
-        ) : (
-          <div className="db-exams">
-            {running.slice(0, 5).map((e) => {
-              const { total, done } = examProgress(e);
-              const pct = total ? Math.round((done / total) * 100) : 0;
-              const ready = e.status === 'Closed' || (total > 0 && done === total);
-              return (
-                <button key={e.id} className="db-exam" onClick={() => navigate(`/admin/exams/${e.id}/results`)}>
-                  <div className="db-exam-top">
-                    <strong>{e.name}</strong>
-                    <span className={`badge ${ready ? 'badge-blue' : 'badge-green'}`}>{ready ? '✅ Ready to publish' : '✍️ Marks entry'}</span>
-                  </div>
-                  <div className="ex-bar"><div style={{ width: `${pct}%` }} /></div>
-                  <span className="an-muted">{done} of {total} class{total === 1 ? '' : 'es'} finalized</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
       <div className="data-card an-card" style={{ marginBottom: 20 }}>
         <AttendanceToday compact onOpen={() => navigate('/admin/attendance')} />
       </div>

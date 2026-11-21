@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import './TopNavbar.css';
 
 /** onMenu: open the phone menu (☰). onSearch: open the search window. */
-export default function TopNavbar({ onMenu, onSearch, searchHint = 'Search…' } = {}) {
+/** quickNew: [{ label, icon, to }] for the "+ New" menu (admin). */
+export default function TopNavbar({ onMenu, onSearch, searchHint = 'Search…', quickNew } = {}) {
+  const navigate = useNavigate();
+  const [newOpen, setNewOpen] = useState(false);
   const { apiCall } = useApi();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -45,6 +49,23 @@ export default function TopNavbar({ onMenu, onSearch, searchHint = 'Search…' }
         </button>
       ) : <div className="topbar-spacer" />}
       <div className="topbar-spacer" />
+      {quickNew?.length > 0 && (
+        <div className="qn-wrap">
+          <button className="btn btn-primary qn-btn" onClick={() => setNewOpen((v) => !v)} aria-expanded={newOpen}>＋ New</button>
+          {newOpen && (
+            <>
+              <div className="qn-backdrop" onClick={() => setNewOpen(false)} />
+              <div className="qn-menu" role="menu">
+                {quickNew.map((q) => (
+                  <button key={q.to} role="menuitem" onClick={() => { setNewOpen(false); navigate(q.to); }}>
+                    <span>{q.icon}</span>{q.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <div className="notification-wrapper">
         <button className="bell-btn" onClick={() => setIsOpen(!isOpen)}>
           🔔

@@ -7,6 +7,7 @@ import AttendanceToday from '../../components/attendance/AttendanceToday';
 import MyDay from '../../components/timetable/MyDay';
 import ReportAttendanceModal from '../../components/report/ReportAttendanceModal';
 import SubjectWatch from '../../components/analysis/SubjectWatch';
+import TodoPanel from '../../components/shell/TodoPanel';
 import '../../components/analysis/Analysis.css';
 import '../admin/admin.css';
 import '../admin/Exams.css';
@@ -60,8 +61,10 @@ export default function ClassTeacherDashboard() {
         </div>
       </div>
 
+      <TodoPanel role="ClassTeacher" />
+
       {/* Exams first: reviewing marks is the main job */}
-      <div className="ct-section-head">
+      <div className="ct-section-head" id="exams">
         <h2>📝 Exams for your class</h2>
       </div>
       {loading ? (

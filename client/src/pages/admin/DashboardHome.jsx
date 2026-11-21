@@ -4,6 +4,7 @@ import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../contexts/AuthContext';
 import AttendanceToday from '../../components/attendance/AttendanceToday';
 import SubjectWatch from '../../components/analysis/SubjectWatch';
+import TodoPanel from '../../components/shell/TodoPanel';
 import '../../components/analysis/Analysis.css';
 import './admin.css';
 import './Exams.css';
@@ -116,6 +117,8 @@ export default function DashboardHome() {
       </div>
 
       {loadError && <div className="alert alert-error" style={{ marginBottom: 16 }}>⚠ {loadError}</div>}
+
+      <TodoPanel role="Admin" />
 
       <div className="stats-grid-admin db-stats">
         {cards.map(({ icon, label, key, color, to }) => (

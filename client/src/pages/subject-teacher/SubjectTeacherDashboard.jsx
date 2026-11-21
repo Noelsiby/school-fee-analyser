@@ -7,6 +7,7 @@ import '../admin/Exams.css';
 import '../admin/AdminHome.css';
 import './SubjectTeacher.css';
 import MyDay from '../../components/timetable/MyDay';
+import TodoPanel from '../../components/shell/TodoPanel';
 
 export default function SubjectTeacherDashboard() {
   const { user } = useAuth();
@@ -45,6 +46,7 @@ export default function SubjectTeacherDashboard() {
         </div>
       </div>
 
+      <TodoPanel role="SubjectTeacher" />
       <MyDay attendancePath="/subject-teacher/attendance" />
 
       <div className="ct-section-head"><h2>📝 Enter marks</h2></div>

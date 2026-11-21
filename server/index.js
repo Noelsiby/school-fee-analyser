@@ -58,6 +58,7 @@ app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/timetable', require('./routes/timetable'));
 app.use('/api/app', require('./routes/app'));
 app.use('/api/search', require('./routes/search')); // search box on every page (Ctrl+K)
+app.use('/api/todo', require('./routes/todo'));     // "What to do next" on each dashboard
 
 // ── Production: serve built React app ──────────────────────────
 // In production, Express serves the Vite build output as static files.

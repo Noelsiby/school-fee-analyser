@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { rupees, monthLabel, shortMonth } from './tuition';
+import ReminderCard from './ReminderCard';
 import '../admin/admin.css';
 import '../admin/Exams.css';
 import './Tuition.css';
@@ -34,6 +35,7 @@ export default function TuitionFeeReportPage() {
         </div>
       </div>
 
+      <ReminderCard />
       <div className="tu-stats">
         <div className={`tu-stat ${d.totalOwed ? 'tu-warn' : 'tu-good'}`}><strong>{rupees(d.totalOwed)}</strong><span>Still owed (all months)</span></div>
         <div className={`tu-stat ${d.owing.length ? 'tu-warn' : 'tu-good'}`}><strong>{d.owing.length}</strong><span>Students who owe</span></div>

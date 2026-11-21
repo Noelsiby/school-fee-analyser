@@ -93,4 +93,6 @@ loadGradeScale(startupPrisma)
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`[server] Running on http://0.0.0.0:${PORT} (${process.env.NODE_ENV || 'development'})`);
     });
+    // Tuition: the monthly fee reminder, on the day the head of tuition picks
+    require('./lib/tuitionFees').startReminderJob(new PrismaClient());
   });

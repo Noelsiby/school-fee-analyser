@@ -17,6 +17,7 @@ const { byClassName } = require('../lib/classOrder');
 const notices = require('../controllers/noticeController')._internal;
 const { buildClassReport } = require('../lib/reportData');
 const { passMark } = require('../lib/grades');
+const fees = require('../lib/tuitionFees');
 
 const prisma = new PrismaClient();
 router.use(authenticate, authorize('TuitionHead'));
@@ -236,7 +237,7 @@ router.get('/fees', async (req, res) => {
           tuitionStudentId: r.id, name: r.student.name, schoolClass: r.student.class.name, rollNumber: r.student.rollNumber,
           tuitionClassId: r.classId, tuitionClass: r.class.name, fee,
           family: wa.normalizePhone(r.student.parentPhone) || null, // brothers and sisters share the parent number
-          payment: pay && { id: pay.id, amount: pay.amount, paidOn: pay.paidOn, mode: pay.mode, note: pay.note },
+          payment: pay && { id: pay.id, amount: pay.amount, paidOn: pay.paidOn, mode: pay.mode, note: pay.note, receiptSentAt: pay.receiptSentAt, receiptVia: pay.receiptVia },
           status: !pay ? (fee > 0 ? 'unpaid' : 'free') : pay.amount >= fee ? 'paid' : 'part',
           earlierUnpaid: earlier,
         };
@@ -338,22 +339,72 @@ router.post('/messages', async (req, res) => {
 
 
 // ── Settings: UPI / GPay QR for fee payments ──
-const SETTINGS_KEY = 'tuition';
 const UPI_ID = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9.-]{1,63}$/;
-async function getSettings() {
-  const row = await prisma.appSetting.findUnique({ where: { key: SETTINGS_KEY } });
-  return { upiId: '', payeeName: 'Matha School Tuition', ...(row?.value || {}) };
-}
+const getSettings = async () => { const { reminderLog, lastAutoMonth, ...rest } = await fees.getSettings(prisma); return rest; };
 router.get('/settings', async (req, res) => { try { res.json({ settings: await getSettings() }); } catch (err) { fail(res, err); } });
 router.put('/settings', async (req, res) => {
   const upiId = cleanText(req.body?.upiId, 100);
   const payeeName = cleanText(req.body?.payeeName, 50) || 'Matha School Tuition';
   if (upiId && !UPI_ID.test(upiId)) return res.status(400).json({ error: 'That doesn\'t look like a UPI ID. It looks like name@bank, e.g. 9876543210@okaxis (see GPay → Profile → UPI ID).' });
   try {
-    const value = { ...(await getSettings()), upiId, payeeName };
-    await prisma.appSetting.upsert({ where: { key: SETTINGS_KEY }, create: { key: SETTINGS_KEY, value }, update: { value } });
-    res.json({ settings: value });
+    await fees.saveSettings(prisma, { ...(await fees.getSettings(prisma)), upiId, payeeName });
+    res.json({ settings: await getSettings() });
   } catch (err) { fail(res, err); }
+});
+
+// ── Fee receipts: ?ids=1,2 (one family) ──
+const receiptFail = (res, err) => fail(res, err, err.code || 500);
+router.get('/fees/receipt', async (req, res) => {
+  try { res.json({ receipt: await fees.buildReceipt(prisma, String(req.query.ids || '').split(',')) }); }
+  catch (err) { receiptFail(res, err); }
+});
+router.post('/fees/receipt', async (req, res) => {
+  try {
+    const receipt = await fees.buildReceipt(prisma, req.body?.paymentIds);
+    const result = await fees.sendReceipt(prisma, receipt);
+    res.json(result);
+  } catch (err) { receiptFail(res, err); }
+});
+
+// ── Automatic fee reminder (once a month, on the day she picks) ──
+async function reminderState() {
+  const settings = await fees.getSettings(prisma);
+  const { families, noPhone, month } = await fees.reminderFamilies(prisma, settings.reminder.scope);
+  return {
+    reminder: settings.reminder,
+    next: fees.nextReminderDate(settings),
+    sentThisMonth: settings.lastAutoMonth === month,
+    log: settings.reminderLog,
+    whatsappConfigured: wa.isConfigured(),
+    preview: {
+      families: families.length, students: families.reduce((n, f) => n + f.kids.length, 0),
+      total: families.reduce((n, f) => n + f.total, 0), noPhone: noPhone.map((k) => k.name),
+      sample: families[0] ? fees.reminderText(families[0], settings) : null,
+    },
+  };
+}
+router.get('/reminders', async (req, res) => { try { res.json(await reminderState()); } catch (err) { fail(res, err); } });
+router.put('/reminders', async (req, res) => {
+  const day = Number(req.body?.day);
+  if (!Number.isInteger(day) || day < 1 || day > 28) return res.status(400).json({ error: 'Choose a day from 1 to 28.' });
+  const scope = req.body?.scope === 'month' ? 'month' : 'all';
+  try {
+    const settings = await fees.getSettings(prisma);
+    const reminder = { enabled: !!req.body?.enabled, day, scope, note: wa.clean(req.body?.note || '').replace(/^-$/, '').slice(0, 200) };
+    const value = { ...settings, reminder };
+    // Turned on (or day moved) after this month's day has passed: start from next month,
+    // so nobody gets a surprise message right away. "Send now" is there for this month.
+    const { y, m, d } = fees.todayIst();
+    const month = `${y}-${String(m).padStart(2, '0')}`;
+    const changed = !settings.reminder.enabled || settings.reminder.day !== day;
+    if (reminder.enabled && changed && d > day && settings.lastAutoMonth !== month) value.lastAutoMonth = month;
+    await fees.saveSettings(prisma, value);
+    res.json(await reminderState());
+  } catch (err) { fail(res, err); }
+});
+router.post('/reminders/send', async (req, res) => {
+  try { const entry = await fees.sendReminders(prisma, { auto: false }); res.json({ entry, ...(await reminderState()) }); }
+  catch (err) { fail(res, err); }
 });
 
 // ── Fees analyser: who owes what (all months since joining), month by month, per class ──

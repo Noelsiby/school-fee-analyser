@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { rupees, thisMonth, today, monthLabel, shortMonth } from './tuition';
 import UpiQrModal from './UpiQrModal';
+import ReceiptModal from './ReceiptModal';
+import ReminderCard from './ReminderCard';
 import '../admin/admin.css';
 import '../admin/Exams.css';
 import './Tuition.css';
@@ -24,6 +26,7 @@ export default function TuitionFeesPage() {
   const [error, setError] = useState('');
   const [qrOpen, setQrOpen] = useState(false);
   const [together, setTogether] = useState(true);   // brothers & sisters shown together
+  const [receipt, setReceipt] = useState(null);     // { ids, justPaid }
 
   const load = useCallback(() => apiCall(`/api/tuition/fees?month=${month}`).then(setData).catch((e) => setError(e.message)), [apiCall, month]);
   useEffect(() => { setData(null); load(); }, [load]);
@@ -65,6 +68,7 @@ export default function TuitionFeesPage() {
         {s.payment ? (
           <>
             <span className="tu-muted">{new Date(s.payment.paidOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{s.payment.mode ? ` · ${s.payment.mode}` : ''}</span>
+            <button className={`btn btn-ghost btn-xs${s.payment.receiptSentAt ? ' tu-sent' : ''}`} onClick={() => setReceipt({ ids: [s.payment.id] })} title={s.payment.receiptSentAt ? 'Receipt sent · open it' : 'Receipt: send or print'}>🧾{s.payment.receiptSentAt ? '✓' : ''}</button>
             <button className="btn btn-ghost btn-xs" onClick={() => setPaying({ ...s, month, listMonth: month })} title="Change">✏️</button>
             <button className="btn btn-ghost btn-xs tu-del" onClick={() => undo(s)} title="Remove payment">✕</button>
           </>
@@ -88,8 +92,10 @@ export default function TuitionFeesPage() {
     if (!due.length) return;
     if (!window.confirm(`Mark ${monthLabel(month)} paid for ${due.map((m) => m.name).join(', ')}? (${rupees(due.reduce((n, m) => n + m.fee, 0))})`)) return;
     try {
-      for (const m of due) await apiCall('/api/tuition/fees', { method: 'POST', body: { tuitionStudentId: m.tuitionStudentId, month, amount: m.fee, paidOn: today(), mode: 'Cash' } });
+      const ids = [];
+      for (const m of due) ids.push((await apiCall('/api/tuition/fees', { method: 'POST', body: { tuitionStudentId: m.tuitionStudentId, month, amount: m.fee, paidOn: today(), mode: 'Cash' } })).payment.id);
       load();
+      setReceipt({ ids, justPaid: true }); // one receipt for the whole family
     } catch (e) { setError(e.message); }
   };
 
@@ -112,6 +118,7 @@ export default function TuitionFeesPage() {
 
       {!data ? <div className="spinner spinner-dark" /> : (
         <>
+          <ReminderCard />
           <div className="tu-stats">
             <div className="tu-stat tu-good"><strong>{rupees(data.totals.collected)}</strong><span>Collected · {monthLabel(month)}</span></div>
             <div className="tu-stat"><strong>{rupees(data.totals.expected)}</strong><span>Total due</span></div>
@@ -157,6 +164,7 @@ export default function TuitionFeesPage() {
                       <span>{owing.length ? <span className="badge badge-red">{owing.length} not paid</span> : <span className="badge badge-green">✓ All paid</span>}</span>
                       <div className="tu-fee-act">
                         {owing.length > 0 && <button className="btn btn-primary btn-sm" onClick={() => payFamily(all)}>✓ Mark all paid ({rupees(owing.reduce((n, m) => n + m.fee, 0))})</button>}
+                        {all.filter((m) => m.payment).length > 1 && <button className="btn btn-ghost btn-sm" onClick={() => setReceipt({ ids: all.filter((m) => m.payment).map((m) => m.payment.id) })}>🧾 One receipt</button>}
                       </div>
                     </div>
                     {f.map(feeRow)}
@@ -182,7 +190,8 @@ export default function TuitionFeesPage() {
       )}
 
       {qrOpen && <UpiQrModal onClose={() => setQrOpen(false)} note={`Tuition fee ${monthLabel(month)}`} />}
-      {paying && <PayDialog row={paying} onClose={() => setPaying(null)} onSaved={() => { setPaying(null); load(); }} />}
+      {paying && <PayDialog row={paying} onClose={() => setPaying(null)} onSaved={(p) => { setPaying(null); load(); setReceipt({ ids: [p.id], justPaid: true }); }} />}
+      {receipt && <ReceiptModal paymentIds={receipt.ids} justPaid={receipt.justPaid} onClose={() => setReceipt(null)} onSent={load} />}
     </div>
   );
 }
@@ -202,8 +211,8 @@ function PayDialog({ row, onClose, onSaved }) {
     e.preventDefault();
     setBusy(true); setError('');
     try {
-      await apiCall('/api/tuition/fees', { method: 'POST', body: { tuitionStudentId: row.tuitionStudentId, month: row.month, amount, paidOn, mode, note } });
-      onSaved();
+      const d = await apiCall('/api/tuition/fees', { method: 'POST', body: { tuitionStudentId: row.tuitionStudentId, month: row.month, amount, paidOn, mode, note } });
+      onSaved(d.payment);
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   };

@@ -8,7 +8,7 @@ import { useSession } from '../lib/session';
 import { C } from '../lib/theme';
 import { Screen, Card, Muted, Loading, ErrorBox } from '../components/ui';
 
-const ICON = { result: '📊', absent: '❌', notice: '📢' };
+const ICON = { result: '📊', absent: '❌', notice: '📢', fee: '🧾' };
 const SCREEN = { results: '/results', attendance: '/attendance', notices: '/notices' };
 const when = (d) => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 

@@ -852,6 +852,8 @@ model TuitionPayment {
   mode             String?
   note             String?
   recordedById     Int?
+  receiptSentAt    DateTime?
+  receiptVia       String?
   createdAt        DateTime       @default(now())
 
   @@unique([tuitionStudentId, month])

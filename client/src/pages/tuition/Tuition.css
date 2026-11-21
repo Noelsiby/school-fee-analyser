@@ -42,3 +42,17 @@
   .tu-fee-row { grid-template-columns: 1fr auto; }
   .tu-fee-act { grid-column: 1 / -1; justify-content: flex-start; }
 }
+/* Receipts */
+.tu-receipt { border: 1px dashed #fdba74; background: #fffaf5; border-radius: 12px; padding: 12px 14px; }
+.tu-receipt-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.tu-receipt-head span { font-family: ui-monospace, monospace; font-size: 0.85rem; color: #9a3412; }
+.tu-receipt-line { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid #fde7d3; }
+.tu-receipt-line small { color: #64748b; font-weight: 500; }
+.tu-receipt-total { border-top: 1.5px solid #9a3412; font-size: 1.05rem; }
+.tu-receipt-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.tu-sent { color: #15803d; }
+/* Automatic reminder */
+.tu-remind { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; margin-bottom: 14px; }
+.tu-remind-on { border-color: #fdba74; background: #fff7ed; }
+.tu-remind-icon { font-size: 1.4rem; }
+.tu-remind .tu-who strong { white-space: normal; }

@@ -1,37 +1,46 @@
 // The school's grading scale. Mirrors server/lib/grades.js.
-// Grades go by percentage, so one scale works for exams out of 100, 50 or 30.
-// The admin can change it (Admin → Grading); useGradeScale() loads the saved one.
-// Default (AP State):
-//   A1 91–100 → 10   A2 81–90 → 9   B1 71–80 → 8   B2 61–70 → 7
-//   C1 51–60  → 6    C2 41–50 → 5   D  35–40 → 4   E  below 35 → 0
+// The school decides it (Admin → Grading): a total ("out of", e.g. 50) and grade ranges in marks
+// (A1 46–50 …), which grades pass, and points. Marks of a subject with another total are scaled
+// to that total and rounded before the grade is looked up. Each band also has `min` (where it
+// starts as a %), used by pages that work in percentages. useGradeScale() loads the saved scale.
 import { useEffect, useState } from 'react';
 
-export const DEFAULT_BANDS = [
-  { min: 91, grade: 'A1', points: 10 },
-  { min: 81, grade: 'A2', points: 9 },
-  { min: 71, grade: 'B1', points: 8 },
-  { min: 61, grade: 'B2', points: 7 },
-  { min: 51, grade: 'C1', points: 6 },
-  { min: 41, grade: 'C2', points: 5 },
-  { min: 35, grade: 'D',  points: 4 },
-  { min: 0,  grade: 'E',  points: 0 },
-];
+const finish = (bands, outOf) => bands.map((b) => ({ ...b, outOf, min: Math.round((b.from / outOf) * 10000) / 100 }));
 
-const bandFor = (percentage, bands = DEFAULT_BANDS) =>
-  bands.find(b => Math.round(Number(percentage) || 0) >= b.min) || bands[bands.length - 1];
+// Used until the school's saved scale has loaded (out of 100).
+export const DEFAULT_BANDS = finish([
+  { grade: 'A1', from: 91, to: 100, points: 10, pass: true },
+  { grade: 'A2', from: 81, to: 90, points: 9, pass: true },
+  { grade: 'B1', from: 71, to: 80, points: 8, pass: true },
+  { grade: 'B2', from: 61, to: 70, points: 7, pass: true },
+  { grade: 'C1', from: 51, to: 60, points: 6, pass: true },
+  { grade: 'C2', from: 41, to: 50, points: 5, pass: true },
+  { grade: 'D', from: 35, to: 40, points: 4, pass: true },
+  { grade: 'E', from: 0, to: 34, points: 0, pass: false },
+], 100);
+
+/** Percentage → grade band: scaled to the scale's total ("out of"), rounded, then looked up. */
+const bandFor = (percentage, bands = DEFAULT_BANDS) => {
+  const outOf = bands[0]?.outOf || 100;
+  const marks = Math.round(((Number(percentage) || 0) / 100) * outOf);
+  return bands.find((b) => marks >= (b.from ?? b.min)) || bands[bands.length - 1];
+};
 
 export const gradeFor = (percentage, bands) => bandFor(percentage, bands).grade;
 export const pointsFor = (percentage, bands) => bandFor(percentage, bands).points;
 
-/** Lowest passing percentage: where the grade above the last (fail) grade starts. */
-export const passMarkOf = (bands = DEFAULT_BANDS) => (bands.length > 1 ? bands[bands.length - 2].min : 0);
+/** Pass mark as a percentage: where the lowest pass grade starts (0 if every grade passes). */
+export const passMarkOf = (bands = DEFAULT_BANDS) => {
+  const passing = bands.filter((b) => b.pass !== false);
+  if (!passing.length) return 100;
+  if (passing.length === bands.length) return 0;
+  return passing[passing.length - 1].min;
+};
 
-/** "91–100", "35–40", "Below 35" for each grade of a scale. */
+/** "46–50" (marks out of the scale's total) for each grade. */
 export const rangeLabel = (bands, i) => {
   const b = bands[i];
-  if (b.min === 0 && i > 0) return `Below ${bands[i - 1].min}`;
-  const upper = i === 0 ? 100 : bands[i - 1].min - 1;
-  return b.min === upper ? `${b.min}` : `${b.min}–${upper}`;
+  return b.from === b.to ? `${b.from}` : `${b.from}–${b.to}`;
 };
 
 // One fetch per page load; saving on the Grading page updates it for everyone on this page.

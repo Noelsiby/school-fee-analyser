@@ -5,7 +5,7 @@
  * warning flags, achievements and a plain-English summary. No AI: simple rules.
  */
 
-const { currentScale, passMark } = require('./grades');
+const { currentScale, passMark, gradeFor, thresholdPct } = require('./grades');
 
 const round1 = (n) => Math.round(n * 10) / 10;
 const pctOf = (total, max) => (total === null || total === undefined || !max ? null : (total / max) * 100);
@@ -25,10 +25,11 @@ function position(rank, of) {
  */
 function nextGrades(total, max, bands = currentScale()) {
   if (total === null || !max) return [];
-  const pct = Math.round((total / max) * 100);
-  const above = bands.filter((b) => b.min > pct).sort((a, b) => a.min - b.min).slice(0, 2);
+  const current = gradeFor((total / max) * 100, bands);
+  const at = bands.findIndex((b) => b.grade === current);
+  const above = bands.slice(0, Math.max(0, at)).reverse().slice(0, 2); // the next grades up
   return above.map((b) => {
-    const need = Math.max(0, Math.ceil((((b.min - 0.5) / 100) * max - total) * 2) / 2); // to the nearest half mark
+    const need = Math.max(0, Math.ceil(((thresholdPct(b) / 100) * max - total) * 2) / 2); // to the nearest half mark
     return { grade: b.grade, marksNeeded: need };
   });
 }

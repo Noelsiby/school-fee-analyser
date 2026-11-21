@@ -83,6 +83,7 @@ const countsOf = (messages) => {
 exports.list = async (req, res) => {
   try {
     const notices = await prisma.notice.findMany({
+      where: { scope: 'school' }, // tuition messages belong to the head of tuition
       orderBy: { createdAt: 'desc' },
       take: 50,
       include: { messages: { select: { status: true } } },
@@ -103,7 +104,7 @@ exports.get = async (req, res) => {
       where: { id: Number(req.params.id) },
       include: { messages: { orderBy: { id: 'asc' } } },
     });
-    if (!notice) return res.status(404).json({ error: 'Notice not found.' });
+    if (!notice || notice.scope !== 'school') return res.status(404).json({ error: 'Notice not found.' });
     res.json({ notice: { ...notice, counts: countsOf(notice.messages) } });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -201,3 +202,6 @@ exports.refresh = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// Shared with the tuition messages (server/routes/tuition.js)
+exports._internal = { resolveAudience, sendInBackground, studentsLabel, countsOf, TITLE_MAX, BODY_MAX };

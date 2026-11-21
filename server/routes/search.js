@@ -60,6 +60,14 @@ router.get('/', authenticate, async (req, res) => {
       });
     }
 
+    if (role === 'TuitionHead') {
+      const rows = await prisma.tuitionStudent.findMany({
+        where: { student: { OR: [{ name: has }, { rollNumber: q }] } },
+        select: { id: true, class: { select: { name: true } }, student: { select: { name: true, class: { select: { name: true } } } } }, take: LIMIT,
+      });
+      return res.json({ students: [], classes: [], teachers: [], exams: [], tuition: rows.map((r) => ({ id: r.id, name: r.student.name, schoolClass: r.student.class.name, tuitionClass: r.class.name })) });
+    }
+
     // Subject teacher: their exam subjects, matched by exam, subject or class name
     const assignments = await prisma.teacherSubjectAssignment.findMany({
       where: { teacherId: me }, select: { subjectId: true, classId: true, subject: { select: { name: true } }, class: { select: { name: true } } },

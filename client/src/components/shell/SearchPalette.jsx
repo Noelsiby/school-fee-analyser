@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import './Shell.css';
 
-const EMPTY = { students: [], classes: [], teachers: [], exams: [], marks: [] };
+const EMPTY = { students: [], classes: [], teachers: [], exams: [], marks: [], tuition: [] };
 
 /** Where each result opens, for each role. */
 function linksFor(role, data, pages, q) {
@@ -18,7 +18,7 @@ function linksFor(role, data, pages, q) {
       .forEach((p) => out.push({ group: 'Pages', icon: p.icon, title: p.label, sub: 'Open page', to: p.path }));
   }
   const base = role === 'Admin' ? '/admin' : '/class-teacher';
-  data.students.forEach((s) => out.push({ group: 'Students', icon: '👦', title: s.name, sub: `${s.class?.name} · Roll ${s.rollNumber}`, to: `${base}/students/${s.id}` }));
+  if (role !== 'TuitionHead') data.students.forEach((s) => out.push({ group: 'Students', icon: '👦', title: s.name, sub: `${s.class?.name} · Roll ${s.rollNumber}`, to: `${base}/students/${s.id}` }));
   if (role === 'Admin') {
     data.classes.forEach((c) => out.push({ group: 'Classes', icon: '🏛️', title: c.name, sub: `${c._count?.students ?? 0} students`, to: `/admin/classes/${c.id}` }));
     data.teachers.forEach((t) => out.push({ group: 'Teachers', icon: '👩‍🏫', title: t.name, sub: t.email, to: `/admin/teachers?q=${encodeURIComponent(t.name)}` }));
@@ -26,6 +26,8 @@ function linksFor(role, data, pages, q) {
   } else if (role === 'ClassTeacher') {
     data.classes.forEach((c) => out.push({ group: 'Classes', icon: '🏛️', title: c.name, sub: `${c._count?.students ?? 0} students`, to: '/class-teacher/my-class' }));
     data.exams.forEach((e) => out.push({ group: 'Exams', icon: '📝', title: e.name, sub: 'Review marks', to: `/class-teacher/exams/${e.id}/review?classId=${e.classId}` }));
+  } else if (role === 'TuitionHead') {
+    (data.tuition || []).forEach((t) => out.push({ group: 'Tuition students', icon: '👦', title: t.name, sub: `${t.tuitionClass} · school ${t.schoolClass}`, to: `/tuition/fees?q=${encodeURIComponent(t.name)}` }));
   } else {
     (data.marks || []).forEach((m) => out.push({ group: 'Enter marks', icon: '✍️', title: `${m.subjectName} · ${m.className}`, sub: m.examName, to: `/subject-teacher/exams/${m.examId}/subjects/${m.subjectId}/marks` }));
   }
@@ -69,7 +71,7 @@ export default function SearchPalette({ open, onClose, role, pages }) {
 
   if (!open) return null;
   let lastGroup = '';
-  const placeholder = role === 'SubjectTeacher' ? 'Search an exam, subject or class…'
+  const placeholder = role === 'TuitionHead' ? 'Search a tuition student…' : role === 'SubjectTeacher' ? 'Search an exam, subject or class…'
     : role === 'ClassTeacher' ? 'Search a student or exam…' : 'Search students, classes, teachers, exams or pages…';
   return (
     <div className="sp-overlay" onMouseDown={onClose}>

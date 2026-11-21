@@ -4,7 +4,7 @@ import Modal from '../../components/Modal';
 import './admin.css';
 import './Teachers.css';
 
-const ROLES = ['ClassTeacher', 'SubjectTeacher'];
+const ROLES = ['ClassTeacher', 'SubjectTeacher', 'TuitionHead'];
 
 function TeacherForm({ form, setForm, error, loading, onSubmit, onCancel, mode }) {
   const fileRef = useRef(null);
@@ -66,7 +66,7 @@ function TeacherForm({ form, setForm, error, loading, onSubmit, onCancel, mode }
           {ROLES.map(role => (
             <label key={role} className="checkbox-item">
               <input type="checkbox" checked={form.roles.includes(role)} onChange={() => toggleRole(role)} />
-              {role === 'ClassTeacher' ? '📋 Class Teacher' : '✏️ Subject Teacher'}
+              {role === 'ClassTeacher' ? '📋 Class Teacher' : role === 'TuitionHead' ? '📚 Head of tuition' : '✏️ Subject Teacher'}
             </label>
           ))}
         </div>
@@ -265,8 +265,8 @@ export default function TeachersPage() {
   };
 
   const roleBadge = (name) =>
-    name === 'ClassTeacher'
-      ? <span key={name} className="badge badge-blue">Class Teacher</span>
+    name === 'ClassTeacher' ? <span key={name} className="badge badge-blue">Class Teacher</span>
+      : name === 'TuitionHead' ? <span key={name} className="badge badge-amber">Head of tuition</span>
       : <span key={name} className="badge badge-purple">Subject Teacher</span>;
 
   return (

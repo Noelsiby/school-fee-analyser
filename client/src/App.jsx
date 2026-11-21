@@ -41,6 +41,13 @@ import SubjectMarksPage       from './pages/subject-teacher/SubjectMarksPage';
 import ClassExamsPage         from './pages/class-teacher/ClassExamsPage';
 import MyClassPage            from './pages/class-teacher/MyClassPage';
 import MyTimetablePage        from './pages/timetable/MyTimetablePage';
+import TuitionLayout          from './pages/tuition/TuitionLayout';
+import TuitionDashboard       from './pages/tuition/TuitionDashboard';
+import TuitionStudentsPage    from './pages/tuition/TuitionStudentsPage';
+import TuitionClassesPage     from './pages/tuition/TuitionClassesPage';
+import TuitionTeachersPage    from './pages/tuition/TuitionTeachersPage';
+import TuitionFeesPage        from './pages/tuition/TuitionFeesPage';
+import TuitionMessagesPage    from './pages/tuition/TuitionMessagesPage';
 
 // Root redirect: if logged in → go to active role's dashboard; else → /login
 // Exception: if accessed via results.mathaschool.in, serve PublicResults directly
@@ -143,6 +150,24 @@ function AppRoutes() {
         <Route path="exams/:examId/subjects/:subjectId/marks" element={<MarksEntryPage />} />
         <Route path="analyser" element={<AnalyserPage role="subject-teacher" />} />
         <Route path="attendance" element={<AttendancePage role="subject-teacher" />} />
+      </Route>
+
+      {/* ── Tuition (head of tuition only; the admin has no access) ── */}
+      <Route
+        path="/tuition"
+        element={
+          <ProtectedRoute allowedRoles={['TuitionHead']}>
+            <TuitionLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<TuitionDashboard />} />
+        <Route path="students"  element={<TuitionStudentsPage />} />
+        <Route path="classes"   element={<TuitionClassesPage />} />
+        <Route path="teachers"  element={<TuitionTeachersPage />} />
+        <Route path="fees"      element={<TuitionFeesPage />} />
+        <Route path="messages"  element={<TuitionMessagesPage />} />
       </Route>
 
       {/* ── Root + catch-all ────────────────────────────────────── */}

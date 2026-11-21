@@ -166,6 +166,7 @@ export function getRolePath(role) {
     Admin:          '/admin/dashboard',
     ClassTeacher:   '/class-teacher/dashboard',
     SubjectTeacher: '/subject-teacher/dashboard',
+    TuitionHead:    '/tuition/dashboard',
   };
   return paths[role] ?? '/';
 }

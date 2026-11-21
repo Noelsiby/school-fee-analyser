@@ -24,6 +24,13 @@ const ROLE_META = {
     color: '#7c3aed',
     accent: '#c4b5fd',
   },
+  TuitionHead: {
+    icon: '📚',
+    label: 'Tuition',
+    desc: 'Tuition classes, students, teachers, monthly fees and messages.',
+    color: '#9a3412',
+    accent: '#fdba74',
+  },
 };
 
 export default function RoleSwitcherPage() {

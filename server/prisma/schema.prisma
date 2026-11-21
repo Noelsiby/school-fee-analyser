@@ -40,6 +40,7 @@ enum Role {
   Admin
   ClassTeacher
   SubjectTeacher
+  TuitionHead // runs the tuition (its own pages; the admin has no access to tuition)
 }
 
 enum ExamStatus {
@@ -233,6 +234,7 @@ model Student {
   attendance       AttendanceRecord[]
   attendanceAlerts AttendanceAlert[]
   examAttendance   ExamAttendance[]
+  tuition          TuitionStudent?
 
   @@unique([rollNumber, classId]) // Roll numbers unique per class
   @@index([classId])
@@ -489,6 +491,7 @@ model Notice {
   id          Int             @id @default(autoincrement())
   title       String
   body        String
+  scope       String          @default("school") // "school" (admin) or "tuition" (head of tuition)
   audience    Json
   createdById Int?
   createdAt   DateTime        @default(now())
@@ -782,4 +785,73 @@ model ExamAttendance {
   @@id([examId, studentId])
   @@index([studentId])
   @@map("exam_attendance")
+}
+
+// ── Tuition (run by the head of tuition; separate from the school's admin) ──
+
+// A tuition class/batch the head of tuition makes, e.g. "Class 6 Evening", with its monthly fee.
+model TuitionClass {
+  id         Int               @id @default(autoincrement())
+  name       String            @unique
+  monthlyFee Float             @default(0)
+  createdAt  DateTime          @default(now())
+  students   TuitionStudent[]
+  teachers   TuitionTeaching[]
+
+  @@map("tuition_classes")
+}
+
+// Tuition teachers (a list kept by the head of tuition; they don't log in).
+model TuitionTeacher {
+  id        Int               @id @default(autoincrement())
+  name      String
+  phone     String?
+  subjects  String?
+  createdAt DateTime          @default(now())
+  classes   TuitionTeaching[]
+
+  @@map("tuition_teachers")
+}
+
+model TuitionTeaching {
+  teacherId Int
+  classId   Int
+  teacher   TuitionTeacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class     TuitionClass   @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@id([teacherId, classId])
+  @@map("tuition_teaching")
+}
+
+// A school student who comes for tuition. feeOverride: a different monthly fee for this student.
+model TuitionStudent {
+  id          Int              @id @default(autoincrement())
+  studentId   Int              @unique
+  student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId     Int
+  class       TuitionClass     @relation(fields: [classId], references: [id])
+  feeOverride Float?
+  joinedOn    DateTime         @default(now())
+  payments    TuitionPayment[]
+
+  @@index([classId])
+  @@map("tuition_students")
+}
+
+// One month's fee paid by a tuition student. month = "2026-11".
+model TuitionPayment {
+  id               Int            @id @default(autoincrement())
+  tuitionStudentId Int
+  tuitionStudent   TuitionStudent @relation(fields: [tuitionStudentId], references: [id], onDelete: Cascade)
+  month            String
+  amount           Float
+  paidOn           DateTime
+  mode             String?
+  note             String?
+  recordedById     Int?
+  createdAt        DateTime       @default(now())
+
+  @@unique([tuitionStudentId, month])
+  @@index([month])
+  @@map("tuition_payments")
 }

@@ -12,7 +12,7 @@ import SearchPalette from './SearchPalette';
 import '../../pages/admin/AdminLayout.css';
 import './Shell.css';
 
-const SWITCH_LABEL = { Admin: '🛡️ Admin', ClassTeacher: '📋 Class Teacher', SubjectTeacher: '✏️ Subject Teacher' };
+const SWITCH_LABEL = { Admin: '🛡️ Admin', ClassTeacher: '📋 Class Teacher', SubjectTeacher: '✏️ Subject Teacher', TuitionHead: '📚 Tuition' };
 
 /**
  * @param role       'Admin' | 'ClassTeacher' | 'SubjectTeacher' (the role these pages are for)
@@ -93,7 +93,7 @@ export default function AppShell({ role, roleLabel, sections, theme = {}, quickN
       </aside>
 
       <main className="admin-main">
-        <TopNavbar onMenu={() => setMenuOpen(true)} onSearch={() => setSearchOpen(true)} quickNew={quickNew} searchHint={role === 'SubjectTeacher' ? 'Search exams or subjects' : role === 'ClassTeacher' ? 'Search students or exams' : 'Search students, classes, exams…'} />
+        <TopNavbar onMenu={() => setMenuOpen(true)} onSearch={() => setSearchOpen(true)} quickNew={quickNew} searchHint={role === 'SubjectTeacher' ? 'Search exams or subjects' : role === 'ClassTeacher' ? 'Search students or exams' : role === 'TuitionHead' ? 'Search tuition students' : 'Search students, classes, exams…'} />
         <Outlet />
       </main>
 

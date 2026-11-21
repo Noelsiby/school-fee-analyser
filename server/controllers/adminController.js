@@ -71,7 +71,7 @@ const isDupError = (err) => err?.code === 'P2002';
 exports.getStats = async (req, res) => {
   try {
     const [teachers, classes, students, subjects] = await Promise.all([
-      prisma.user.count({ where: { roles: { hasSome: ['ClassTeacher', 'SubjectTeacher'] } } }),
+      prisma.user.count({ where: { roles: { hasSome: ['ClassTeacher', 'SubjectTeacher', 'TuitionHead'] } } }),
       prisma.class.count(),
       prisma.student.count(),
       prisma.subject.count(),
@@ -442,7 +442,7 @@ exports.deleteSubject = async (req, res) => {
 exports.getTeachers = async (req, res) => {
   try {
     const teachers = await prisma.user.findMany({
-      where: { roles: { hasSome: ['ClassTeacher', 'SubjectTeacher'] } },
+      where: { roles: { hasSome: ['ClassTeacher', 'SubjectTeacher', 'TuitionHead'] } },
       select: {
         id: true, name: true, email: true, profilePicUrl: true, createdAt: true,
         roles: true,
@@ -477,7 +477,7 @@ exports.createTeacher = async (req, res) => {
   if (!password)         return res.status(400).json({ error: 'Password is required.' });
   if (!parsedRoles?.length) return res.status(400).json({ error: 'At least one role is required.' });
 
-  const validRoles = ['ClassTeacher', 'SubjectTeacher'];
+  const validRoles = ['ClassTeacher', 'SubjectTeacher', 'TuitionHead'];
   const invalid = parsedRoles.filter((r) => !validRoles.includes(r));
   if (invalid.length) return res.status(400).json({ error: `Invalid role(s): ${invalid.join(', ')}` });
 
@@ -1715,7 +1715,7 @@ exports.publishPublicResults = async (req, res) => {
 
     // Notify all teachers
     const teachers = await prisma.user.findMany({
-      where: { roles: { hasSome: ['ClassTeacher', 'SubjectTeacher'] } }
+      where: { roles: { hasSome: ['ClassTeacher', 'SubjectTeacher', 'TuitionHead'] } }
     });
 
     if (teachers.length > 0) {

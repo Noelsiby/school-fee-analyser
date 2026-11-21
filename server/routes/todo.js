@@ -116,12 +116,27 @@ async function subjectTeacherTodo(me) {
   return items;
 }
 
+async function tuitionTodo() {
+  const items = [];
+  const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit' }).format(new Date());
+  const [classes, students] = await Promise.all([
+    prisma.tuitionClass.count(),
+    prisma.tuitionStudent.findMany({ include: { class: true, payments: { where: { month } } } }),
+  ]);
+  if (!classes) items.push({ level: 'action', icon: '🏫', text: 'Make your tuition classes', detail: 'e.g. "Class 6 Evening", with the monthly fee.', to: '/tuition/classes', button: 'Add class' });
+  else if (!students.length) items.push({ level: 'action', icon: '👦', text: 'Add students to tuition', detail: 'Pick them from the school list.', to: '/tuition/students', button: 'Add students' });
+  const unpaid = students.filter((s) => (s.feeOverride ?? s.class.monthlyFee) > 0 && !s.payments.some((p) => p.amount >= (s.feeOverride ?? s.class.monthlyFee)));
+  if (unpaid.length) items.push({ level: 'action', icon: '💰', text: `${plural(unpaid.length, 'student has', 'students have')} not paid this month's fee`, detail: 'Mark payments as they come, or send a reminder.', to: '/tuition/fees', button: 'Fees' });
+  return items;
+}
+
 router.get('/', authenticate, async (req, res) => {
   const roles = req.user.roles || [];
   const role = roles.includes(req.query.role) ? req.query.role : roles[0];
   try {
     const items = role === 'Admin' ? await adminTodo()
       : role === 'ClassTeacher' ? await classTeacherTodo(req.user.userId)
+      : role === 'TuitionHead' ? await tuitionTodo()
       : await subjectTeacherTodo(req.user.userId);
     // Jobs first, then information
     items.sort((a, b) => (a.level === 'action' ? 0 : 1) - (b.level === 'action' ? 0 : 1));

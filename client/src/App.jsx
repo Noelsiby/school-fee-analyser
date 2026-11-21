@@ -37,6 +37,10 @@ import ExamReviewPage         from './pages/class-teacher/ExamReviewPage';
 import SubjectTeacherLayout   from './pages/subject-teacher/SubjectTeacherLayout';
 import SubjectTeacherDashboard from './pages/subject-teacher/SubjectTeacherDashboard';
 import MarksEntryPage         from './pages/subject-teacher/MarksEntryPage';
+import SubjectMarksPage       from './pages/subject-teacher/SubjectMarksPage';
+import ClassExamsPage         from './pages/class-teacher/ClassExamsPage';
+import MyClassPage            from './pages/class-teacher/MyClassPage';
+import MyTimetablePage        from './pages/timetable/MyTimetablePage';
 
 // Root redirect: if logged in → go to active role's dashboard; else → /login
 // Exception: if accessed via results.mathaschool.in, serve PublicResults directly
@@ -114,6 +118,9 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<ClassTeacherDashboard />} />
+        <Route path="my-class" element={<MyClassPage />} />
+        <Route path="exams" element={<ClassExamsPage />} />
+        <Route path="timetable" element={<MyTimetablePage attendancePath="/class-teacher/attendance" />} />
         <Route path="exams/:id/review" element={<ExamReviewPage />} />
         <Route path="analyser" element={<AnalyserPage role="class-teacher" />} />
         <Route path="attendance" element={<AttendancePage role="class-teacher" />} />
@@ -131,6 +138,8 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<SubjectTeacherDashboard />} />
+        <Route path="marks" element={<SubjectMarksPage />} />
+        <Route path="timetable" element={<MyTimetablePage attendancePath="/subject-teacher/attendance" />} />
         <Route path="exams/:examId/subjects/:subjectId/marks" element={<MarksEntryPage />} />
         <Route path="analyser" element={<AnalyserPage role="subject-teacher" />} />
         <Route path="attendance" element={<AttendancePage role="subject-teacher" />} />

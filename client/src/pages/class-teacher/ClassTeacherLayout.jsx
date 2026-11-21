@@ -4,7 +4,10 @@ const SECTIONS = [
   {
     items: [
       { path: '/class-teacher/dashboard',  label: 'Dashboard',  icon: '📊' },
+      { path: '/class-teacher/my-class',   label: 'My class',   icon: '👦' },
+      { path: '/class-teacher/exams',      label: 'Exams & marks', icon: '📝' },
       { path: '/class-teacher/attendance', label: 'Attendance', icon: '✅' },
+      { path: '/class-teacher/timetable',  label: 'My timetable', icon: '🗓️' },
       { path: '/class-teacher/analyser',   label: 'Class analyser', icon: '📈' },
     ],
   },

@@ -6,13 +6,14 @@ import { byRoll } from '../../utils/rollOrder';
 import '../students/StudentProfile.css';
 
 /** The class teacher's students. classId: show that class (e.g. the exam being reviewed). */
-export default function MyStudentsList({ classId: fixedClassId } = {}) {
+export default function MyStudentsList({ classId: fixedClassId, alwaysOpen = false } = {}) {
   const { apiCall } = useApi();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(alwaysOpen);
+  const [search, setSearch] = useState('');
   const [chosen, setChosen] = useState(fixedClassId || '');
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export default function MyStudentsList({ classId: fixedClassId } = {}) {
           alignItems: 'center',
           cursor: 'pointer'
         }}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => { if (!alwaysOpen) setIsExpanded(!isExpanded); }}
       >
         <div>
           <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -59,17 +60,19 @@ export default function MyStudentsList({ classId: fixedClassId } = {}) {
             {data.totalStudents} Students · click a name for the profile and progress reports
           </p>
         </div>
-        <button 
-          className="btn btn-ghost" 
-          style={{ padding: '8px', color: '#64748b' }}
-        >
-          {isExpanded ? '▲ Hide List' : '▼ Show List'}
-        </button>
+        {alwaysOpen ? (
+          <input className="form-input" style={{ maxWidth: 240 }} placeholder="🔎 Search name or roll…" value={search}
+            onClick={(e) => e.stopPropagation()} onChange={(e) => setSearch(e.target.value)} aria-label="Search students" />
+        ) : (
+          <button className="btn btn-ghost" style={{ padding: '8px', color: '#64748b' }}>
+            {isExpanded ? '▲ Hide List' : '▼ Show List'}
+          </button>
+        )}
       </div>
 
       {isExpanded && (
         <div style={{ borderTop: '1px solid #e2e8f0' }}>
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+          <div style={alwaysOpen ? undefined : { maxHeight: '400px', overflowY: 'auto' }}>
             <table className="data-table">
               <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                 <tr>
@@ -79,7 +82,9 @@ export default function MyStudentsList({ classId: fixedClassId } = {}) {
                 </tr>
               </thead>
               <tbody>
-                {[...data.students].sort(byRoll).map(s => (
+                {[...data.students].sort(byRoll)
+                  .filter(s => !search.trim() || s.name.toLowerCase().includes(search.trim().toLowerCase()) || String(s.rollNumber) === search.trim())
+                  .map(s => (
                   <tr key={s.id}>
                     <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 500 }}>{s.rollNumber}</td>
                     <td><button className="cr-link" onClick={() => navigate(`/class-teacher/students/${s.id}`)}>{s.name}</button></td>

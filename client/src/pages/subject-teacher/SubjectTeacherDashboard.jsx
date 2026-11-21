@@ -40,7 +40,7 @@ export default function SubjectTeacherDashboard() {
           <h1 className="db-hello">Welcome, {user?.name?.split(' ').slice(0, 2).join(' ') || 'Teacher'} 👋</h1>
           <p className="db-sub">
             {exams.length
-              ? `You have ${exams.reduce((n, e) => n + e.teacherSubjects.length, 0)} subject(s) to enter marks for. Click a subject to start.`
+              ? `You have ${exams.reduce((n, e) => n + e.teacherSubjects.length, 0)} subject(s) for marks. Open ✍️ Enter marks to start.`
               : 'Your exams appear here when the office sends them.'}
           </p>
         </div>
@@ -48,48 +48,10 @@ export default function SubjectTeacherDashboard() {
 
       <TodoPanel role="SubjectTeacher" />
       <MyDay attendancePath="/subject-teacher/attendance" />
+      <div style={{ marginTop: 16 }}>
+        <button className="btn btn-primary" onClick={() => navigate('/subject-teacher/marks')}>✍️ All my subjects: enter marks →</button>
+      </div>
 
-      <div className="ct-section-head"><h2>📝 Enter marks</h2></div>
-      {loading ? (
-        <div className="empty-state"><div className="spinner spinner-dark" /></div>
-      ) : error ? (
-        <div className="empty-state">
-          <p style={{ color: '#dc2626' }}>⚠ {error}</p>
-          <button className="btn btn-ghost" onClick={loadData}>Retry</button>
-        </div>
-      ) : exams.length === 0 ? (
-        <div className="data-card"><div className="empty-state" style={{ padding: 28 }}>
-          <p className="empty-state-icon">📚</p>
-          <p className="empty-state-text">No exams need your marks right now.</p>
-        </div></div>
-      ) : (
-        <div className="st-exams">
-          {exams.map((exam) => (
-            // An internal exam appears once per class, so the class is part of the key
-            <div key={`${exam.id}-${exam.targetClassId}`} className={`ex-card ex-${exam.status === 'Open' ? 'open' : 'closed'}`}>
-              <div className="ex-title">
-                <h3>{exam.name}</h3>
-                <div className="ex-badges">
-                  <span className="badge badge-gray">🏛️ {exam.class?.name}</span>
-                  <span className={`badge ${exam.status === 'Open' ? 'badge-green' : 'badge-blue'}`}>
-                    {exam.status === 'Open' ? '✍️ Marks entry open' : '✅ Finalized'}
-                  </span>
-                </div>
-              </div>
-              <div className="st-subjects">
-                {exam.teacherSubjects.map((config) => (
-                  <button key={config.subjectId} className="st-subject"
-                    onClick={() => navigate(`/subject-teacher/exams/${exam.id}/subjects/${config.subjectId}/marks`)}>
-                    <span className="st-subject-name">📚 {config.subject.name}</span>
-                    <span className="st-subject-max">out of {config.maxMarks}</span>
-                    <span className="st-subject-go">{exam.status === 'Open' ? 'Enter marks →' : 'View →'}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

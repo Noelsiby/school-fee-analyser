@@ -24,7 +24,7 @@ function linksFor(role, data, pages, q) {
     data.teachers.forEach((t) => out.push({ group: 'Teachers', icon: '👩‍🏫', title: t.name, sub: t.email, to: `/admin/teachers?q=${encodeURIComponent(t.name)}` }));
     data.exams.forEach((e) => out.push({ group: 'Exams', icon: '📝', title: e.name, sub: e.status === 'Draft' ? 'Draft' : 'Open results', to: e.status === 'Draft' ? '/admin/exams' : `/admin/exams/${e.id}/results` }));
   } else if (role === 'ClassTeacher') {
-    data.classes.forEach((c) => out.push({ group: 'Classes', icon: '🏛️', title: c.name, sub: `${c._count?.students ?? 0} students`, to: '/class-teacher/dashboard' }));
+    data.classes.forEach((c) => out.push({ group: 'Classes', icon: '🏛️', title: c.name, sub: `${c._count?.students ?? 0} students`, to: '/class-teacher/my-class' }));
     data.exams.forEach((e) => out.push({ group: 'Exams', icon: '📝', title: e.name, sub: 'Review marks', to: `/class-teacher/exams/${e.id}/review?classId=${e.classId}` }));
   } else {
     (data.marks || []).forEach((m) => out.push({ group: 'Enter marks', icon: '✍️', title: `${m.subjectName} · ${m.className}`, sub: m.examName, to: `/subject-teacher/exams/${m.examId}/subjects/${m.subjectId}/marks` }));

@@ -81,12 +81,12 @@ async function classTeacherTodo(me) {
         else if (toApprove.length) items.push({ level: 'action', icon: '📋', text: `Check and approve ${toApprove.map((s) => s.name).join(', ')}`, detail: `${e.name} · ${c.name}: submitted by the subject teacher${toApprove.length === 1 ? '' : 's'}.`, to: review, button: 'Review' });
       }
       if ((locked || e.status === 'Closed') && !e.attendanceDays.some((d) => d.classId === c.id)) {
-        items.push({ level: 'info', icon: '📅', text: `Enter report card attendance for "${e.name}"`, detail: `${c.name}: working days and days present, printed on the report cards.`, to: '/class-teacher/dashboard#exams', button: 'Enter' });
+        items.push({ level: 'info', icon: '📅', text: `Enter report card attendance for "${e.name}"`, detail: `${c.name}: working days and days present, printed on the report cards.`, to: '/class-teacher/exams', button: 'Enter' });
       }
     }
   }
   const noPhone = await prisma.student.count({ where: { classId: { in: ids }, OR: [{ parentPhone: null }, { parentPhone: '' }] } });
-  if (noPhone) items.push({ level: 'info', icon: '📱', text: `${plural(noPhone, 'student has', 'students have')} no parent mobile number`, detail: 'Add it on the student\'s profile (✏️ Edit profile).', to: '/class-teacher/dashboard#my-students', button: 'My students' });
+  if (noPhone) items.push({ level: 'info', icon: '📱', text: `${plural(noPhone, 'student has', 'students have')} no parent mobile number`, detail: 'Add it on the student\'s profile (✏️ Edit profile).', to: '/class-teacher/my-class', button: 'My class' });
   return items;
 }
 

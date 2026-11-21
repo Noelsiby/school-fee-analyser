@@ -105,7 +105,7 @@ export default function StudentProfilePage() {
 
   const st = data.student;
   const photoUrl = st.hasPhoto ? `/api/students/${st.id}/photo?v=${encodeURIComponent(st.photoUpdatedAt || '')}` : null;
-  const backTo = isAdmin ? `/admin/classes/${st.classId}` : '/class-teacher/dashboard';
+  const backTo = isAdmin ? `/admin/classes/${st.classId}` : '/class-teacher/my-class';
 
   const startEdit = () => {
     setForm({

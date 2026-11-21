@@ -10,12 +10,12 @@ import '../analysis/Analysis.css';
  * In every-period attendance mode each period links straight to its attendance.
  * attendancePath: '/class-teacher/attendance' or '/subject-teacher/attendance'
  */
-export default function MyDay({ attendancePath }) {
+export default function MyDay({ attendancePath, defaultWeek = false }) {
   const { apiCall } = useApi();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [week, setWeek] = useState(null);
-  const [showWeek, setShowWeek] = useState(false);
+  const [showWeek, setShowWeek] = useState(defaultWeek);
 
   useEffect(() => { apiCall('/api/timetable/my-day').then(setData).catch(() => {}); }, [apiCall]);
   useEffect(() => { if (showWeek && !week) apiCall('/api/timetable/teachers/me').then(setWeek).catch(() => {}); }, [apiCall, showWeek, week]);

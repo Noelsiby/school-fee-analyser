@@ -4,7 +4,9 @@ const SECTIONS = [
   {
     items: [
       { path: '/subject-teacher/dashboard',  label: 'Dashboard',  icon: '📊' },
+      { path: '/subject-teacher/marks',      label: 'Enter marks', icon: '✍️' },
       { path: '/subject-teacher/attendance', label: 'Attendance', icon: '✅' },
+      { path: '/subject-teacher/timetable',  label: 'My timetable', icon: '🗓️' },
       { path: '/subject-teacher/analyser',   label: 'Analyser',   icon: '📈' },
     ],
   },

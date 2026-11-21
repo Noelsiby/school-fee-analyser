@@ -70,6 +70,7 @@ export default function GradingPage() {
   const [notice, setNotice] = useState('');
   const [tryMarks, setTryMarks] = useState('44');
   const [tryMax, setTryMax] = useState('50');
+  const [outOf, setOutOf] = useState('100');   // show each grade as a marks range for an exam out of this
 
   useEffect(() => {
     apiCall('/api/public/grade-scale')
@@ -84,6 +85,20 @@ export default function GradingPage() {
   const scale = problems.length ? null : toBands(view);
   const dirty = !same(view, saved);
   const passMark = scale && scale.length > 1 ? scale[scale.length - 2].min : null;
+  // Fail line shown even while the scale has a mistake: where the grade above the last one starts
+  const failBelow = view.length > 1 && view[view.length - 2].min !== '' ? Number(view[view.length - 2].min) : null;
+
+  // Marks range of each grade for an exam out of `outOf` (exact: uses the same rounding as results)
+  const total = Number(outOf);
+  const marksRange = useMemo(() => {
+    if (!scale || !(total > 0) || total > 1000) return null;
+    const out = {};
+    for (let m = 0; m <= total; m++) {
+      const g = gradeFor((m / total) * 100, scale);
+      if (!out[g]) out[g] = [m, m]; else out[g][1] = m;
+    }
+    return out;
+  }, [scale, total]);
 
   const edit = (id, field, value) => { setNotice(''); setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [field]: value } : r))); };
   const tidy = () => setRows((rs) => sortRows(rs.map((r, i) => (i === rs.length - 1 ? { ...r, min: '0' } : r))));
@@ -146,7 +161,15 @@ export default function GradingPage() {
           <div className="data-card gr-card">
             <div className="gr-head">
               <h3 className="gr-h" style={{ margin: 0 }}>Your grades</h3>
-              {passMark !== null && <span className="badge badge-blue">Pass mark: {passMark}%</span>}
+              <div className="gr-outof">
+                <span>Show marks for an exam out of</span>
+                {['100', '50', '25'].map((v) => (
+                  <button key={v} className={`gr-pill${outOf === v ? ' gr-pill-on' : ''}`} onClick={() => setOutOf(v)}>{v}</button>
+                ))}
+                <input className="form-input gr-num" type="number" min="1" max="1000" value={outOf} aria-label="Exam out of"
+                  onChange={(e) => setOutOf(e.target.value)} />
+                {passMark !== null && <span className="badge badge-blue">Pass mark: {passMark}%{marksRange && marksRange[scale[scale.length - 2].grade] ? ` = ${marksRange[scale[scale.length - 2].grade][0]} of ${total}` : ''}</span>}
+              </div>
             </div>
 
             {/* 0–100 bar */}
@@ -172,7 +195,7 @@ export default function GradingPage() {
                         onChange={(e) => edit(r.id, 'grade', e.target.value.toUpperCase())} />
                       <div className="gr-range">
                         {last ? (
-                          <span>Below <strong>{passMark ?? '…'}%</strong></span>
+                          <span>Below <strong>{failBelow ?? '…'}%</strong></span>
                         ) : (
                           <>
                             <span>from</span>
@@ -180,6 +203,13 @@ export default function GradingPage() {
                               onChange={(e) => edit(r.id, 'min', e.target.value)} onBlur={tidy} />
                             <span>% to <strong>{to >= 0 ? to : '…'}%</strong></span>
                           </>
+                        )}
+                        {marksRange && (
+                          <span className="gr-marks">
+                            = {marksRange[r.grade.trim().toUpperCase()]
+                              ? `${marksRange[r.grade.trim().toUpperCase()][0]}–${marksRange[r.grade.trim().toUpperCase()][1]} marks out of ${total}`
+                              : `no marks out of ${total}`}
+                          </span>
                         )}
                       </div>
                       <label className="gr-points">

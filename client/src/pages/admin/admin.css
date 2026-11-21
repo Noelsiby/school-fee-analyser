@@ -404,10 +404,44 @@ table.data-table tbody tr:hover { background: var(--gray-50); }
 .sa-settings label > span { font-weight: 600; font-size: 14px; }
 .sa-settings small { font-weight: 400; color: var(--gray-500, #64748b); }
 
-/* Subjects page: each class with its teacher, or "+ Assign teacher" */
-.sj-classes { display: grid; gap: 6px; }
-.sj-class { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.sj-teacher { display: inline-flex; align-items: center; gap: 4px; font-size: 0.82rem; color: #334155; background: #f1f5f9; border-radius: 999px; padding: 2px 4px 2px 10px; }
-.sj-teacher button { border: 0; background: none; color: #94a3b8; cursor: pointer; font-size: 0.75rem; padding: 2px 6px; border-radius: 999px; }
+/* Subjects page: one card per subject, class → teacher lines */
+.sj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; padding: 16px; }
+.sj-card { border: 1px solid #e2e8f0; border-top: 4px solid #16a34a; border-radius: 12px; background: #fff; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.sj-card-warn { border-top-color: #f59e0b; }
+.sj-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.sj-head h3 { margin: 0 0 4px; font-size: 1.02rem; color: #0f172a; }
+.sj-head-actions { display: flex; gap: 2px; flex: none; }
+.sj-del { color: #dc2626; }
+.sj-note { margin: 0; font-size: 0.78rem; color: #b45309; }
+.sj-sub { margin: 0; font-size: 0.8rem; color: #64748b; }
+.sj-sub strong { color: #b45309; }
+.sj-rows { display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
+.sj-row { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid #f1f5f9; }
+.sj-row:first-child { border-top: 0; }
+.sj-class-name { font-weight: 700; font-size: 0.84rem; color: #1e3a8a; }
+.sj-who { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.sj-teacher { display: inline-flex; align-items: center; gap: 2px; font-size: 0.82rem; color: #334155; background: #f1f5f9; border-radius: 999px; padding: 2px 4px 2px 10px; }
+.sj-teacher button { border: 0; background: none; color: #94a3b8; cursor: pointer; font-size: 0.72rem; padding: 2px 6px; border-radius: 999px; }
 .sj-teacher button:hover { background: #fee2e2; color: #dc2626; }
-.sj-assign { width: auto; max-width: 220px; padding: 3px 8px; font-size: 0.82rem; border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+.sj-assign { width: 100%; padding: 3px 8px; font-size: 0.82rem; border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+
+/* Students page: small cards grouped by class */
+.st-groups { display: grid; gap: 18px; padding: 16px; }
+.st-group-title { margin: 0 0 10px; font-size: 1rem; color: #0f172a; display: flex; align-items: baseline; gap: 8px; }
+.st-group-title span { font-size: 0.8rem; font-weight: 500; color: #64748b; }
+.st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.st-card {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 12px;
+  background: #fff; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.st-card:hover, .st-card:focus-visible { border-color: #1e3a8a; box-shadow: 0 3px 12px rgba(30, 58, 138, 0.1); outline: none; }
+.st-avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: #fff; font-weight: 800;
+}
+.st-who { flex: 1; min-width: 0; display: grid; }
+.st-who strong { font-size: 0.92rem; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-who small { color: #64748b; font-size: 0.78rem; }
+.st-actions { display: flex; gap: 2px; opacity: 0.6; }
+.st-card:hover .st-actions { opacity: 1; }
+.st-del { color: #dc2626; }

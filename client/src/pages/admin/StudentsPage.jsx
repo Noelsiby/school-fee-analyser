@@ -207,34 +207,31 @@ export default function StudentsPage() {
             <p className="empty-state-text">No students found. Add individually or import via CSV.</p>
           </div>
         ) : (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Roll No.</th>
-                  <th>Name</th>
-                  <th>Class</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map(s => (
-                  <tr key={s.id}>
-                    <td><span className="badge badge-gray">{s.rollNumber}</span></td>
-                    <td>
-                      <button className="link-btn" onClick={() => navigate(`/admin/students/${s.id}`)} title="Open profile">{s.name}</button>
-                    </td>
-                    <td><span className="badge badge-blue">{s.class?.name}</span></td>
-                    <td>
-                      <div className="table-actions">
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>✏️ Edit</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => { setSelected(s); setModal('delete'); }}>🗑</button>
+          <div className="st-groups">
+            {/* One small card per student, grouped by class (school order) */}
+            {Object.entries(shown.reduce((g, st) => { (g[st.class?.name || '—'] ||= []).push(st); return g; }, {})).map(([cls, list]) => (
+              <section key={cls} className="st-group">
+                <h3 className="st-group-title">🏛️ {cls} <span>{list.length} student{list.length === 1 ? '' : 's'}</span></h3>
+                <div className="st-grid">
+                  {list.map(st => (
+                    <div key={st.id} className="st-card" role="button" tabIndex={0}
+                      onClick={() => navigate(`/admin/students/${st.id}`)}
+                      onKeyDown={e => { if (e.key === 'Enter') navigate(`/admin/students/${st.id}`); }}
+                      title="Open profile">
+                      <span className="st-avatar">{st.name.charAt(0)}</span>
+                      <div className="st-who">
+                        <strong>{st.name}</strong>
+                        <small>Roll {st.rollNumber}</small>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <div className="st-actions" onClick={e => e.stopPropagation()}>
+                        <button className="btn btn-ghost btn-xs" onClick={() => openEdit(st)} aria-label={`Edit ${st.name}`} title="Edit name / roll">✏️</button>
+                        <button className="btn btn-ghost btn-xs st-del" onClick={() => { setSelected(st); setModal('delete'); }} aria-label={`Delete ${st.name}`} title="Delete">🗑</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </div>

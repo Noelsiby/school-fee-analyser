@@ -201,69 +201,55 @@ export default function SubjectsPage() {
             </p>
           </div>
         ) : (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Subject</th>
-                  <th>Extra parts</th>
-                  <th>Classes</th>
-                  <th style={{ width: 110 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map(g => (
-                  <tr key={g.name}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{g.name}</div>
-                      {g.mixedSpelling && (
-                        <div style={{ fontSize: '0.72rem', color: '#b45309' }} title={[...new Set(g.rows.map(r => r.name))].join(', ')}>
-                          Spelled differently in some classes — Edit &amp; Save to make them match
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      {g.components.length
-                        ? <span className="badge badge-purple">{partsLabel(g.components)}</span>
-                        : <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>—</span>}
-                      {g.mixedParts && (
-                        <div style={{ fontSize: '0.72rem', color: '#b45309', marginTop: 4 }}>
-                          Missing in {g.missingParts.map(c => c.name).join(', ')} — Edit &amp; Save to match
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <div className="sj-classes">
-                        {[...g.rows].sort((a, b) => byClassName(a.class, b.class)).map(r => (
-                          <div key={r.id} className="sj-class">
-                            <span className="badge badge-blue">{r.class.name}</span>
-                            {(r.teacherAssignments || []).map(a => (
-                              <span key={a.id} className="sj-teacher">
-                                👩‍🏫 {a.teacher.name}
-                                <button onClick={() => unassign(r, a)} disabled={assigning === r.id} aria-label={`Remove ${a.teacher.name}`} title="Remove this teacher">✕</button>
-                              </span>
-                            ))}
-                            {!(r.teacherAssignments || []).length && (
-                              <select className="form-select sj-assign" value="" disabled={assigning === r.id}
-                                onChange={e => assign(r, e.target.value)} aria-label={`Teacher for ${r.class.name} ${r.name}`}>
-                                <option value="">⚠ + Assign teacher…</option>
-                                {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                              </select>
-                            )}
-                          </div>
-                        ))}
+          <div className="sj-grid">
+            {/* One card per subject: its classes and who teaches each */}
+            {visible.map(g => {
+              const missing = g.rows.filter(r => !(r.teacherAssignments || []).length).length;
+              return (
+                <div key={g.name} className={`sj-card${missing ? ' sj-card-warn' : ''}`}>
+                  <div className="sj-head">
+                    <div>
+                      <h3>{g.name}</h3>
+                      {g.components.length > 0 && <span className="badge badge-purple">{partsLabel(g.components)}</span>}
+                    </div>
+                    <div className="sj-head-actions">
+                      <button className="btn btn-ghost btn-xs" onClick={() => openEdit(g)} aria-label={`Edit ${g.name}`}>✏️ Edit</button>
+                      <button className="btn btn-ghost btn-xs sj-del" onClick={() => openDelete(g)} aria-label={`Delete ${g.name}`} title="Delete subject">🗑</button>
+                    </div>
+                  </div>
+                  {(g.mixedSpelling || g.mixedParts) && (
+                    <p className="sj-note">
+                      {g.mixedSpelling && 'Spelled differently in some classes. '}
+                      {g.mixedParts && `Parts missing in ${g.missingParts.map(c => c.name).join(', ')}. `}
+                      Click Edit, then Save, to make them match.
+                    </p>
+                  )}
+                  <p className="sj-sub">{g.rows.length} class{g.rows.length === 1 ? '' : 'es'}{missing ? <strong> · ⚠ {missing} without a teacher</strong> : ' · every class has a teacher'}</p>
+                  <div className="sj-rows">
+                    {[...g.rows].sort((a, b) => byClassName(a.class, b.class)).map(r => (
+                      <div key={r.id} className="sj-row">
+                        <span className="sj-class-name">{r.class.name}</span>
+                        <span className="sj-who">
+                          {(r.teacherAssignments || []).map(a => (
+                            <span key={a.id} className="sj-teacher">
+                              {a.teacher.name}
+                              <button onClick={() => unassign(r, a)} disabled={assigning === r.id} aria-label={`Remove ${a.teacher.name}`} title="Remove this teacher">✕</button>
+                            </span>
+                          ))}
+                          {!(r.teacherAssignments || []).length && (
+                            <select className="form-select sj-assign" value="" disabled={assigning === r.id}
+                              onChange={e => assign(r, e.target.value)} aria-label={`Teacher for ${r.class.name} ${r.name}`}>
+                              <option value="">+ Assign teacher…</option>
+                              {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                          )}
+                        </span>
                       </div>
-                    </td>
-                    <td>
-                      <div className="table-actions">
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(g)} aria-label={`Edit ${g.name}`}>✏️ Edit</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => openDelete(g)} aria-label={`Delete ${g.name}`}>🗑️</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -19,13 +19,15 @@ export const PAPER_SIZES = {
 };
 const [A4_W, A4_H] = PAPER_SIZES.A4.size;
 
+// Print-friendly: all text in one near-black ink (clear on black-and-white printers),
+// one font (Helvetica), dark lines. Navy is only used for the table header background.
 const NAVY = '#1e3a8a';
-const GOLD = '#d4a017';
-const INK = '#0f172a';
-const MUTED = '#64748b';
-const LINE = '#cbd5e1';
-const SOFT = '#f1f5f9';
-const GRID = '#94a3b8'; // table lines: dark enough to show when printed
+const GOLD = '#b8860b';
+const INK = '#111111';
+const MUTED = INK;
+const LINE = '#4b5563';
+const SOFT = '#f3f4f6';
+const GRID = '#4b5563'; // table lines
 
 const PARTS = ['Reading', 'Writing', 'Dictation'];
 
@@ -34,18 +36,18 @@ const BASE = {
 
   // Header
   header: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8 },
-  logo: { width: 70, height: 78, marginRight: 10 },
+  logo: { width: 84, height: 94, marginRight: 4 },
   schoolBlock: { flex: 1, alignItems: 'center', paddingHorizontal: 6 },
-  schoolName: { fontFamily: 'Helvetica-Bold', fontSize: 21, color: NAVY, letterSpacing: 0.3, textAlign: 'center' },
+  schoolName: { fontFamily: 'Helvetica-Bold', fontSize: 20, color: INK, letterSpacing: 0.1, textAlign: 'center' },
   schoolPlace: { fontFamily: 'Helvetica-Bold', fontSize: 10.5, color: INK, marginTop: 3, textAlign: 'center' },
-  logoSpace: { width: 80 }, // balances the logo so the school name sits in the middle
+  logoSpace: { width: 88 }, // balances the logo so the school name sits in the middle
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 },
   titlePill: { backgroundColor: NAVY, color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 9.5, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 3, letterSpacing: 1 },
   examName: { fontFamily: 'Helvetica-Bold', fontSize: 11, color: INK },
-  year: { fontSize: 8.5, color: MUTED },
+  year: { fontFamily: 'Helvetica-Bold', fontSize: 9, color: INK },
   goldRule: { height: 2.5, backgroundColor: GOLD, marginBottom: 7 },
 
-  sectionTitle: { fontFamily: 'Helvetica-Bold', fontSize: 9, color: NAVY, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8 },
+  sectionTitle: { fontFamily: 'Helvetica-Bold', fontSize: 9.5, color: INK, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8 },
 
   // Student details
   bio: { flexDirection: 'row', borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 8, paddingBottom: 5, marginBottom: 8 },
@@ -54,9 +56,9 @@ const BASE = {
   bioGrid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap' },
   field: { width: '33.33%', paddingRight: 6, marginBottom: 4 },
   fieldWide: { width: '100%', paddingRight: 6, marginBottom: 4 },
-  label: { fontSize: 6.5, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
-  value: { fontFamily: 'Helvetica-Bold', fontSize: 9, marginTop: 1, minHeight: 11 },
-  studentName: { fontFamily: 'Helvetica-Bold', fontSize: 12.5, color: NAVY, marginTop: 1 },
+  label: { fontSize: 7.5, color: INK, textTransform: 'uppercase', letterSpacing: 0.4 },
+  value: { fontFamily: 'Helvetica-Bold', fontSize: 10, color: INK, marginTop: 1, minHeight: 12 },
+  studentName: { fontFamily: 'Helvetica-Bold', fontSize: 13.5, color: INK, marginTop: 1 },
 
   // Marks table
   table: { borderWidth: 1, borderColor: GRID, borderRadius: 3, marginBottom: 10 },
@@ -64,7 +66,7 @@ const BASE = {
   th: { backgroundColor: NAVY, color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 8.5, textAlign: 'center', paddingVertical: 5 },
   td: { textAlign: 'center', paddingVertical: 5, fontSize: 10 },
   vline: { borderRightWidth: 1, borderRightColor: GRID },
-  thLine: { borderRightWidth: 1, borderRightColor: '#3b5bb5' },
+  thLine: { borderRightWidth: 1, borderRightColor: '#ffffff' },
   colSubject: { width: '19%', textAlign: 'left', paddingLeft: 6 },
   subjectName: { fontFamily: 'Helvetica-Bold', fontSize: 11 },
   colPart: { width: '9.5%' },
@@ -72,17 +74,17 @@ const BASE = {
   colGrade: { width: '7%' },
   colPoints: { width: '8%' },
   colRemark: { width: '17%', textAlign: 'left', paddingLeft: 5, fontSize: 8 },
-  totalRow: { backgroundColor: '#e0e7ff', fontFamily: 'Helvetica-Bold', minHeight: 26 },
+  totalRow: { backgroundColor: '#e5e7eb', fontFamily: 'Helvetica-Bold', minHeight: 26 },
   totalText: { fontFamily: 'Helvetica-Bold', fontSize: 12.5, paddingVertical: 6 },
-  dash: { color: '#94a3b8' },
-  of: { color: MUTED, fontSize: 7.5 },
+  dash: { color: INK },
+  of: { color: INK, fontSize: 9 },
 
   // Summary
   summary: { flexDirection: 'row', marginBottom: 8 },
   card: { flex: 1, borderWidth: 1, borderColor: LINE, borderRadius: 4, paddingVertical: 6, alignItems: 'center', marginRight: 6 },
   cardLast: { marginRight: 0 },
-  cardValue: { fontFamily: 'Helvetica-Bold', fontSize: 15, color: NAVY },
-  cardLabel: { fontSize: 6.5, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
+  cardValue: { fontFamily: 'Helvetica-Bold', fontSize: 15, color: INK },
+  cardLabel: { fontFamily: 'Helvetica-Bold', fontSize: 7.5, color: INK, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 3 },
 
   // Attendance + remarks
   twoCol: { flexDirection: 'row', marginBottom: 8 },
@@ -95,13 +97,13 @@ const BASE = {
   signatures: { flexDirection: 'row', marginTop: 34 },
   sign: { flex: 1, alignItems: 'center', marginHorizontal: 10 },
   signLine: { borderTopWidth: 1, borderTopColor: INK, width: '100%', marginBottom: 3 },
-  signLabel: { fontFamily: 'Helvetica-Bold', fontSize: 8 },
-  signName: { fontSize: 7, color: MUTED, marginTop: 1 },
+  signLabel: { fontFamily: 'Helvetica-Bold', fontSize: 9, color: INK },
+  signName: { fontSize: 8.5, color: INK, marginTop: 1 },
 
-  footer: { marginTop: 14, flexDirection: 'row', justifyContent: 'space-between', fontSize: 6.5, color: '#94a3b8' },
-  photoHint: { color: MUTED, fontSize: 7 },
+  footer: { marginTop: 14, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7.5, color: INK },
+  photoHint: { color: INK, fontSize: 8 },
   progress: { fontSize: 8, color: INK, marginTop: -3, marginBottom: 7 },
-  progressLabel: { fontFamily: 'Helvetica-Bold', color: NAVY, fontSize: 7.5, letterSpacing: 0.6 },
+  progressLabel: { fontFamily: 'Helvetica-Bold', color: INK, fontSize: 7.5, letterSpacing: 0.6 },
 };
 
 // Style values that are not sizes, so they must not be scaled.

@@ -1,0 +1,32 @@
+/* Admin dashboard */
+.db-hero {
+  display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 60%, #2563eb 100%); color: #fff;
+  border-radius: 16px; padding: 22px 24px; margin-bottom: 20px; box-shadow: 0 6px 20px rgba(30, 58, 138, 0.18);
+}
+.db-date { margin: 0; font-size: 0.82rem; opacity: 0.8; }
+.db-hello { margin: 4px 0 4px; font-size: 1.5rem; font-weight: 800; color: #fff; }
+.db-sub { margin: 0; font-size: 0.9rem; opacity: 0.85; }
+.db-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.db-action {
+  display: flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 10px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.25); color: #fff;
+  font: inherit; font-size: 0.86rem; font-weight: 600;
+}
+.db-action:hover { background: rgba(255, 255, 255, 0.24); }
+.db-action span { font-size: 1.05rem; }
+
+.db-stat { border: 0; text-align: left; cursor: pointer; font: inherit; width: 100%; }
+
+.db-exams { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.db-exam {
+  display: grid; gap: 8px; text-align: left; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 12px;
+  background: #fff; cursor: pointer; font: inherit; color: inherit;
+}
+.db-exam:hover { border-color: #1e3a8a; box-shadow: 0 2px 10px rgba(30, 58, 138, 0.08); }
+.db-exam-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.db-exam-top strong { font-size: 0.95rem; }
+
+.db-risk { border-left: 4px solid #f59e0b; }
+
+.db-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 20px; }

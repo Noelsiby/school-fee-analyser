@@ -87,7 +87,7 @@ exports.getStudent = async (req, res) => {
       });
     }
 
-    res.json({ student: toPublic(student), reports, canEditName: isAdmin(req.user) });
+    res.json({ student: toPublic(student), reports, canEditName: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -118,11 +118,9 @@ exports.updateProfile = async (req, res) => {
         data[f] = val ? String(val).slice(0, 500) : null;
       }
     }
-    // Name and roll number: Admin only (they identify the student everywhere).
-    if (isAdmin(req.user)) {
-      if (typeof req.body.name === 'string' && req.body.name.trim()) data.name = req.body.name.trim();
-      if (typeof req.body.rollNumber === 'string' && req.body.rollNumber.trim()) data.rollNumber = req.body.rollNumber.trim();
-    }
+    // Name and roll number: admin (any class) and the class teacher (own class; loadStudent checked that)
+    if (typeof req.body.name === 'string' && req.body.name.trim()) data.name = req.body.name.trim().slice(0, 120);
+    if (req.body.rollNumber !== undefined && String(req.body.rollNumber).trim()) data.rollNumber = String(req.body.rollNumber).trim().slice(0, 20);
 
     const updated = await prisma.student.update({
       where: { id: student.id },

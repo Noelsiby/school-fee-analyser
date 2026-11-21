@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useApi } from '../../hooks/useApi';
 import Modal from '../../components/Modal';
 import './admin.css';
+import './Teachers.css';
 
 const ROLES = ['ClassTeacher', 'SubjectTeacher'];
 
@@ -187,6 +188,8 @@ export default function TeachersPage() {
   const [formErr,   setFormErr]   = useState('');
   const [submitting,setSubmitting]= useState(false);
   const [notification, setNotification] = useState(null);
+  const [search, setSearch] = useState('');
+  const [unassigned, setUnassigned] = useState([]);   // subjects nobody teaches → nobody can enter their marks
 
   const notify = (msg, type = 'success') => {
     setNotification({ msg, type });
@@ -196,12 +199,14 @@ export default function TeachersPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tRes, cRes] = await Promise.all([
+      const [tRes, cRes, sRes] = await Promise.all([
         apiCall('/api/admin/teachers'),
         apiCall('/api/admin/classes'),
+        apiCall('/api/admin/subjects').catch(() => ({ subjects: [] })),
       ]);
       setTeachers(tRes.teachers);
       setClasses(cRes.classes);
+      setUnassigned(sRes.subjects.filter((x) => !x._count?.teacherAssignments));
     } catch (e) { notify(e.message, 'error'); }
     finally { setLoading(false); }
   }, []);
@@ -274,64 +279,82 @@ export default function TeachersPage() {
 
       <div className="page-header">
         <div>
-          <h1 className="page-title">Teachers</h1>
-          <p className="page-sub">{teachers.length} teacher{teachers.length !== 1 ? 's' : ''} registered</p>
+          <h1 className="page-title">👩‍🏫 Teachers</h1>
+          <p className="page-sub">{teachers.length} teacher{teachers.length !== 1 ? 's' : ''}. Click 📋 Subjects to choose what each teacher teaches.</p>
         </div>
         <button className="btn btn-primary" onClick={openAdd}>+ Add Teacher</button>
       </div>
 
-      <div className="data-card">
-        {loading ? (
-          <div className="empty-state"><div className="spinner spinner-dark" /></div>
-        ) : teachers.length === 0 ? (
-          <div className="empty-state">
-            <p className="empty-state-icon">👩‍🏫</p>
-            <p className="empty-state-text">No teachers yet. Add your first teacher.</p>
-          </div>
-        ) : (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Teacher</th>
-                  <th>Roles</th>
-                  <th>Classes</th>
-                  <th>Assignments</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teachers.map(t => (
-                  <tr key={t.id}>
-                    <td>
-                      <div className="teacher-cell">
-                        {t.profilePicUrl
-                          ? <img src={t.profilePicUrl} alt={t.name} className="avatar" />
-                          : <div className="avatar-placeholder">{t.name.charAt(0)}</div>
-                        }
-                        <div>
-                          <p className="teacher-info-name">{t.name}</p>
-                          <p className="teacher-info-email">{t.email}</p>
-                        </div>
+      {!loading && unassigned.length > 0 && (
+        <div className="alert alert-info tc-warn"><div>
+          <strong>⚠ {unassigned.length} subject{unassigned.length === 1 ? ' has' : 's have'} no teacher</strong>, so nobody can enter their marks:{' '}
+          {unassigned.slice(0, 12).map((x) => `${x.class.name} ${x.name}`).join(', ')}{unassigned.length > 12 ? ` and ${unassigned.length - 12} more` : ''}.
+          {' '}Open a teacher's <strong>📋 Subjects</strong> to give them these.
+        </div></div>
+      )}
+
+      {loading ? (
+        <div className="empty-state"><div className="spinner spinner-dark" /></div>
+      ) : teachers.length === 0 ? (
+        <div className="data-card"><div className="empty-state">
+          <p className="empty-state-icon">👩‍🏫</p>
+          <p className="empty-state-text">No teachers yet. Add your first teacher.</p>
+        </div></div>
+      ) : (
+        <>
+          <input className="form-input tc-search" placeholder="Search teacher, class or subject…" value={search}
+            onChange={(e) => setSearch(e.target.value)} aria-label="Search teachers" />
+          <div className="tc-grid">
+            {teachers
+              .filter((t) => {
+                const q = search.trim().toLowerCase();
+                if (!q) return true;
+                return [t.name, t.email, ...(t.classesManaged || []).map((c) => c.name), ...(t.subjectAssignments || []).map((a) => `${a.class?.name} ${a.subject?.name}`)]
+                  .some((v) => String(v || '').toLowerCase().includes(q));
+              })
+              .map((t) => {
+                const subjects = t.subjectAssignments || [];
+                return (
+                  <div key={t.id} className="tc-card">
+                    <div className="tc-top">
+                      {t.profilePicUrl
+                        ? <img src={t.profilePicUrl} alt={t.name} className="tc-avatar" />
+                        : <div className="tc-avatar tc-initial">{t.name.charAt(0)}</div>}
+                      <div className="tc-who">
+                        <p className="tc-name">{t.name}</p>
+                        <p className="tc-email">{t.email}</p>
+                        <div className="badge-row">{t.roles.map((r) => roleBadge(r))}</div>
                       </div>
-                    </td>
-                    <td><div className="badge-row">{t.roles.map(r => roleBadge(r))}</div></td>
-                    <td>{t.classesManaged?.map(c => c.name).join(', ') || <span className="badge badge-gray">None</span>}</td>
-                    <td>{t.subjectAssignments?.length || 0} subject{t.subjectAssignments?.length !== 1 ? 's' : ''}</td>
-                    <td>
-                      <div className="table-actions">
-                        <button className="btn btn-ghost btn-sm" onClick={() => { setSelected(t); setModal('assign'); }}>📋 Subjects</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(t)}>✏️ Edit</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => { setSelected(t); setModal('delete'); }}>🗑</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+
+                    <div className="tc-section">
+                      <span className="tc-label">Class teacher of</span>
+                      {t.classesManaged?.length
+                        ? <div className="tc-chips">{t.classesManaged.map((c) => <span key={c.id} className="tc-chip tc-chip-class">🏛️ {c.name}</span>)}</div>
+                        : <span className="tc-none">—</span>}
+                    </div>
+                    <div className="tc-section">
+                      <span className="tc-label">Teaches ({subjects.length})</span>
+                      {subjects.length
+                        ? <div className="tc-chips">
+                            {subjects.slice(0, 8).map((a) => <span key={a.id} className="tc-chip">{a.class?.name} · {a.subject?.name}</span>)}
+                            {subjects.length > 8 && <span className="tc-chip tc-more">+{subjects.length - 8} more</span>}
+                          </div>
+                        : <span className="tc-none">No subjects yet</span>}
+                    </div>
+
+                    <div className="tc-actions">
+                      <button className="btn btn-primary btn-sm" onClick={() => { setSelected(t); setModal('assign'); }}>📋 Subjects</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openEdit(t)}>✏️ Edit</button>
+                      <div style={{ flex: 1 }} />
+                      <button className="btn btn-ghost btn-sm tc-delete" onClick={() => { setSelected(t); setModal('delete'); }} title="Delete teacher">🗑</button>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* Add Teacher Modal */}
       <Modal isOpen={modal === 'add'} onClose={closeModal} title="Add New Teacher" size="lg">

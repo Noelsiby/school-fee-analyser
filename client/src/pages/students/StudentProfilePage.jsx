@@ -120,7 +120,7 @@ export default function StudentProfilePage() {
     setSaving(true); setFormError('');
     try {
       const body = Object.fromEntries(FIELDS.map(f => [f.key, form[f.key]]));
-      if (isAdmin) { body.name = form.name; body.rollNumber = form.rollNumber; }
+      body.name = form.name; body.rollNumber = form.rollNumber; // admin + class teacher
       await apiCall(`/api/students/${st.id}/profile`, { method: 'PUT', body });
       setEditing(false); flash('✅ Profile saved.'); load();
     } catch (err) { setFormError(err.message); }
@@ -243,7 +243,7 @@ export default function StudentProfilePage() {
           <form onSubmit={saveProfile}>
             {formError && <div className="alert alert-error" style={{ marginBottom: 12 }}>⚠ {formError}</div>}
             <div className="sp-grid">
-              {isAdmin && (
+              {(
                 <>
                   <label className="sp-field"><span>Student Name</span>
                     <input className="form-input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />

@@ -1,0 +1,27 @@
+/* Admin → Teachers: one card per teacher */
+.tc-warn { margin-bottom: 14px; line-height: 1.55; }
+.tc-search { max-width: 320px; margin-bottom: 14px; }
+.tc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.tc-card {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px;
+  display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.tc-card:hover { border-color: #c7d2fe; box-shadow: 0 4px 14px rgba(30, 58, 138, 0.08); }
+.tc-top { display: flex; gap: 12px; align-items: flex-start; }
+.tc-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex: none; }
+.tc-initial {
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.3rem;
+  background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff;
+}
+.tc-who { min-width: 0; display: grid; gap: 3px; }
+.tc-name { margin: 0; font-weight: 700; font-size: 1.02rem; color: #0f172a; }
+.tc-email { margin: 0; font-size: 0.8rem; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-section { display: grid; gap: 5px; }
+.tc-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+.tc-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.tc-chip { font-size: 0.78rem; padding: 3px 9px; border-radius: 999px; background: #f1f5f9; color: #334155; white-space: nowrap; }
+.tc-chip-class { background: #ecfdf5; color: #065f46; }
+.tc-more { background: #e0e7ff; color: #3730a3; }
+.tc-none { font-size: 0.85rem; color: #94a3b8; }
+.tc-actions { display: flex; gap: 8px; align-items: center; margin-top: auto; border-top: 1px solid #f1f5f9; padding-top: 12px; }
+.tc-delete { color: #dc2626; }

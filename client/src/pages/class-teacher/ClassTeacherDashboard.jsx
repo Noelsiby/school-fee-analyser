@@ -8,7 +8,10 @@ import MyDay from '../../components/timetable/MyDay';
 import ReportAttendanceModal from '../../components/report/ReportAttendanceModal';
 import SubjectWatch from '../../components/analysis/SubjectWatch';
 import '../../components/analysis/Analysis.css';
-import '../admin/admin.css'; 
+import '../admin/admin.css';
+import '../admin/Exams.css';
+import '../admin/AdminHome.css';
+import './ClassTeacher.css';
 
 export default function ClassTeacherDashboard() {
   const { user } = useAuth();
@@ -42,21 +45,25 @@ export default function ClassTeacherDashboard() {
           onSaved={(msg) => { setAttFor(null); setAttNotice(msg); setTimeout(() => setAttNotice(''), 6000); }} />
       )}
       {attNotice && <div className="alert alert-success" style={{ marginBottom: 12 }}>{attNotice}</div>}
-      <div className="page-header">
+      <div className="db-hero ct-hero">
         <div>
-          <h1 className="page-title">Class Teacher Dashboard</h1>
-          <p className="page-sub">Welcome back, {user?.name}. Manage exams for your class.</p>
+          <p className="db-date">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' })}</p>
+          <h1 className="db-hello">Welcome, {user?.name?.split(' ').slice(0, 2).join(' ') || 'Teacher'} 👋</h1>
+          <p className="db-sub">
+            {exams.length ? `${exams.filter((e) => e.status === 'Open').length} exam(s) open for your class.` : 'Your class at a glance.'}
+          </p>
+        </div>
+        <div className="db-actions">
+          <button className="db-action" onClick={() => navigate('/class-teacher/attendance')}><span>✅</span>Take attendance</button>
+          <button className="db-action" onClick={() => navigate('/class-teacher/analyser')}><span>📈</span>Class analyser</button>
+          <button className="db-action" onClick={() => document.getElementById('my-students')?.scrollIntoView({ behavior: 'smooth' })}><span>👦</span>My students</button>
         </div>
       </div>
 
-      <div className="data-card an-card" style={{ marginBottom: 16 }}>
-        <AttendanceToday compact onOpen={() => navigate('/class-teacher/attendance')} />
+      {/* Exams first: reviewing marks is the main job */}
+      <div className="ct-section-head">
+        <h2>📝 Exams for your class</h2>
       </div>
-      <MyDay attendancePath="/class-teacher/attendance" />
-      <SubjectWatch profileBase="/class-teacher/students" />
-
-      <MyStudentsList />
-
       {loading ? (
         <div className="empty-state"><div className="spinner spinner-dark" /></div>
       ) : error ? (
@@ -65,82 +72,79 @@ export default function ClassTeacherDashboard() {
           <button className="btn btn-ghost" onClick={loadData}>Retry</button>
         </div>
       ) : exams.length === 0 ? (
-        <div className="empty-state">
-          <p className="empty-state-icon">🏛️</p>
-          <p className="empty-state-text">No exams found for your managed classes.</p>
-        </div>
+        <div className="data-card"><div className="empty-state" style={{ padding: 28 }}>
+          <p className="empty-state-icon">📝</p>
+          <p className="empty-state-text">No exams for your class yet.</p>
+        </div></div>
       ) : (
-        <div className="classes-grid">
-          {exams.map(exam => (
-            <div key={exam.id} className="class-card" style={{ borderTop: '4px solid #059669' }}>
-              <div className="class-card-header">
-                <div className="class-icon">📝</div>
-                <span className={`badge ${exam.status === 'Open' ? 'badge-green' : exam.status === 'Closed' ? 'badge-gray' : 'badge-blue'}`}>
-                  {exam.status}
-                </span>
-              </div>
-
-              <h3 className="class-card-name">{exam.name}</h3>
-              <p className="class-card-meta">{exam.class?.name}</p>
-
-              <div style={{ marginTop: 16 }}>
-                <p style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: 8 }}>Subject Status:</p>
-                {exam.subjectReviews && exam.subjectReviews.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {exam.subjectReviews.map(sr => (
-                      <div key={sr.subject.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                        <span style={{ color: '#475569' }}>{sr.subject.name}</span>
-                        {['SubmittedToClassTeacher', 'Approved'].includes(sr.status) ? (
-                          <span style={{ color: '#059669', fontWeight: 500 }}>Submitted ✅</span>
-                        ) : sr.status === 'Rejected' ? (
-                          <span style={{ color: '#dc2626', fontWeight: 500 }}>Rejected ❌</span>
-                        ) : (
-                          <span style={{ color: '#d97706', fontWeight: 500 }}>Pending ⏳</span>
-                        )}
-                      </div>
-                    ))}
-                    {(() => {
-                      const total = exam.subjectReviews.length;
-                      const submitted = exam.subjectReviews.filter(sr => ['SubmittedToClassTeacher', 'Approved'].includes(sr.status)).length;
-                      const pct = Math.round((submitted / total) * 100);
-                      return (
-                        <div style={{ marginTop: 8 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginBottom: 4 }}>
-                            <span>Progress</span>
-                            <span>{submitted} of {total} subjects submitted</span>
-                          </div>
-                          <div style={{ background: '#e2e8f0', height: 6, borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ background: '#059669', height: '100%', width: `${pct}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })()}
+        <div className="ct-exams">
+          {exams.map((exam) => {
+            const reviews = exam.subjectReviews || [];
+            const submitted = reviews.filter((sr) => ['SubmittedToClassTeacher', 'Approved'].includes(sr.status)).length;
+            const pct = reviews.length ? Math.round((submitted / reviews.length) * 100) : 0;
+            const allIn = reviews.length > 0 && submitted === reviews.length;
+            return (
+              <div key={`${exam.id}-${exam.targetClassId}`} className={`ex-card ex-${exam.status === 'Closed' ? 'closed' : exam.status === 'Open' ? 'open' : 'draft'}`}>
+                <div className="ex-top">
+                  <div className="ex-title">
+                    <h3>{exam.name}</h3>
+                    <div className="ex-badges">
+                      <span className={`badge ${exam.status === 'Open' ? 'badge-green' : exam.status === 'Closed' ? 'badge-blue' : 'badge-gray'}`}>
+                        {exam.status === 'Open' ? '✍️ Marks entry' : exam.status === 'Closed' ? '✅ Finalized' : exam.status}
+                      </span>
+                      <span className="badge badge-gray">{exam.class?.name}</span>
+                    </div>
                   </div>
-                ) : (
-                  <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No subjects configured.</p>
-                )}
-              </div>
+                </div>
 
-              <div style={{ marginTop: '16px' }}>
-                <button 
-                  className="btn btn-primary"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => navigate(`/class-teacher/exams/${exam.id}/review?classId=${exam.targetClassId}`)}
-                >
-                  Review Marks →
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
-                  onClick={() => setAttFor({ examId: exam.id, cls: { id: exam.targetClassId, name: exam.class?.name || 'Class' } })}
-                >
-                  📅 Report card attendance
-                </button>
+                {reviews.length > 0 ? (
+                  <>
+                    <div className="ex-progress">
+                      <div className="ex-progress-label">
+                        <span>{allIn ? (exam.status === 'Closed' ? 'All done' : 'All subjects in: review and finalize') : 'Waiting for subject teachers'}</span>
+                        <strong>{submitted} of {reviews.length} subjects submitted</strong>
+                      </div>
+                      <div className="ex-bar"><div style={{ width: `${pct}%` }} /></div>
+                    </div>
+                    <div className="ex-chips">
+                      {reviews.map((sr) => {
+                        const ok = ['SubmittedToClassTeacher', 'Approved'].includes(sr.status);
+                        const back = sr.status === 'Rejected';
+                        return (
+                          <span key={sr.subject.id} className={`ex-chip${ok ? ' ex-chip-done' : back ? ' ct-chip-back' : ''}`}
+                            title={ok ? 'Submitted' : back ? 'Sent back to the teacher' : 'Not submitted yet'}>
+                            {ok ? '✓' : back ? '✕' : '⏳'} {sr.subject.name}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <p className="an-muted" style={{ margin: 0 }}>No subjects set up for this exam yet.</p>
+                )}
+
+                <div className="ex-actions">
+                  <button className="btn btn-primary btn-sm" onClick={() => navigate(`/class-teacher/exams/${exam.id}/review?classId=${exam.targetClassId}`)}>
+                    {allIn && exam.status !== 'Closed' ? '✅ Review & finalize' : '📋 Review marks'}
+                  </button>
+                  <button className="btn btn-ghost btn-sm"
+                    onClick={() => setAttFor({ examId: exam.id, cls: { id: exam.targetClassId, name: exam.class?.name || 'Class' } })}>
+                    📅 Report card attendance
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      <div className="data-card an-card" style={{ margin: '20px 0 16px' }}>
+        <AttendanceToday compact onOpen={() => navigate('/class-teacher/attendance')} />
+      </div>
+      <MyDay attendancePath="/class-teacher/attendance" />
+      <SubjectWatch profileBase="/class-teacher/students" />
+
+      <div id="my-students"><MyStudentsList /></div>
     </div>
   );
 }

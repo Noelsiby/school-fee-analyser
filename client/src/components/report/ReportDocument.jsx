@@ -34,15 +34,16 @@ const BASE = {
 
   // Header
   header: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8 },
-  logo: { width: 64, height: 71, marginRight: 12 },
+  logo: { width: 70, height: 78, marginRight: 10 },
   schoolBlock: { flex: 1, alignItems: 'center', paddingHorizontal: 6 },
-  schoolName: { fontFamily: 'Helvetica-Bold', fontSize: 17, color: NAVY, letterSpacing: 0.4, textAlign: 'center' },
-  schoolPlace: { fontSize: 8.5, color: MUTED, marginTop: 2, textAlign: 'center' },
-  titleBlock: { alignItems: 'flex-end' },
-  titlePill: { backgroundColor: NAVY, color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 9, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 3, letterSpacing: 1 },
-  examName: { fontFamily: 'Helvetica-Bold', fontSize: 10, marginTop: 4, color: INK },
-  year: { fontSize: 8, color: MUTED, marginTop: 1 },
-  goldRule: { height: 2.5, backgroundColor: GOLD, marginBottom: 9 },
+  schoolName: { fontFamily: 'Helvetica-Bold', fontSize: 21, color: NAVY, letterSpacing: 0.3, textAlign: 'center' },
+  schoolPlace: { fontFamily: 'Helvetica-Bold', fontSize: 10.5, color: INK, marginTop: 3, textAlign: 'center' },
+  logoSpace: { width: 80 }, // balances the logo so the school name sits in the middle
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 },
+  titlePill: { backgroundColor: NAVY, color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 9.5, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 3, letterSpacing: 1 },
+  examName: { fontFamily: 'Helvetica-Bold', fontSize: 11, color: INK },
+  year: { fontSize: 8.5, color: MUTED },
+  goldRule: { height: 2.5, backgroundColor: GOLD, marginBottom: 7 },
 
   sectionTitle: { fontFamily: 'Helvetica-Bold', fontSize: 9, color: NAVY, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8 },
 
@@ -215,13 +216,14 @@ function StudentPage({ report, result, generatedOn, paper }) {
           <Text style={s.schoolPlace}>{SCHOOL.address}</Text>
           <Text style={s.schoolPlace}>Ph: {SCHOOL.phones.join('  ·  ')}</Text>
         </View>
-        <View style={s.titleBlock}>
-          <Text style={s.titlePill}>PROGRESS REPORT</Text>
-          <Text style={s.examName}>{report.exam.name}</Text>
-          <Text style={s.year}>Academic Year {SCHOOL.academicYear}</Text>
-        </View>
+        <View style={s.logoSpace} />
       </View>
       <View style={s.goldRule} />
+      <View style={s.titleRow}>
+        <Text style={s.titlePill}>PROGRESS REPORT</Text>
+        <Text style={s.examName}>{report.exam.name}</Text>
+        <Text style={s.year}>Academic Year {SCHOOL.academicYear}</Text>
+      </View>
 
       {/* Student details */}
       <Text style={s.sectionTitle}>Student Details</Text>

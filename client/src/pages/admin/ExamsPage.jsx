@@ -6,6 +6,7 @@ import MaxMarksField from '../../components/MaxMarksField';
 import ApplyAllBar from '../../components/ApplyAllBar';
 import { hasParts, partsLabel, initialMaxMarks, savedMaxMarks, toConfigPayload, totalOf } from '../../utils/subjectParts';
 import './admin.css';
+import './Exams.css';
 
 const EMPTY_FORM = { name: '', examType: 'CLASS_EXAM', classId: '', classIds: [], deadline: '' };
 
@@ -17,6 +18,8 @@ export default function ExamsPage() {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [filter, setFilter] = useState('all');   // all | Draft | Open | Closed | published
+  const [search, setSearch] = useState('');
 
   const [modal, setModal] = useState(null); // 'create' | 'config' | 'publish'
   const [deleteModal, setDeleteModal] = useState(null);
@@ -356,7 +359,8 @@ export default function ExamsPage() {
   const statusBadge = (status) => {
     switch(status) {
       case 'Draft': return <span className="badge badge-gray">Draft</span>;
-      case 'Open': return <span className="badge badge-green">Open</span>;
+      case 'Open': return <span className="badge badge-green">✍️ Marks entry</span>;
+      case 'Closed': return <span className="badge badge-blue">✅ Finalized</span>;
       case 'Completed': return <span className="badge badge-blue">Completed</span>;
       default: return <span className="badge badge-gray">{status}</span>;
     }
@@ -366,8 +370,8 @@ export default function ExamsPage() {
     <div className="admin-page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Exams</h1>
-          <p className="page-sub">Manage exams, configure max marks, and publish them for grading.</p>
+          <h1 className="page-title">📝 Exams</h1>
+          <p className="page-sub">Create an exam → set max marks → send to teachers → publish results to parents.</p>
         </div>
         <button className="btn btn-primary" onClick={openCreate}>+ Create Exam</button>
       </div>
@@ -394,135 +398,105 @@ export default function ExamsPage() {
           <button className="btn btn-primary" onClick={openCreate}>Create Exam</button>
         </div>
       ) : (
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Exam Name</th>
-                <th>Type</th>
-                <th>Class / Classes</th>
-                <th>Deadline</th>
-                <th>Status</th>
-                <th>Configured</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {exams.map(exam => {
+        <>
+          <div className="ex-toolbar">
+            <div className="ex-tabs" role="tablist">
+              {[
+                ['all', 'All', exams.length],
+                ['Draft', 'Draft', exams.filter(e => e.status === 'Draft').length],
+                ['Open', 'Marks entry', exams.filter(e => e.status === 'Open').length],
+                ['Closed', 'Finalized', exams.filter(e => e.status === 'Closed' && !e.isPublished).length],
+                ['published', 'Published', exams.filter(e => e.isPublished).length],
+              ].map(([key, label, n]) => (
+                <button key={key} role="tab" aria-selected={filter === key} className={`ex-tab${filter === key ? ' ex-tab-on' : ''}`} onClick={() => setFilter(key)}>
+                  {label} <span>{n}</span>
+                </button>
+              ))}
+            </div>
+            <input className="form-input ex-search" placeholder="Search exam or class…" value={search} onChange={e => setSearch(e.target.value)} aria-label="Search exams" />
+          </div>
+
+          <div className="ex-list">
+            {exams
+              .filter(exam => filter === 'all' || (filter === 'published' ? exam.isPublished : filter === 'Closed' ? exam.status === 'Closed' && !exam.isPublished : exam.status === filter))
+              .filter(exam => {
+                const q = search.trim().toLowerCase();
+                if (!q) return true;
+                const names = exam.examType === 'INTERNAL_EXAM' ? (exam.enrollments || []).map(e => e.class.name) : [exam.class?.name || ''];
+                return exam.name.toLowerCase().includes(q) || names.some(n => n.toLowerCase().includes(q));
+              })
+              .map(exam => {
                 const isConfigured = exam.subjectConfigs.length > 0;
                 const isInternal = exam.examType === 'INTERNAL_EXAM';
                 const canPublish = !exam.isPublished && (exam.status === 'Closed' || exam.status === 'Open');
+                const classList = isInternal
+                  ? (exam.enrollments || []).map(e => ({ id: e.class.id, name: e.class.name, done: e.status === 'Finalized' || exam.status === 'Closed' }))
+                  : exam.class ? [{ id: exam.class.id, name: exam.class.name, done: exam.status === 'Closed' }] : [];
+                const done = classList.filter(c => c.done).length;
+                const pct = classList.length ? Math.round((done / classList.length) * 100) : 0;
+                const step = exam.status === 'Draft' ? (isConfigured ? 'Ready to send to teachers' : 'Set max marks first')
+                  : exam.status === 'Open' ? 'Teachers are entering marks'
+                  : exam.isPublished ? 'Results published to parents' : 'Marks finalized: publish when ready';
                 return (
-                  <tr key={exam.id}>
-                    <td>
-                      <strong>{exam.name}</strong>
-                      {exam.isPublished && (
-                        <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#dcfce7', color: '#16a34a' }}>
-                          🌐 Published
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <span style={{ 
-                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
-                        backgroundColor: isInternal ? '#fef08a' : '#bfdbfe',
-                        color: isInternal ? '#854d0e' : '#1e40af'
-                      }}>
-                        {isInternal ? 'Internal Exam' : 'Class Exam'}
-                      </span>
-                    </td>
-                    <td>
-                      {isInternal 
-                        ? exam.enrollments?.map(e => e.class.name).join(', ') 
-                        : exam.class?.name}
-                    </td>
-                    <td>{exam.deadline ? new Date(exam.deadline).toLocaleDateString() : '—'}</td>
-                    <td>
-                      {isInternal && exam.status === 'Open' ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', marginBottom: 2 }}>
-                            {statusBadge(exam.status)} ({(exam.enrollments?.filter(e => e.status === 'Finalized')?.length || 0)} of {exam.enrollments?.length || 0} finalized)
-                          </div>
-                          {exam.enrollments?.map(e => (
-                            <div key={e.class.id} style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span>{e.class.name}:</span>
-                              {e.status === 'Finalized' ? (
-                                <span style={{ color: '#16a34a', fontWeight: 'bold' }}>✅ Finalized</span>
-                              ) : (
-                                <span style={{ color: '#d97706', fontWeight: 'bold' }}>⏳ {e.status}</span>
-                              )}
-                            </div>
-                          ))}
+                  <div key={exam.id} className={`ex-card ex-${exam.isPublished ? 'published' : exam.status.toLowerCase()}`}>
+                    <div className="ex-top">
+                      <div className="ex-title">
+                        <h3>{exam.name}</h3>
+                        <div className="ex-badges">
+                          {statusBadge(exam.status === 'Open' ? 'Open' : exam.status)}
+                          <span className={`badge ${isInternal ? 'badge-amber' : 'badge-blue'}`}>{isInternal ? 'Internal exam' : 'Class exam'}</span>
+                          {exam.isPublished && <span className="badge badge-green">🌐 Published</span>}
                         </div>
-                      ) : (
-                        statusBadge(exam.status)
-                      )}
-                    </td>
-                    <td>
-                      {isConfigured ? (
-                        <span style={{ color: '#16a34a', fontSize: '0.85rem', fontWeight: 500 }}>
-                          ✓ {exam.subjectConfigs.length} subjects
-                          {isInternal && exam.enrollments && ` across ${exam.enrollments.length} classes`}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Not configured</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="table-actions">
-                        {exam.status === 'Draft' && (
-                          <>
-                            <button className="btn btn-ghost btn-sm" onClick={() => openRename(exam)}>✏️ Edit</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => openConfig(exam)}>⚙️ Configure</button>
-                            <button 
-                              className="btn btn-primary btn-sm" 
-                              onClick={() => openPublish(exam)}
-                              disabled={!isConfigured}
-                              title={!isConfigured ? "Configure max marks first" : "Publish to teachers"}
-                            >
-                              🚀 Publish
-                            </button>
-                          </>
-                        )}
-                        {exam.status !== 'Draft' && (
-                          <>
-                            <button className="btn btn-ghost btn-sm" onClick={() => openRename(exam)}>✏️ Edit</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/admin/exams/${exam.id}/results`)}>
-                              📊 View Results
-                            </button>
-                          </>
-                        )}
-                        {canPublish && (
-                          <button 
-                            className="btn btn-primary btn-sm" 
-                            style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: 'white' }}
-                            onClick={() => setPublishPublicModal(exam)}
-                          >
-                            🌐 Publish Results
-                          </button>
-                        )}
-                        {exam.isPublished && (
-                          <button className="btn btn-ghost btn-sm" style={{ color: '#b45309' }} onClick={() => handleUnpublishPublic(exam.id)}>
-                            🚫 Unpublish
-                          </button>
-                        )}
-                        <button 
-                          className="btn btn-ghost btn-sm" 
-                          style={{ color: '#dc2626', cursor: 'pointer' }} 
-                          onClick={() => setDeleteModal(exam)}
-                          title="Delete Exam"
-                        >
-                          🗑️ Delete
-                        </button>
                       </div>
+                      <div className="ex-meta">
+                        <span>🏫 {classList.length} class{classList.length === 1 ? '' : 'es'}</span>
+                        <span>📚 {isConfigured ? `${exam.subjectConfigs.length} subjects` : 'Max marks not set'}</span>
+                        {exam.deadline && <span>⏰ {new Date(exam.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>}
+                      </div>
+                    </div>
 
-                    </td>
-                  </tr>
+                    {exam.status !== 'Draft' && classList.length > 0 && (
+                      <div className="ex-progress">
+                        <div className="ex-progress-label"><span>{step}</span><strong>{done} of {classList.length} classes finalized</strong></div>
+                        <div className="ex-bar"><div style={{ width: `${pct}%` }} /></div>
+                      </div>
+                    )}
+                    {exam.status === 'Draft' && <div className="ex-step">👉 {step}</div>}
+
+                    <div className="ex-chips">
+                      {classList.map(c => (
+                        <span key={c.id} className={`ex-chip${c.done ? ' ex-chip-done' : ''}`} title={c.done ? 'Finalized' : 'Waiting for marks'}>
+                          {c.done ? '✓' : '⏳'} {c.name}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="ex-actions">
+                      {exam.status === 'Draft' && (
+                        <>
+                          <button className="btn btn-primary btn-sm" onClick={() => openConfig(exam)}>⚙️ Set max marks</button>
+                          <button className="btn btn-primary btn-sm" onClick={() => openPublish(exam)} disabled={!isConfigured}
+                            title={!isConfigured ? 'Set max marks first' : 'Teachers can start entering marks'}>🚀 Send to teachers</button>
+                        </>
+                      )}
+                      {exam.status !== 'Draft' && (
+                        <button className="btn btn-primary btn-sm" onClick={() => navigate(`/admin/exams/${exam.id}/results`)}>📊 View results</button>
+                      )}
+                      {canPublish && (
+                        <button className="btn btn-sm ex-btn-green" onClick={() => setPublishPublicModal(exam)}>🌐 Publish results</button>
+                      )}
+                      {exam.isPublished && (
+                        <button className="btn btn-ghost btn-sm" style={{ color: '#b45309' }} onClick={() => handleUnpublishPublic(exam.id)}>🚫 Unpublish</button>
+                      )}
+                      <div style={{ flex: 1 }} />
+                      <button className="btn btn-ghost btn-sm" onClick={() => openRename(exam)}>✏️ Edit</button>
+                      <button className="btn btn-ghost btn-sm ex-btn-delete" onClick={() => setDeleteModal(exam)} title="Delete exam">🗑️</button>
+                    </div>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Edit Exam Modal — Full Accordion */}

@@ -82,6 +82,8 @@ const startupPrisma = new PrismaClient();
 loadGradeScale(startupPrisma)
   // Results of exams finalized before the Performance Analyser existed
   .then(() => backfillSnapshots(startupPrisma))
+  // Running exams missing subjects that were added to a class later get them now
+  .then(() => require('./lib/examSubjects').addMissingExamSubjects(startupPrisma))
   .catch((e) => console.error('[startup]', e.message))
   .finally(() => startupPrisma.$disconnect())
   .finally(() => {

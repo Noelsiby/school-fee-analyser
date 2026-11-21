@@ -1,0 +1,15 @@
+/* Subject teacher dashboard */
+.st-hero { background: linear-gradient(135deg, #3b0764 0%, #5b21b6 55%, #7c3aed 100%); box-shadow: 0 6px 20px rgba(91, 33, 182, 0.2); }
+.ct-section-head { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 10px; }
+.ct-section-head h2 { margin: 0; font-size: 1.08rem; color: #0f172a; }
+.st-exams { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.st-subjects { display: grid; gap: 8px; }
+.st-subject {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 12px 14px;
+  border: 1.5px solid #e2e8f0; border-radius: 10px; background: #fff; cursor: pointer; font: inherit; color: inherit; text-align: left;
+}
+.st-subject:hover { border-color: #7c3aed; background: #faf5ff; }
+.st-subject-name { font-weight: 700; }
+.st-subject-max { font-size: 0.8rem; color: #64748b; }
+.st-subject-go { font-size: 0.85rem; font-weight: 700; color: #5b21b6; }
+.st-exams .ex-card { align-content: start; }

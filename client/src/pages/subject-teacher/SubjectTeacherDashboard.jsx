@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApi } from '../../hooks/useApi';
 import '../admin/admin.css'; // Use shared admin styles
+import '../admin/Exams.css';
+import '../admin/AdminHome.css';
+import './SubjectTeacher.css';
 import MyDay from '../../components/timetable/MyDay';
 
 export default function SubjectTeacherDashboard() {
@@ -30,15 +33,21 @@ export default function SubjectTeacherDashboard() {
 
   return (
     <div className="admin-page">
-      <div className="page-header">
+      <div className="db-hero st-hero">
         <div>
-          <h1 className="page-title">Subject Teacher Dashboard</h1>
-          <p className="page-sub">Welcome back, {user?.name}. Here are your assigned exams.</p>
+          <p className="db-date">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' })}</p>
+          <h1 className="db-hello">Welcome, {user?.name?.split(' ').slice(0, 2).join(' ') || 'Teacher'} 👋</h1>
+          <p className="db-sub">
+            {exams.length
+              ? `You have ${exams.reduce((n, e) => n + e.teacherSubjects.length, 0)} subject(s) to enter marks for. Click a subject to start.`
+              : 'Your exams appear here when the office sends them.'}
+          </p>
         </div>
       </div>
 
       <MyDay attendancePath="/subject-teacher/attendance" />
 
+      <div className="ct-section-head"><h2>📝 Enter marks</h2></div>
       {loading ? (
         <div className="empty-state"><div className="spinner spinner-dark" /></div>
       ) : error ? (
@@ -47,37 +56,31 @@ export default function SubjectTeacherDashboard() {
           <button className="btn btn-ghost" onClick={loadData}>Retry</button>
         </div>
       ) : exams.length === 0 ? (
-        <div className="empty-state">
+        <div className="data-card"><div className="empty-state" style={{ padding: 28 }}>
           <p className="empty-state-icon">📚</p>
-          <p className="empty-state-text">No open exams require your attention right now.</p>
-        </div>
+          <p className="empty-state-text">No exams need your marks right now.</p>
+        </div></div>
       ) : (
-        <div className="classes-grid">
-          {exams.map(exam => (
-            <div key={exam.id} className="class-card" style={{ borderTop: '4px solid #4338ca' }}>
-              <div className="class-card-header">
-                <div className="class-icon">📝</div>
-                <span className={`badge ${exam.status === 'Open' ? 'badge-green' : 'badge-gray'}`}>
-                  {exam.status}
-                </span>
+        <div className="st-exams">
+          {exams.map((exam) => (
+            // An internal exam appears once per class, so the class is part of the key
+            <div key={`${exam.id}-${exam.targetClassId}`} className={`ex-card ex-${exam.status === 'Open' ? 'open' : 'closed'}`}>
+              <div className="ex-title">
+                <h3>{exam.name}</h3>
+                <div className="ex-badges">
+                  <span className="badge badge-gray">🏛️ {exam.class?.name}</span>
+                  <span className={`badge ${exam.status === 'Open' ? 'badge-green' : 'badge-blue'}`}>
+                    {exam.status === 'Open' ? '✍️ Marks entry open' : '✅ Finalized'}
+                  </span>
+                </div>
               </div>
-
-              <h3 className="class-card-name">{exam.name}</h3>
-              <p className="class-card-meta">{exam.class?.name}</p>
-
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <p style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
-                  Assigned Subjects
-                </p>
-                {exam.teacherSubjects.map(config => (
-                  <button 
-                    key={config.subjectId}
-                    className="btn btn-ghost"
-                    style={{ justifyContent: 'space-between', border: '1px solid #e2e8f0' }}
-                    onClick={() => navigate(`/subject-teacher/exams/${exam.id}/subjects/${config.subjectId}/marks`)}
-                  >
-                    <span>📚 {config.subject.name}</span>
-                    <span style={{ fontSize: '0.8rem', color: '#1e3a8a', fontWeight: 600 }}>Enter Marks →</span>
+              <div className="st-subjects">
+                {exam.teacherSubjects.map((config) => (
+                  <button key={config.subjectId} className="st-subject"
+                    onClick={() => navigate(`/subject-teacher/exams/${exam.id}/subjects/${config.subjectId}/marks`)}>
+                    <span className="st-subject-name">📚 {config.subject.name}</span>
+                    <span className="st-subject-max">out of {config.maxMarks}</span>
+                    <span className="st-subject-go">{exam.status === 'Open' ? 'Enter marks →' : 'View →'}</span>
                   </button>
                 ))}
               </div>

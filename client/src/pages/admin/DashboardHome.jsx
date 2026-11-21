@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
+import { useAuth } from '../../contexts/AuthContext';
 import AttendanceToday from '../../components/attendance/AttendanceToday';
 import SubjectWatch from '../../components/analysis/SubjectWatch';
 import '../../components/analysis/Analysis.css';
 import './admin.css';
+import './Exams.css';
+import './AdminHome.css';
 
 const formatSize = (bytes) => (bytes >= 1024 ** 3
   ? `${(bytes / 1024 ** 3).toFixed(2)} GB`
@@ -44,10 +47,25 @@ function StorageMeter({ storage }) {
   );
 }
 
+const greeting = () => {
+  const h = Number(new Intl.DateTimeFormat('en-IN', { hour: 'numeric', hour12: false, timeZone: 'Asia/Kolkata' }).format(new Date()));
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+};
+
+/** Classes of an exam and how many are finalized. */
+function examProgress(exam) {
+  const list = exam.examType === 'INTERNAL_EXAM'
+    ? (exam.enrollments || []).map((e) => e.status === 'Finalized' || exam.status === 'Closed')
+    : [exam.status === 'Closed'];
+  return { total: list.length, done: list.filter(Boolean).length };
+}
+
 export default function DashboardHome() {
   const { apiCall } = useApi();
+  const { user } = useAuth();
   const [stats, setStats]   = useState(null);
   const [storage, setStorage] = useState(null);
+  const [exams, setExams] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [risk, setRisk] = useState(null);
@@ -55,6 +73,7 @@ export default function DashboardHome() {
 
   useEffect(() => {
     apiCall('/api/analysis/at-risk').then(setRisk).catch(() => {});
+    apiCall('/api/admin/exams').then((d) => setExams(d.exams)).catch(() => setExams([]));
     apiCall('/api/admin/stats')
       .then(d => setStats(d))
       .catch(e => setLoadError(e.message))
@@ -63,35 +82,83 @@ export default function DashboardHome() {
   }, [apiCall]);
 
   const cards = [
-    { icon: '👩‍🏫', label: 'Teachers',  key: 'teachers', color: '#1E3A8A' },
-    { icon: '🏛️', label: 'Classes',   key: 'classes',  color: '#065f46' },
-    { icon: '👦', label: 'Students',  key: 'students', color: '#7c3aed' },
-    { icon: '📚', label: 'Subjects',  key: 'subjects', color: '#c2410c' },
+    { icon: '👦', label: 'Students', key: 'students', color: '#7c3aed', to: '/admin/students' },
+    { icon: '🏛️', label: 'Classes',  key: 'classes',  color: '#065f46', to: '/admin/classes' },
+    { icon: '👩‍🏫', label: 'Teachers', key: 'teachers', color: '#1E3A8A', to: '/admin/teachers' },
+    { icon: '📚', label: 'Subjects', key: 'subjects', color: '#c2410c', to: '/admin/subjects' },
   ];
+  const actions = [
+    { icon: '📝', label: 'Create exam', to: '/admin/exams' },
+    { icon: '✅', label: 'Attendance', to: '/admin/attendance' },
+    { icon: '📢', label: 'Send a message', to: '/admin/messages' },
+    { icon: '📷', label: 'Photo day', to: '/admin/photo-day' },
+    { icon: '📱', label: 'Student App', to: '/admin/student-app' },
+  ];
+  const running = (exams || []).filter((e) => e.status === 'Open' || (e.status === 'Closed' && !e.isPublished));
+  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
 
   return (
     <div className="admin-page">
-      <div className="page-header">
+      {/* Welcome + quick actions */}
+      <div className="db-hero">
         <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-sub">Welcome back! Here's a snapshot of the school.</p>
+          <p className="db-date">{today}</p>
+          <h1 className="db-hello">{greeting()}{user?.name ? `, ${user.name.split(' ')[0]}` : ''} 👋</h1>
+          <p className="db-sub">Here's what's happening at Matha English Medium School today.</p>
+        </div>
+        <div className="db-actions">
+          {actions.map((a) => (
+            <button key={a.to} className="db-action" onClick={() => navigate(a.to)}>
+              <span>{a.icon}</span>{a.label}
+            </button>
+          ))}
         </div>
       </div>
 
       {loadError && <div className="alert alert-error" style={{ marginBottom: 16 }}>⚠ {loadError}</div>}
 
-      <div className="stats-grid-admin">
-        {cards.map(({ icon, label, key, color }) => (
-          <div key={key} className="stat-card-admin" style={{ '--accent-color': color }}>
+      <div className="stats-grid-admin db-stats">
+        {cards.map(({ icon, label, key, color, to }) => (
+          <button key={key} className="stat-card-admin db-stat" style={{ '--accent-color': color }} onClick={() => navigate(to)}>
             <span className="stat-card-icon">{icon}</span>
             <div>
-              <p className="stat-card-value">
-                {loading ? '—' : (stats?.[key] ?? '0')}
-              </p>
+              <p className="stat-card-value">{loading ? '—' : (stats?.[key] ?? '0')}</p>
               <p className="stat-card-label">{label}</p>
             </div>
-          </div>
+          </button>
         ))}
+      </div>
+
+      {/* Exams that need attention */}
+      <div className="data-card an-card" style={{ marginBottom: 20 }}>
+        <div className="an-head">
+          <div>
+            <h3>📝 Exams in progress</h3>
+            <p className="an-sub">Marks being entered, or finalized and waiting to be published to parents.</p>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/exams')}>All exams →</button>
+        </div>
+        {exams === null ? <div className="spinner spinner-dark" /> : running.length === 0 ? (
+          <p className="an-muted" style={{ margin: 0 }}>No exams running right now. <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/exams')}>＋ Create an exam</button></p>
+        ) : (
+          <div className="db-exams">
+            {running.slice(0, 5).map((e) => {
+              const { total, done } = examProgress(e);
+              const pct = total ? Math.round((done / total) * 100) : 0;
+              const ready = e.status === 'Closed' || (total > 0 && done === total);
+              return (
+                <button key={e.id} className="db-exam" onClick={() => navigate(`/admin/exams/${e.id}/results`)}>
+                  <div className="db-exam-top">
+                    <strong>{e.name}</strong>
+                    <span className={`badge ${ready ? 'badge-blue' : 'badge-green'}`}>{ready ? '✅ Ready to publish' : '✍️ Marks entry'}</span>
+                  </div>
+                  <div className="ex-bar"><div style={{ width: `${pct}%` }} /></div>
+                  <span className="an-muted">{done} of {total} class{total === 1 ? '' : 'es'} finalized</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="data-card an-card" style={{ marginBottom: 20 }}>
@@ -99,7 +166,7 @@ export default function DashboardHome() {
       </div>
 
       {risk && risk.students.length > 0 && (
-        <div className="data-card an-card" style={{ marginBottom: 20 }}>
+        <div className="data-card an-card db-risk" style={{ marginBottom: 20 }}>
           <div className="an-head" style={{ marginBottom: 0 }}>
             <div>
               <h3>⚠️ At-risk students</h3>
@@ -115,38 +182,6 @@ export default function DashboardHome() {
       <div style={{ marginBottom: 20 }}><SubjectWatch profileBase="/admin/students" /></div>
 
       {storage && <StorageMeter storage={storage} />}
-
-      <div className="data-card" style={{ padding: '24px' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
-          Quick Navigation
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, marginTop: 12 }}>
-          {[
-            { href: '/admin/classes',  icon: '🏛️', label: 'Manage Classes'  },
-            { href: '/admin/teachers', icon: '👩‍🏫', label: 'Manage Teachers' },
-            { href: '/admin/students', icon: '👦', label: 'Manage Students' },
-            { href: '/admin/exams',    icon: '📝', label: 'Manage Exams'    },
-          ].map(({ href, icon, label }) => (
-            <a
-              key={href}
-              href={href}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '12px 16px', borderRadius: 8,
-                background: '#f8fafc', border: '1px solid #e2e8f0',
-                textDecoration: 'none', color: '#334155',
-                fontSize: '0.84rem', fontWeight: 600,
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
-              onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
-            >
-              <span style={{ fontSize: '1.2rem' }}>{icon}</span>
-              {label}
-            </a>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

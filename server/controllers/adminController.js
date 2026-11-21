@@ -4,6 +4,7 @@
  * All routes are Admin-only (enforced by the router middleware).
  */
 
+const { addMissingExamSubjects } = require('../lib/examSubjects');
 const { PrismaClient, Prisma } = require('@prisma/client');
 const {
   MAIN, ComponentError, partKeys, normalizeComponents, parseComponentMaxMarks, reconcileMarkOps,
@@ -279,7 +280,10 @@ exports.createSubject = async (req, res) => {
     if (!created.length) {
       return res.status(409).json({ error: `"${subjectName}" already exists in the selected class(es).` });
     }
+    // Running exams of these classes get the new subject too, so its teacher can enter marks
+    const addedToExams = await addMissingExamSubjects(prisma, { classIds: created.map((c) => c.classId) }).catch((e) => { console.error(e); return []; });
     res.status(201).json({
+      addedToExams: addedToExams.length,
       subject: created[0],
       created,
       skipped: existing.map((s) => s.class.name),
@@ -322,6 +326,7 @@ exports.copySubjects = async (req, res) => {
       ? await prisma.subject.createMany({ data, skipDuplicates: true })
       : { count: 0 };
 
+    if (count) await addMissingExamSubjects(prisma, { classIds: toClassIds }).catch((e) => console.error(e));
     res.status(201).json({
       created: count,
       skipped: source.length * toClassIds.length - count,
@@ -359,10 +364,11 @@ exports.updateSubjectGroup = async (req, res) => {
     const remove = current.filter((s) => !classIds.includes(s.classId));
     const addTo  = classIds.filter((id) => !current.some((s) => s.classId === id));
 
-    const used = remove.filter((s) => s._count.examConfigs || s._count.marks);
+    // Marks are never thrown away; a subject only set up in exams (no marks yet) can be removed
+    const used = remove.filter((s) => s._count.marks);
     if (used.length) {
       return res.status(409).json({
-        error: `Can't remove ${name} from ${used.map((s) => s.class.name).join(', ')} — it already has exams or marks there.`,
+        error: `Can't remove ${name} from ${used.map((s) => s.class.name).join(', ')}: marks are already entered there.`,
       });
     }
 
@@ -370,8 +376,10 @@ exports.updateSubjectGroup = async (req, res) => {
       ...keep.map((s) => prisma.subject.update({ where: { id: s.id }, data: { name, components } })),
       ...addTo.map((classId) => prisma.subject.create({ data: { name, classId, components } })),
       prisma.teacherSubjectAssignment.deleteMany({ where: { subjectId: { in: remove.map((s) => s.id) } } }),
+      prisma.examSubjectConfig.deleteMany({ where: { subjectId: { in: remove.map((s) => s.id) } } }),
       prisma.subject.deleteMany({ where: { id: { in: remove.map((s) => s.id) } } }),
     ]);
+    if (addTo.length) await addMissingExamSubjects(prisma, { classIds: addTo }).catch((e) => console.error(e));
 
     res.json({ message: `${name} saved — in ${classIds.length} class${classIds.length === 1 ? '' : 'es'}.` });
   } catch (err) {
@@ -888,10 +896,13 @@ exports.addExamClass = async (req, res) => {
       include: { class: { include: { classTeacher: true, teacherAssignments: { include: { teacher: true } } } } }
     });
 
+    // The new class's subjects join the exam (same max marks as the others)
+    const added = await addMissingExamSubjects(prisma, { examIds: [examId], classIds: [Number(classId)] }).catch((e) => { console.error(e); return []; });
+
     // Notify Class Teacher and subject teachers of the newly added class
     const cls = enrollment.class;
     const teachersToNotify = new Set();
-    const configuredSubjectIds = new Set(exam.subjectConfigs.map(c => c.subjectId));
+    const configuredSubjectIds = new Set([...exam.subjectConfigs.map(c => c.subjectId), ...added.map(a => a.subjectId)]);
 
     if (cls.classTeacherId) teachersToNotify.add(cls.classTeacherId);
     for (const assignment of (cls.teacherAssignments || [])) {

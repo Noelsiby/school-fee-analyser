@@ -1,7 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
+
 const { DEFAULT_BANDS, parseScale, loadGradeScale, saveGradeScale, passMark } = require('../lib/grades');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 
 const payload = (bands) => ({ bands, outOf: bands[0]?.outOf || 100, passMark: passMark(bands), defaults: DEFAULT_BANDS });
 

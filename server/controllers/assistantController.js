@@ -13,10 +13,10 @@
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
-const { PrismaClient } = require('@prisma/client');
+
 const { TOOLS, runTool } = require('../lib/assistantTools');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 
 const SCHOOL_NAME = 'Matha English Medium School, Kaikalur';
 

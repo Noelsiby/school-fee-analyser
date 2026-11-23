@@ -8,7 +8,7 @@
  *   Messages          to tuition parents: free app notification first, WhatsApp for the rest
  */
 const router = require('express').Router();
-const { PrismaClient } = require('@prisma/client');
+
 const { authenticate, authorize } = require('../middleware/auth');
 const wa = require('../lib/whatsapp');
 const { notifyFamilies } = require('../lib/push');
@@ -19,7 +19,7 @@ const { buildClassReport } = require('../lib/reportData');
 const { passMark } = require('../lib/grades');
 const fees = require('../lib/tuitionFees');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 router.use(authenticate, authorize('TuitionHead'));
 
 const fail = (res, err, code = 500) => { if (code === 500) console.error('[tuition]', err); res.status(code).json({ error: err.message || String(err) }); };

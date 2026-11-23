@@ -6,7 +6,7 @@
 
 const { byClassName } = require('../lib/classOrder');
 const { addMissingExamSubjects } = require('../lib/examSubjects');
-const { PrismaClient, Prisma } = require('@prisma/client');
+const { Prisma } = require('@prisma/client');
 const {
   MAIN, ComponentError, partKeys, normalizeComponents, parseComponentMaxMarks, reconcileMarkOps,
 } = require('../lib/components');
@@ -19,7 +19,7 @@ const { snapshotExam } = require('../lib/snapshots');
 const { notifyFamilies } = require('../lib/push');
 const { importStudentsCSV } = require('../lib/studentImport');
 const { renumberPlan } = require('../lib/rollOrder');
-const prisma           = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 
 // ── Helpers ──────────────────────────────────────────────────
 

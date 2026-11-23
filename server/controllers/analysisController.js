@@ -6,14 +6,14 @@
  * classes and subjects they teach.
  */
 
-const { PrismaClient } = require('@prisma/client');
+
 const { canAccessClass } = require('./studentController');
 const { classRows } = require('../lib/snapshots');
 const { analyse, classGains, notesWithFollowUp, pctOf, round1 } = require('../lib/performance');
 const { passMark } = require('../lib/grades');
 const { byRoll } = require('../lib/rollOrder');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 
 const isAdmin = (u) => (u.roles || []).includes('Admin');
 const fail = (res, err) => { console.error('[analysis]', err); res.status(500).json({ error: err.message }); };

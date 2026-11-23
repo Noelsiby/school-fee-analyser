@@ -6,11 +6,11 @@
  *   SubjectTeacher  the exams/subjects they enter marks for
  */
 const router = require('express').Router();
-const { PrismaClient } = require('@prisma/client');
+
 const { authenticate } = require('../middleware/auth');
 const { byClassName } = require('../lib/classOrder');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 const LIMIT = 8;
 
 router.get('/', authenticate, async (req, res) => {

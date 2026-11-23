@@ -6,8 +6,8 @@
  * ("The database can't be reached…") instead of a confusing "Internal server error".
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
+const prisma = require('./prisma'); // shared, small pool
 
 const CHECK_EVERY_MS = 30 * 1000;
 const DB_DOWN_MESSAGE =

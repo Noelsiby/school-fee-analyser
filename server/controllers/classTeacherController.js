@@ -1,5 +1,5 @@
-const { PrismaClient, Prisma } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { Prisma } = require('@prisma/client');
+const prisma = require('../lib/prisma'); // shared, small pool
 const { gradeFor } = require('../lib/grades');
 const { snapshotClass } = require('../lib/snapshots');
 const { partKeys, parseComponentMarks, sameComponentMarks, maxMarksUpdate, reconcileMarkOps } = require('../lib/components');

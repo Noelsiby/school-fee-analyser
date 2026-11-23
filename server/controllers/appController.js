@@ -8,7 +8,7 @@
  * (Aadhaar/APAAR masked). Never other students' details.
  */
 
-const { PrismaClient } = require('@prisma/client');
+
 const pa = require('../lib/parentAuth');
 const { analyse } = require('../lib/performance');
 const { passMark } = require('../lib/grades');
@@ -16,7 +16,7 @@ const periodsLib = require('../lib/periods');
 const att = require('../lib/attendance');
 const { calendarFor } = require('./attendanceController');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 const fail = (res, err) => { console.error('[app]', err); res.status(500).json({ error: 'Something went wrong. Please try again.' }); };
 const mask = (v) => (v ? `XXXX XXXX ${String(v).replace(/\s/g, '').slice(-4)}` : null);
 const isoDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);

@@ -10,14 +10,14 @@
  */
 
 const { byClassName } = require('../lib/classOrder');
-const { PrismaClient } = require('@prisma/client');
+
 const att = require('../lib/attendance');
 const periodsLib = require('../lib/periods');
 const wa = require('../lib/whatsapp');
 const { notifyFamilies } = require('../lib/push');
 const { byRoll } = require('../lib/rollOrder');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 const isAdmin = (u) => (u.roles || []).includes('Admin');
 const fail = (res, err) => { console.error('[attendance]', err); res.status(500).json({ error: err.message }); };
 const SEND_GAP_MS = 400;

@@ -1,6 +1,6 @@
 const cron = require('node-cron');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
+const prisma = require('./lib/prisma'); // shared, small pool
 
 // Run at 08:00 AM every day
 cron.schedule('0 8 * * *', async () => {

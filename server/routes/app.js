@@ -1,10 +1,10 @@
 const router = require('express').Router();
-const { PrismaClient } = require('@prisma/client');
+
 const ctrl = require('../controllers/appController');
 const { authenticateParent } = require('../lib/parentAuth');
 
 // Student App (parents). Uses its own login; staff logins don't work here and vice versa.
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 
 router.post('/activate', ctrl.activate);
 router.post('/login',    ctrl.login);

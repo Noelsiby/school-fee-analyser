@@ -8,11 +8,11 @@
  *   {{1}} children ("Arun and Divya")  {{2}} download link  {{3}} mobile number  {{4}} activation code
  */
 
-const { PrismaClient } = require('@prisma/client');
+
 const pa = require('../lib/parentAuth');
 const wa = require('../lib/whatsapp');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 const fail = (res, err) => { console.error('[app-admin]', err); res.status(500).json({ error: err.message }); };
 const SETTING_KEY = 'studentApp';
 const SEND_GAP_MS = 400;

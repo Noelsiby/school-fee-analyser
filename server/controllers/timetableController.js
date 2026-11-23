@@ -7,11 +7,11 @@
  */
 
 const { byClassName } = require('../lib/classOrder');
-const { PrismaClient } = require('@prisma/client');
+
 const att = require('../lib/attendance');
 const periodsLib = require('../lib/periods');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 const isAdmin = (u) => (u.roles || []).includes('Admin');
 const fail = (res, err) => { console.error('[timetable]', err); res.status(500).json({ error: err.message }); };
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

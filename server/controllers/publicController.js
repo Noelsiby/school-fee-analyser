@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
+const prisma = require('../lib/prisma'); // shared, small pool
 
 const getLatestPublishedExam = async () => {
   return await prisma.exam.findFirst({

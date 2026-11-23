@@ -78,21 +78,19 @@ if (process.env.NODE_ENV === 'production') {
 
 // ── Start ──────────────────────────────────────────────────────
 // Load the admin's grading scale before taking requests (falls back to the default).
-const { PrismaClient } = require('@prisma/client');
 const { loadGradeScale } = require('./lib/grades');
 const { backfillSnapshots } = require('./lib/snapshots');
-const startupPrisma = new PrismaClient();
+const startupPrisma = require('./lib/prisma'); // the shared client (never disconnected)
 loadGradeScale(startupPrisma)
   // Results of exams finalized before the Performance Analyser existed
   .then(() => backfillSnapshots(startupPrisma))
   // Running exams missing subjects that were added to a class later get them now
   .then(() => require('./lib/examSubjects').addMissingExamSubjects(startupPrisma))
   .catch((e) => console.error('[startup]', e.message))
-  .finally(() => startupPrisma.$disconnect())
   .finally(() => {
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`[server] Running on http://0.0.0.0:${PORT} (${process.env.NODE_ENV || 'development'})`);
     });
     // Tuition: the monthly fee reminder, on the day the head of tuition picks
-    require('./lib/tuitionFees').startReminderJob(new PrismaClient());
+    require('./lib/tuitionFees').startReminderJob(startupPrisma);
   });

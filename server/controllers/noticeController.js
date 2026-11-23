@@ -4,11 +4,11 @@
  * queues one message per parent phone and returns; sending happens in the background.
  */
 
-const { PrismaClient } = require('@prisma/client');
+
 const wa = require('../lib/whatsapp');
 const { notifyFamilies } = require('../lib/push');
 const { byRoll } = require('../lib/rollOrder');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 
 const SEND_GAP_MS = 400; // gentle pace for the provider
 const TITLE_MAX = 60;

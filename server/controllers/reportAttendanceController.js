@@ -9,11 +9,11 @@
  *     workingDays empty → clears this exam's attendance for the class; present empty → clears that student.
  */
 
-const { PrismaClient } = require('@prisma/client');
+
 const { byRoll } = require('../lib/rollOrder');
 const { canAccessClass } = require('./studentController');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 const fail = (res, err) => { console.error('[report-attendance]', err); res.status(500).json({ error: err.message }); };
 const MAX_DAYS = 366;
 

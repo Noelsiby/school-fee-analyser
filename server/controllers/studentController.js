@@ -3,12 +3,12 @@
  * Used by the Admin (any class) and by a Class Teacher (their own class only).
  */
 
-const { PrismaClient } = require('@prisma/client');
+
 const { buildClassReport, PROFILE_FIELDS } = require('../lib/reportData');
 const { normalizePhone } = require('../lib/whatsapp');
 const { importStudentsCSV } = require('../lib/studentImport');
 const { byRoll } = require('../lib/rollOrder');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 
 const isAdmin = (user) => (user.roles || []).includes('Admin');
 

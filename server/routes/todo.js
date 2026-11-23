@@ -8,11 +8,11 @@
  * Item: { level: 'action' | 'info' | 'done', icon, text, detail?, to, button }
  */
 const router = require('express').Router();
-const { PrismaClient } = require('@prisma/client');
+
 const { authenticate } = require('../middleware/auth');
 const { byClassName } = require('../lib/classOrder');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** Classes of an exam, with whether each is finalized. */

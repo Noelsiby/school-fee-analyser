@@ -4,10 +4,10 @@
  * returns immediately; the admin watches progress via /status.
  */
 
-const { PrismaClient } = require('@prisma/client');
+
 const { buildClassReport, marksLine } = require('../lib/reportData');
 const wa = require('../lib/whatsapp');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma'); // shared, small pool
 
 const SEND_GAP_MS = 400; // gentle pace for the provider
 // A message still "queued" after this long was interrupted (e.g. server restart) and may be sent again.

@@ -695,7 +695,14 @@ exports.updateStudent = async (req, res) => {
 
 exports.deleteStudent = async (req, res) => {
   try {
-    await prisma.student.delete({ where: { id: Number(req.params.id) } });
+    const id = Number(req.params.id);
+    // Marks don't cascade in the schema, so a student with any marks (even 0) couldn't be
+    // deleted. Remove their marks first; everything else (attendance, notes, results,
+    // photo, tuition) is removed with the student.
+    await prisma.$transaction([
+      prisma.mark.deleteMany({ where: { studentId: id } }),
+      prisma.student.delete({ where: { id } }),
+    ]);
     res.json({ message: 'Student deleted.' });
   } catch (err) {
     if (err?.code === 'P2025') return res.status(404).json({ error: 'Student not found.' });

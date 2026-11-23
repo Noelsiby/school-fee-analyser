@@ -91,6 +91,8 @@ loadGradeScale(startupPrisma)
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`[server] Running on http://0.0.0.0:${PORT} (${process.env.NODE_ENV || 'development'})`);
     });
+    // Finish any database update the build had to skip (database was full during the deploy)
+    if (process.env.NODE_ENV === 'production') require('./scripts/migrate').inBackground();
     // Tuition: the monthly fee reminder, on the day the head of tuition picks
     require('./lib/tuitionFees').startReminderJob(startupPrisma);
   });

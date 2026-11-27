@@ -5,6 +5,7 @@ import { rupees, thisMonth, today, monthLabel, shortMonth } from './tuition';
 import UpiQrModal from './UpiQrModal';
 import ReceiptModal from './ReceiptModal';
 import ReminderCard from './ReminderCard';
+import MonthsPayDialog from './MonthsPayDialog';
 import '../admin/admin.css';
 import '../admin/Exams.css';
 import './Tuition.css';
@@ -29,6 +30,7 @@ export default function TuitionFeesPage() {
   const [qrOpen, setQrOpen] = useState(false);
   const [together, setTogether] = useState(true);   // brothers & sisters shown together
   const [receipt, setReceipt] = useState(null);     // { ids, justPaid }
+  const [months, setMonths] = useState(null);       // tuition student ids: pay several months
 
   const load = useCallback(() => apiCall(`/api/tuition/fees?month=${month}`).then(setData).catch((e) => setError(e.message)), [apiCall, month]);
   useEffect(() => { setData(null); load(); }, [load]);
@@ -72,7 +74,7 @@ export default function TuitionFeesPage() {
               onClick={() => setPaying({ ...s, month: m, listMonth: month, kind: s.earlierPaid[m] ? 'add' : 'new', paidSoFar: s.earlierPaid[m] || 0 })}>
               {shortMonth(m)}{s.earlierPaid[m] ? ` (${rupees(s.fee - s.earlierPaid[m])} left)` : ''}
             </button>
-          ))}</span>
+          ))}<button className="link-btn" style={{ fontSize: '0.75rem', fontWeight: 700, marginLeft: 4 }} onClick={() => setMonths([s.tuitionStudentId])}>📅 Pay them together</button></span>
         )}
       </div>
       <span className="tu-fee-amt">{rupees(s.fee)}</span>
@@ -94,6 +96,7 @@ export default function TuitionFeesPage() {
         ) : s.fee > 0 && (
           <button className="btn btn-primary btn-sm" onClick={() => setPaying({ ...s, month, listMonth: month, kind: 'new', paidSoFar: 0 })}>✓ Mark paid</button>
         )}
+        {s.fee > 0 && <button className="btn btn-ghost btn-xs" onClick={() => setMonths([s.tuitionStudentId])} title="Pay several months: late months, or in advance">📅</button>}
       </div>
     </div>
   );
@@ -200,6 +203,7 @@ export default function TuitionFeesPage() {
                       <span className="tu-fee-amt">{rupees(all.reduce((n, m) => n + m.fee, 0))}</span>
                       <span>{owing.length ? <span className="badge badge-red">{owing.length} not paid</span> : <span className="badge badge-green">✓ All paid</span>}</span>
                       <div className="tu-fee-act">
+                        <button className="btn btn-ghost btn-sm" onClick={() => setMonths(all.map((m) => m.tuitionStudentId))} title="Several months, late or in advance, for all of them">📅 Pay months</button>
                         {owing.length > 0 && <button className="btn btn-primary btn-sm" onClick={() => payFamily(all)}>✓ Mark all paid ({rupees(owing.reduce((n, m) => n + m.due, 0))})</button>}
                         {all.filter((m) => m.payment).length > 1 && <button className="btn btn-ghost btn-sm" onClick={() => setReceipt({ ids: all.filter((m) => m.payment).map((m) => m.payment.id) })}>🧾 One receipt</button>}
                       </div>
@@ -227,8 +231,9 @@ export default function TuitionFeesPage() {
       )}
 
       {qrOpen && <UpiQrModal onClose={() => setQrOpen(false)} note={`Tuition fee ${monthLabel(month)}`} />}
-      {paying && <PayDialog row={paying} onClose={() => setPaying(null)} onSaved={(p) => { setPaying(null); load(); setReceipt({ ids: [p.id], justPaid: true }); }} />}
-      {receipt && <ReceiptModal paymentIds={receipt.ids} justPaid={receipt.justPaid} onClose={() => setReceipt(null)} onSent={load} />}
+      {paying && <PayDialog row={paying} onClose={() => setPaying(null)} onSaved={(p, earlier) => { setPaying(null); load(); setReceipt({ ids: [p.id], earlier, justPaid: true }); }} />}
+      {months && <MonthsPayDialog ids={months} onClose={() => setMonths(null)} onSaved={(ids, earlier) => { setMonths(null); load(); setReceipt({ ids, earlier, justPaid: true }); }} />}
+      {receipt && <ReceiptModal paymentIds={receipt.ids} earlier={receipt.earlier} justPaid={receipt.justPaid} onClose={() => setReceipt(null)} onSent={load} />}
     </div>
   );
 }
@@ -267,7 +272,7 @@ function PayDialog({ row, onClose, onSaved }) {
     try {
       const d = await apiCall('/api/tuition/fees', { method: 'POST', body: { tuitionStudentId: row.tuitionStudentId, month: row.month, amount, paidOn, mode, note, add: kind === 'add' } });
       if (short && lessFee) await apiCall(`/api/tuition/students/${row.tuitionStudentId}`, { method: 'PUT', body: { feeOverride: total } });
-      onSaved(d.payment);
+      onSaved(d.payment, d.earlier);
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   };

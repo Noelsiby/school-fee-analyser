@@ -12,7 +12,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const dateLabel = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 const VIA = { app: 'on the Student App', whatsapp: 'on WhatsApp' };
 
-export default function ReceiptModal({ paymentIds, onClose, onSent, justPaid = false }) {
+export default function ReceiptModal({ paymentIds, earlier = {}, onClose, onSent, justPaid = false }) {
   const { apiCall } = useApi();
   const [r, setR] = useState(null);
   const [error, setError] = useState('');
@@ -20,13 +20,14 @@ export default function ReceiptModal({ paymentIds, onClose, onSent, justPaid = f
   const [result, setResult] = useState(null);   // { via, reason }
   const [copied, setCopied] = useState(false);
   const ids = paymentIds.join(',');
+  const before = Object.entries(earlier).map(([k, v]) => `${k}:${v}`).join(',');
 
-  useEffect(() => { apiCall(`/api/tuition/fees/receipt?ids=${ids}`).then((d) => setR(d.receipt)).catch((e) => setError(e.message)); }, [apiCall, ids]);
+  useEffect(() => { apiCall(`/api/tuition/fees/receipt?ids=${ids}${before ? `&earlier=${before}` : ''}`).then((d) => setR(d.receipt)).catch((e) => setError(e.message)); }, [apiCall, ids, before]);
 
   const send = async () => {
     setBusy(true); setError('');
     try {
-      const d = await apiCall('/api/tuition/fees/receipt', { method: 'POST', body: { paymentIds } });
+      const d = await apiCall('/api/tuition/fees/receipt', { method: 'POST', body: { paymentIds, earlier } });
       setResult(d);
       if (d.via !== 'none') onSent?.();
     } catch (e) { setError(e.message); }
@@ -44,7 +45,7 @@ export default function ReceiptModal({ paymentIds, onClose, onSent, justPaid = f
         <p style="margin:0 0 10px">Date: <b>${esc(dateLabel(r.paidOn))}</b>${r.modes ? ` · Paid by <b>${esc(r.modes)}</b>` : ''}</p>
         <table style="width:100%;border-collapse:collapse;font-size:14px">
           <tr><th align="left" style="border-bottom:1px solid #111;padding:6px 0">Student</th><th align="left" style="border-bottom:1px solid #111">Month</th><th align="right" style="border-bottom:1px solid #111">Amount</th></tr>
-          ${r.items.map((i) => `<tr><td style="padding:6px 0;border-bottom:1px solid #ddd">${esc(i.name)}<br><small>${esc(i.tuitionClass)}</small></td><td style="border-bottom:1px solid #ddd">${esc(i.monthLabel)}</td><td align="right" style="border-bottom:1px solid #ddd">${esc(rupees(i.amount))}${i.amount < i.fee ? `<br><small>part of ${esc(rupees(i.fee))}</small>` : ''}</td></tr>`).join('')}
+          ${r.items.map((i) => `<tr><td style="padding:6px 0;border-bottom:1px solid #ddd">${esc(i.name)}<br><small>${esc(i.tuitionClass)}</small></td><td style="border-bottom:1px solid #ddd">${esc(i.monthLabel)}</td><td align="right" style="border-bottom:1px solid #ddd">${esc(rupees(i.paidNow))}${i.before ? `<br><small>+ ${esc(rupees(i.before))} paid before</small>` : i.amount < i.fee ? `<br><small>part of ${esc(rupees(i.fee))}</small>` : ''}</td></tr>`).join('')}
           <tr><td colspan="2" style="padding:8px 0"><b>Total received</b></td><td align="right"><b>${esc(rupees(r.total))}</b></td></tr>
         </table>
         <p style="margin:26px 0 0;display:flex;justify-content:space-between"><span>Thank you.</span><span style="border-top:1px solid #111;padding-top:4px;min-width:140px;text-align:center">Signature</span></p>
@@ -72,7 +73,7 @@ export default function ReceiptModal({ paymentIds, onClose, onSent, justPaid = f
               {r.items.map((i) => (
                 <div key={i.paymentId} className="tu-receipt-line">
                   <span>{i.name} <small>· {i.monthLabel}</small></span>
-                  <strong>{rupees(i.amount)}{i.amount < i.fee && <small> of {rupees(i.fee)}</small>}</strong>
+                  <strong>{rupees(i.paidNow)}{i.before > 0 ? <small> + {rupees(i.before)} before</small> : i.amount < i.fee && <small> of {rupees(i.fee)}</small>}</strong>
                 </div>
               ))}
               <div className="tu-receipt-line tu-receipt-total"><span>Total received</span><strong>{rupees(r.total)}</strong></div>

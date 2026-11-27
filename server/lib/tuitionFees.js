@@ -74,8 +74,12 @@ function nextReminderDate(settings) {
 // ── Receipts ──
 const receiptNo = (id) => `TU-${String(id).padStart(5, '0')}`;
 
-/** Receipt for these payments (must be one family). Throws { code: 400 } when not. */
-async function buildReceipt(prisma, paymentIds) {
+/**
+ * Receipt for these payments (must be one family). Throws { code: 400 } when not.
+ * earlier: { paymentId: amount that month already had before this payment } — so a receipt
+ * for "the rest" (₹500 earlier + ₹100 now) says ₹100 received, not ₹600.
+ */
+async function buildReceipt(prisma, paymentIds, earlier = {}) {
   const ids = [...new Set((paymentIds || []).map(Number).filter(Number.isInteger))];
   if (!ids.length) throw Object.assign(new Error('Choose the payment.'), { code: 400 });
   const pays = await prisma.tuitionPayment.findMany({
@@ -92,8 +96,9 @@ async function buildReceipt(prisma, paymentIds) {
     schoolClass: p.tuitionStudent.student.class.name, tuitionClass: p.tuitionStudent.class.name,
     month: p.month, monthLabel: monthLabel(p.month), amount: p.amount, fee: feeOf(p.tuitionStudent),
     paidOn: p.paidOn, mode: p.mode, note: p.note,
-  }));
-  const total = items.reduce((n, i) => n + i.amount, 0);
+    before: Math.min(p.amount, Math.max(0, Number(earlier?.[p.id]) || 0)),
+  })).map((i) => ({ ...i, paidNow: Math.round((i.amount - i.before) * 100) / 100 }));
+  const total = items.reduce((n, i) => n + i.paidNow, 0);
   const latest = pays.reduce((a, p) => (new Date(p.paidOn) > new Date(a.paidOn) ? p : a), pays[0]);
   const modes = [...new Set(items.map((i) => i.mode).filter(Boolean))].join(', ');
   const number = receiptNo(Math.min(...ids));
@@ -101,7 +106,9 @@ async function buildReceipt(prisma, paymentIds) {
     `🧾 Fee receipt ${number}`,
     settings.payeeName,
     `Received with thanks ${rupees(total)} on ${dateLabel(latest.paidOn)}${modes ? ` (${modes})` : ''}:`,
-    ...items.map((i) => `• ${i.name} (${i.tuitionClass}), ${i.monthLabel}: ${rupees(i.amount)}${i.amount < i.fee ? ` (part of ${rupees(i.fee)})` : ''}`),
+    ...items.map((i) => `• ${i.name} (${i.tuitionClass}), ${i.monthLabel}: ${rupees(i.paidNow)}${i.before
+      ? (i.amount >= i.fee ? ` (rest; ${rupees(i.before)} paid before, month fully paid)` : ` (with ${rupees(i.before)} before: ${rupees(i.amount)} of ${rupees(i.fee)})`)
+      : (i.amount < i.fee ? ` (part of ${rupees(i.fee)})` : '')}`),
     'Thank you.',
   ];
   return {

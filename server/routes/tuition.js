@@ -284,8 +284,9 @@ router.post('/fees', async (req, res) => {
   try {
     const data = { amount, paidOn, mode: cleanText(req.body?.mode, 20) || null, note: cleanText(req.body?.note, 200) || null, recordedById: req.user.userId };
     // add: true → the rest of a part payment; added to what was already paid that month
+    let before = null;
     if (req.body?.add) {
-      const before = await prisma.tuitionPayment.findUnique({ where: { tuitionStudentId_month: { tuitionStudentId, month } } });
+      before = await prisma.tuitionPayment.findUnique({ where: { tuitionStudentId_month: { tuitionStudentId, month } } });
       if (before) {
         data.amount = Math.round((before.amount + amount) * 100) / 100;
         if (!data.note && before.note) data.note = before.note;
@@ -297,9 +298,65 @@ router.post('/fees', async (req, res) => {
       create: { tuitionStudentId, month, ...data },
       update: data,
     });
-    res.status(201).json({ payment: p });
+    res.status(201).json({ payment: p, earlier: before ? { [p.id]: before.amount } : {} });
   } catch (err) { fail(res, err); }
 });
+// ── Several months at once (late fees, or 2–3 months paid together / in advance) ──
+const AHEAD = 3; // months in advance that can be paid
+/** GET /fees/plan?ids=1,2 (tuition student ids) → each student's months: owed ones, and the next few */
+router.get('/fees/plan', async (req, res) => {
+  const ids = String(req.query.ids || '').split(',').map(Number).filter(Number.isInteger);
+  if (!ids.length) return res.status(400).json({ error: 'Choose the student.' });
+  try {
+    const now = thisMonth();
+    const rows = await prisma.tuitionStudent.findMany({ where: { id: { in: ids } }, include: { class: true, payments: true, student: { select: { name: true } } } });
+    const students = rows.map((r) => {
+      const fee = feeOf(r);
+      const joined = monthOf(r.joinedOn);
+      const from = joined > now ? now : joined < addMonths(now, -20) ? addMonths(now, -20) : joined;
+      const months = monthsBetween(from, addMonths(now, AHEAD)).map((m) => {
+        const paid = r.payments.find((p) => p.month === m)?.amount || 0;
+        return { month: m, paid, left: Math.max(0, fee - paid), ahead: m > now, current: m === now };
+      }).filter((m) => m.left > 0 && fee > 0);
+      return { tuitionStudentId: r.id, name: r.student.name, tuitionClass: r.class.name, fee, months };
+    }).sort((a, b) => ids.indexOf(a.tuitionStudentId) - ids.indexOf(b.tuitionStudentId));
+    res.json({ now, students });
+  } catch (err) { fail(res, err); }
+});
+/** POST /fees/many { items: [{ tuitionStudentId, month, amount }], paidOn, mode, note } — each amount is ADDED to what that month already has */
+router.post('/fees/many', async (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  const paidOn = req.body?.paidOn ? new Date(`${String(req.body.paidOn).slice(0, 10)}T00:00:00.000Z`) : new Date();
+  const last = addMonths(thisMonth(), AHEAD);
+  const clean = items.map((i) => ({ tuitionStudentId: Number(i?.tuitionStudentId), month: String(i?.month || ''), amount: money(i?.amount) }));
+  if (!clean.length) return res.status(400).json({ error: 'Tick at least one month.' });
+  if (clean.length > 60) return res.status(400).json({ error: 'Too many months at once.' });
+  if (clean.some((i) => !Number.isInteger(i.tuitionStudentId) || !MONTH.test(i.month) || i.month > last)) return res.status(400).json({ error: 'One of the months is not valid.' });
+  if (clean.some((i) => i.amount === null || i.amount <= 0)) return res.status(400).json({ error: 'Type the amount for each ticked month.' });
+  if (isNaN(paidOn)) return res.status(400).json({ error: 'The date is not valid.' });
+  const mode = cleanText(req.body?.mode, 20) || null;
+  const note = cleanText(req.body?.note, 200) || null;
+  try {
+    const payments = await prisma.$transaction(async (tx) => {
+      const out = [];
+      const earlier = {};
+      for (const i of clean) {
+        const key = { tuitionStudentId_month: { tuitionStudentId: i.tuitionStudentId, month: i.month } };
+        const before = await tx.tuitionPayment.findUnique({ where: key });
+        const data = {
+          amount: Math.round(((before?.amount || 0) + i.amount) * 100) / 100,
+          paidOn, mode, note: note || before?.note || null, recordedById: req.user.userId, receiptSentAt: null, receiptVia: null,
+        };
+        const p = await tx.tuitionPayment.upsert({ where: key, create: { tuitionStudentId: i.tuitionStudentId, month: i.month, ...data }, update: data });
+        if (before?.amount) earlier[p.id] = before.amount;
+        out.push(p);
+      }
+      return { out, earlier };
+    });
+    res.status(201).json({ payments: payments.out, earlier: payments.earlier, total: clean.reduce((n, i) => n + i.amount, 0) });
+  } catch (err) { fail(res, err); }
+});
+
 router.delete('/fees/:id', async (req, res) => {
   try { await prisma.tuitionPayment.delete({ where: { id: Number(req.params.id) } }); res.json({ ok: true }); }
   catch (err) { fail(res, err); }
@@ -382,12 +439,13 @@ router.put('/settings', async (req, res) => {
 // ── Fee receipts: ?ids=1,2 (one family) ──
 const receiptFail = (res, err) => fail(res, err, err.code || 500);
 router.get('/fees/receipt', async (req, res) => {
-  try { res.json({ receipt: await fees.buildReceipt(prisma, String(req.query.ids || '').split(',')) }); }
+  const earlier = Object.fromEntries(String(req.query.earlier || '').split(',').map((x) => x.split(':').map(Number)).filter(([k, v]) => k && v > 0));
+  try { res.json({ receipt: await fees.buildReceipt(prisma, String(req.query.ids || '').split(','), earlier) }); }
   catch (err) { receiptFail(res, err); }
 });
 router.post('/fees/receipt', async (req, res) => {
   try {
-    const receipt = await fees.buildReceipt(prisma, req.body?.paymentIds);
+    const receipt = await fees.buildReceipt(prisma, req.body?.paymentIds, req.body?.earlier || {});
     const result = await fees.sendReceipt(prisma, receipt);
     res.json(result);
   } catch (err) { receiptFail(res, err); }

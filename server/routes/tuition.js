@@ -244,8 +244,10 @@ router.get('/fees', async (req, res) => {
       .map((r) => {
         const fee = feeOf(r);
         const pay = r.payments.find((p) => p.month === month) || null;
-        // Earlier months (since joining) without a payment
-        const earlier = monthsBetween(monthOf(r.joinedOn), month).slice(0, -1).filter((m) => fee > 0 && !r.payments.some((p) => p.month === m));
+        // Earlier months (since joining) not fully paid; part-paid ones carry what was paid
+        const paidIn = (m) => r.payments.find((p) => p.month === m)?.amount || 0;
+        const earlier = monthsBetween(monthOf(r.joinedOn), month).slice(0, -1).filter((m) => fee > 0 && paidIn(m) < fee);
+        const earlierPaid = Object.fromEntries(earlier.filter((m) => paidIn(m) > 0).map((m) => [m, paidIn(m)]));
         return {
           tuitionStudentId: r.id, name: r.student.name, schoolClass: r.student.class.name, rollNumber: r.student.rollNumber,
           tuitionClassId: r.classId, tuitionClass: r.class.name, fee,
@@ -253,6 +255,9 @@ router.get('/fees', async (req, res) => {
           payment: pay && { id: pay.id, amount: pay.amount, paidOn: pay.paidOn, mode: pay.mode, note: pay.note, receiptSentAt: pay.receiptSentAt, receiptVia: pay.receiptVia },
           status: !pay ? (fee > 0 ? 'unpaid' : 'free') : pay.amount >= fee ? 'paid' : 'part',
           earlierUnpaid: earlier,
+          earlierPaid,
+          due: Math.max(0, fee - (pay?.amount || 0)),
+          earlierDue: earlier.reduce((n, m) => n + fee - paidIn(m), 0),
         };
       })
       .sort((a, b) => byClassName(a.tuitionClass, b.tuitionClass) || a.name.localeCompare(b.name));
@@ -278,6 +283,15 @@ router.post('/fees', async (req, res) => {
   if (isNaN(paidOn)) return res.status(400).json({ error: 'The date is not valid.' });
   try {
     const data = { amount, paidOn, mode: cleanText(req.body?.mode, 20) || null, note: cleanText(req.body?.note, 200) || null, recordedById: req.user.userId };
+    // add: true → the rest of a part payment; added to what was already paid that month
+    if (req.body?.add) {
+      const before = await prisma.tuitionPayment.findUnique({ where: { tuitionStudentId_month: { tuitionStudentId, month } } });
+      if (before) {
+        data.amount = Math.round((before.amount + amount) * 100) / 100;
+        if (!data.note && before.note) data.note = before.note;
+        data.receiptSentAt = null; data.receiptVia = null; // the receipt changed: send the new one
+      }
+    }
     const p = await prisma.tuitionPayment.upsert({
       where: { tuitionStudentId_month: { tuitionStudentId, month } },
       create: { tuitionStudentId, month, ...data },
